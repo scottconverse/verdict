@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "plans": ["docs/PLAN.md"],
+  "exec": {
+    "timeout": "3m",
+    "commands": [
+      { "run": "npm test",             "tier": "ran" },
+      { "run": "npm run typecheck",    "tier": "ran" },
+      { "run": "npm run check:auth",   "tier": "browsed", "needs": "server" },
+      { "run": "npm run test:sources", "tier": "browsed", "needs": "server" }
+    ]
+  },
+  "lanes": {
+    "low":      { "checkers": ["wiring", "regressions", "claims_vs_code", "unfinished"], "desks": [] },
+    "standard": { "checkers": ["wiring", "baseline_diff", "regressions", "tests_weakened", "claims_vs_code", "unfinished", "exec"], "desks": ["engineer", "qa"] },
+    "high":     { "checkers": ["*", "-firstrun", "-release"], "desks": ["engineer", "qa", "security", "refuter"] },
+    "release":  { "checkers": ["*"], "desks": ["*"], "bar": "zero_above_nit" }
+  },
+  "blast": {
+    "high_if_touches": ["src/server/auth/**", "migrations/**", "src/routes/**", "package.json"],
+    "release_if_touches": ["CHANGELOG.md", "installer/**"]
+  },
+  "mutation": {
+    "require_when": ["critical_logic_changed", "test_sensitivity_uncertain"],
+    "never_merely_for": ["lane_label", "file_count", "release"]
+  },
+  "vendors": {
+    "cross_vendor_required_from_lane": "standard",
+    "verifier_order": ["codex", "dsh-halo-local", "claude"]
+  },
+  "gate": { "mode": "shadow", "max_sendbacks": 2, "stop_timeout": "20s" },
+  "decisions_owner": "human",
+  "exclude": ["generated", "vendor"]
+}

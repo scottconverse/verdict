@@ -1,0 +1,13 @@
+[package]
+name = "verdict-gate"
+description = "Verdict: the agent writes claims, never verdicts. Command-line tool (vdt)."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+readme = "../../README.md"
+
+[[bin]]
+name = "vdt"
+path = "src/main.rs"

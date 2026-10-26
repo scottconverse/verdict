@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/scottconverse/verdict/policy/schema.json",
+  "title": "Verdict policy (verdict.json)",
+  "description": "Global default at ~/.verdict/policy.json, project override at <repo>/verdict.json. See docs/design.md, section 'The policy file'.",
+  "type": "object",
+  "required": ["version"],
+  "properties": {
+    "version": { "const": 1 },
+    "plans": {
+      "description": "Files that hold the plan.",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "exec": {
+      "type": "object",
+      "properties": {
+        "timeout": { "$ref": "#/$defs/duration" },
+        "commands": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["run", "tier"],
+            "properties": {
+              "run": { "type": "string", "minLength": 1 },
+              "tier": { "$ref": "#/$defs/tier" },
+              "needs": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "lanes": {
+      "type": "object",
+      "propertyNames": { "$ref": "#/$defs/lane" },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "checkers": { "$ref": "#/$defs/selection" },
+          "desks": { "$ref": "#/$defs/selection" },
+          "bar": { "type": "string" }
+        }
+      }
+    },
+    "blast": {
+      "type": "object",
+      "properties": {
+        "high_if_touches": { "$ref": "#/$defs/globs" },
+        "release_if_touches": { "$ref": "#/$defs/globs" }
+      }
+    },
+    "mutation": {
+      "type": "object",
+      "properties": {
+        "require_when": { "type": "array", "items": { "type": "string" } },
+        "never_merely_for": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "vendors": {
+      "type": "object",
+      "properties": {
+        "cross_vendor_required_from_lane": { "$ref": "#/$defs/lane" },
+        "verifier_order": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "gate": {
+      "type": "object",
+      "properties": {
+        "mode": { "enum": ["shadow", "enforce"] },
+        "max_sendbacks": { "type": "integer", "minimum": 0 },
+        "stop_timeout": { "$ref": "#/$defs/duration" }
+      }
+    },
+    "decisions_owner": { "const": "human" },
+    "exclude": { "$ref": "#/$defs/globs" },
+    "suite": {
+      "description": "Suite umbrella only: member repositories and the files that pin them.",
+      "type": "object",
+      "properties": {
+        "members": { "type": "array", "items": { "type": "string" } },
+        "pins": { "$ref": "#/$defs/globs" },
+        "release_truth": { "$ref": "#/$defs/globs" }
+      }
+    }
+  },
+  "$defs": {
+    "lane": { "enum": ["low", "standard", "high", "release"] },
+    "tier": { "enum": ["static", "ran", "browsed", "asset", "judgment", "honest_red", "unverified"] },
+    "duration": { "type": "string", "pattern": "^[0-9]+(ms|s|m|h)$" },
+    "globs": { "type": "array", "items": { "type": "string" } },
+    "selection": {
+      "description": "Names to run. \"*\" means all; a leading \"-\" removes one.",
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

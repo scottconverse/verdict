@@ -1,0 +1,9 @@
+[package]
+name = "verdict-core"
+description = "Verdict ledger, policy engine, verdict, report and exports."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish = false

@@ -1,0 +1,20 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/verdict-core",
+    "crates/verdict-extract",
+    "crates/verdict-checkers",
+    "crates/verdict-desks",
+    "crates/verdict-adapters",
+    "crates/verdict-mcp",
+    "crates/verdict-gui",
+    "crates/verdict-generate",
+    "crates/verdict-cli",
+]
+
+[workspace.package]
+version = "0.0.0"
+edition = "2024"
+license = "Apache-2.0"
+repository = "https://github.com/scottconverse/verdict"
+authors = ["Scott Converse"]

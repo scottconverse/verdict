@@ -1,0 +1,15 @@
+name: dogfood-release
+
+# Verdict ships its own releases through its own release lane.
+# Placeholder until phase 5.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  release-lane:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Placeholder. The release lane arrives in phase 5. Nothing to release yet."

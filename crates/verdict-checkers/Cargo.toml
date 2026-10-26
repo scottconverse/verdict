@@ -1,0 +1,9 @@
+[package]
+name = "verdict-checkers"
+description = "Verdict deterministic checkers."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish = false

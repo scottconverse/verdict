@@ -1,0 +1,14 @@
+Verdict
+Copyright 2026 Scott Converse
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+Attribution
+-----------
+Verdict carries forward ideas, not code, from these projects by the same
+author, which are released under the MIT License:
+
+  dev-rigor-stack, dev-rigor-stack-lite, proof-gate, sixdesk, gauntletgate,
+  audit-team, coder-tdd-qa, prover, claude-hook-kit and codex-hook-kit.
+
+No third-party verification code is included or vendored.
