@@ -40,6 +40,21 @@ enum Command {
     },
     /// List the sessions in this project's ledger.
     Sessions,
+    /// Run the MCP server on standard input and output (for an agent to connect to).
+    Mcp {
+        /// Project folder (default: found from the current folder).
+        #[arg(long)]
+        project: Option<std::path::PathBuf>,
+    },
+    /// Show the ledger in a browser on this machine only (127.0.0.1), read only.
+    Serve {
+        /// Port to listen on.
+        #[arg(long, default_value_t = verdict_gui::DEFAULT_PORT)]
+        port: u16,
+        /// Project folder (default: found from the current folder).
+        #[arg(long)]
+        project: Option<std::path::PathBuf>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -63,6 +78,29 @@ fn main() -> ExitCode {
             return ExitCode::from(1);
         }
     };
+    match &cli.command {
+        Command::Mcp { project } => {
+            let root = find_project_root(project.as_deref().unwrap_or(&cwd));
+            return match verdict_mcp::serve_stdio(root) {
+                Ok(()) => ExitCode::SUCCESS,
+                Err(e) => {
+                    eprintln!("vdt: mcp server stopped: {e}");
+                    ExitCode::from(1)
+                }
+            };
+        }
+        Command::Serve { port, project } => {
+            let root = find_project_root(project.as_deref().unwrap_or(&cwd));
+            return match verdict_gui::serve(root, *port) {
+                Ok(()) => ExitCode::SUCCESS,
+                Err(e) => {
+                    eprintln!("vdt: cannot serve the page on 127.0.0.1:{port}: {e}");
+                    ExitCode::from(1)
+                }
+            };
+        }
+        _ => {}
+    }
     let stdout = std::io::stdout();
     let mut out = stdout.lock();
     match run(cli, &cwd, &mut out) {
@@ -96,6 +134,7 @@ fn run(cli: Cli, cwd: &Path, out: &mut dyn Write) -> Result<u8, LedgerError> {
                 "no ledger in {} yet: nothing to verify",
                 root.display()
             )?,
+            Command::Mcp { .. } | Command::Serve { .. } => {} // handled in main
         }
         return Ok(0);
     };
@@ -142,5 +181,6 @@ fn run(cli: Cli, cwd: &Path, out: &mut dyn Write) -> Result<u8, LedgerError> {
             write!(out, "{text}")?;
             Ok(if ledger.verify()?.is_ok() { 0 } else { 2 })
         }
+        Command::Mcp { .. } | Command::Serve { .. } => Ok(0), // handled in main
     }
 }
