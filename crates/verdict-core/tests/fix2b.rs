@@ -601,3 +601,53 @@ fn yours_to_settle_lists_each_unavailable_component_once() {
         c.yours_to_settle
     );
 }
+
+#[test]
+fn the_report_lists_an_open_prompt_translation_as_yours_to_settle() {
+    let (t, mut l) = l();
+    let claim = l
+        .append(
+            Writer::Agent,
+            Some(SID),
+            Record::Claim {
+                source: ClaimSource::PromptTranslation,
+                text: "src/billing.rs charges the card".into(),
+                names: vec!["src/billing.rs".into()],
+                prompt_ordinal: Some(1),
+            },
+        )
+        .unwrap()
+        .seq;
+    let question = open_decisions(&l, Some(SID))
+        .unwrap()
+        .into_iter()
+        .find(|d| d.decision == DecisionKind::AcceptPromptTranslation)
+        .expect("an open translation")
+        .question;
+    let text = verdict_core::report::render_report(&l, Some(SID)).unwrap();
+    let settle = text
+        .split("YOURS TO SETTLE")
+        .nth(1)
+        .expect("a settle section");
+    assert!(settle.contains(question.lines().next().unwrap()), "{text}");
+    assert!(settle.contains(&format!("(record {claim})")), "{text}");
+    assert!(
+        !settle.contains("nothing recorded for you to settle"),
+        "{text}"
+    );
+
+    apply(
+        t.path(),
+        &mut l,
+        SID,
+        &Action::AcceptPromptTranslation(claim),
+        None,
+    )
+    .unwrap();
+    let after = verdict_core::report::render_report(&l, Some(SID)).unwrap();
+    let settle = after.split("YOURS TO SETTLE").nth(1).unwrap();
+    assert!(
+        !settle.contains(question.lines().next().unwrap()),
+        "{after}"
+    );
+}

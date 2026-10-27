@@ -278,6 +278,19 @@ pub fn render_report_with(
             );
         }
     }
+    // Open prompt-translation questions: the verdict counts them as yours to settle, so the
+    // report lists them too (it must never say "nothing" while the verdict says NEEDS YOU).
+    for d in crate::part1c::open_decisions(ledger, Some(id))?
+        .into_iter()
+        .filter(|d| d.decision == crate::model::DecisionKind::AcceptPromptTranslation)
+    {
+        n += 1;
+        let at = d
+            .record_seq
+            .map(|s| format!(" (record {s})"))
+            .unwrap_or_default();
+        let _ = writeln!(o, "  {n}. {}{at}", indent_block(&d.question, "     "));
+    }
     if n == 0 {
         let _ = writeln!(o, "  (nothing recorded for you to settle)");
     }
