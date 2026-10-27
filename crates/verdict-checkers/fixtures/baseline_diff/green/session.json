@@ -1,0 +1,4 @@
+{
+  "prompts": ["Add a /healthz route to src/app.js, a helper in src/util.js, and validate input with the zod package"],
+  "claims": []
+}

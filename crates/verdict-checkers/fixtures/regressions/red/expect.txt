@@ -1,0 +1,6 @@
+empty-catch
+debugger
+focused-test
+hard-coded-secret
+bare-except
+broken-import

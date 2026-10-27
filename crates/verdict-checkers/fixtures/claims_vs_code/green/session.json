@@ -1,0 +1,7 @@
+{
+  "prompts": ["Add tax to the total"],
+  "claims": [
+    { "source": "final_message", "text": "Updated src/lib.rs so compute_total adds tax" },
+    { "source": "commit_message", "text": "Removed src/gone.rs, see https://example.com/notes for why" }
+  ]
+}
