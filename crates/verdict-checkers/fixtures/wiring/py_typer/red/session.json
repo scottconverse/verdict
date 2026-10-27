@@ -1,0 +1,9 @@
+{
+  "prompts": ["Add an export report command to the CLI"],
+  "claims": [
+    {
+      "source": "final_message",
+      "text": "Added the `export` command group with `report` in `cli/export.py`, mounted on the CLI in `cli/main.py`."
+    }
+  ]
+}

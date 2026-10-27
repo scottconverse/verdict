@@ -1,0 +1,9 @@
+{
+  "prompts": ["Store notes in their own table"],
+  "claims": [
+    {
+      "source": "final_message",
+      "text": "Added a `notes` table with the migration `alembic/versions/0002_add_notes.py`, and `add_note` in `app/notes.py` writes to it."
+    }
+  ]
+}

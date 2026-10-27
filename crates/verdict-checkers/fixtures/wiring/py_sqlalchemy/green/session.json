@@ -1,0 +1,9 @@
+{
+  "prompts": ["Make the Save note button store the note in the database"],
+  "claims": [
+    {
+      "source": "final_message",
+      "text": "POST `/api/notes` is handled by `create_note` in `app/routers/notes.py`, which saves the note through `save_note` in `app/services.py`."
+    }
+  ]
+}

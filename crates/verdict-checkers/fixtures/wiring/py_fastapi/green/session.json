@@ -1,0 +1,9 @@
+{
+  "prompts": ["Let people save a note from the Notes page"],
+  "claims": [
+    {
+      "source": "final_message",
+      "text": "The Save note button on the Notes page now posts to `/api/notes`, which `create_note` in `app/routers/notes.py` handles and stores."
+    }
+  ]
+}

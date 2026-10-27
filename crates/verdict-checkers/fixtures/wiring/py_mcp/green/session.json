@@ -1,0 +1,9 @@
+{
+  "prompts": ["Let the agent delete a note"],
+  "claims": [
+    {
+      "source": "final_message",
+      "text": "Added the `delete_note` MCP tool in `server/main.py`."
+    }
+  ]
+}

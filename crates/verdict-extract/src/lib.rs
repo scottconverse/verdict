@@ -191,63 +191,108 @@ pub fn extract_source(
     out
 }
 
+/// What reading one listed path came to.
+enum Read {
+    /// Not a source file any extractor reads, and not one to report.
+    Skip,
+    /// A source file in a language no extractor parses.
+    Unsupported(String),
+    /// A file that could not be read completely.
+    Incomplete(Incomplete),
+    /// A parsed file.
+    File(Box<FileFacts>),
+}
+
+fn read_one(
+    root: &Path,
+    path: &str,
+    opts: &ScanOptions,
+    extractors: &[Box<dyn Extractor>],
+) -> Read {
+    let Some(lang) = syntax::lang_of(path) else {
+        return if syntax::is_unsupported_source(path) {
+            Read::Unsupported(path.to_string())
+        } else {
+            Read::Skip
+        };
+    };
+    let incomplete = |reason: String| {
+        Read::Incomplete(Incomplete {
+            path: path.to_string(),
+            reason,
+        })
+    };
+    let full = root.join(path);
+    match std::fs::metadata(&full) {
+        Ok(m) if m.len() > opts.max_file_bytes => {
+            return incomplete(format!(
+                "skipped: {} bytes is over the {} byte limit",
+                m.len(),
+                opts.max_file_bytes
+            ));
+        }
+        Err(e) => return incomplete(format!("could not read: {e}")),
+        _ => {}
+    }
+    let bytes = match std::fs::read(&full) {
+        Ok(b) => b,
+        Err(e) => return incomplete(format!("could not read: {e}")),
+    };
+    let Ok(text) = String::from_utf8(bytes) else {
+        return incomplete("not UTF-8 text".into());
+    };
+    Read::File(Box::new(extract_source(path, &text, lang, extractors)))
+}
+
 /// Read and extract the given repo-relative files.
+///
+/// Files are read on several threads, each taking the next unread path; the results are put back
+/// in the order of `paths` and then sorted, so the facts are the same as reading the files one at
+/// a time.
 pub fn extract_files(
     root: &Path,
     paths: &[String],
     opts: &ScanOptions,
     extractors: &[Box<dyn Extractor>],
 ) -> Facts {
-    let mut facts = Facts::default();
-    for path in paths {
-        let Some(lang) = syntax::lang_of(path) else {
-            if syntax::is_unsupported_source(path) {
-                facts.unsupported.push(path.clone());
-            }
-            continue;
-        };
-        let full = root.join(path);
-        match std::fs::metadata(&full) {
-            Ok(m) if m.len() > opts.max_file_bytes => {
-                facts.incomplete.push(Incomplete {
-                    path: path.clone(),
-                    reason: format!(
-                        "skipped: {} bytes is over the {} byte limit",
-                        m.len(),
-                        opts.max_file_bytes
-                    ),
-                });
-                continue;
-            }
-            Err(e) => {
-                facts.incomplete.push(Incomplete {
-                    path: path.clone(),
-                    reason: format!("could not read: {e}"),
-                });
-                continue;
-            }
-            _ => {}
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    let threads = std::thread::available_parallelism()
+        .map(|n| n.get())
+        .unwrap_or(1)
+        .clamp(1, 8)
+        .min(paths.len().max(1));
+    let next = AtomicUsize::new(0);
+    let work = || {
+        let mut done: Vec<(usize, Read)> = Vec::new();
+        loop {
+            let i = next.fetch_add(1, Ordering::Relaxed);
+            let Some(path) = paths.get(i) else { break };
+            done.push((i, read_one(root, path, opts, extractors)));
         }
-        let bytes = match std::fs::read(&full) {
-            Ok(b) => b,
-            Err(e) => {
-                facts.incomplete.push(Incomplete {
-                    path: path.clone(),
-                    reason: format!("could not read: {e}"),
-                });
-                continue;
-            }
-        };
-        let Ok(text) = String::from_utf8(bytes) else {
-            facts.incomplete.push(Incomplete {
-                path: path.clone(),
-                reason: "not UTF-8 text".into(),
-            });
-            continue;
-        };
-        facts
-            .files
-            .push(extract_source(path, &text, lang, extractors));
+        done
+    };
+    let mut results: Vec<(usize, Read)> = if threads <= 1 {
+        work()
+    } else {
+        std::thread::scope(|s| {
+            let handles: Vec<_> = (0..threads).map(|_| s.spawn(work)).collect();
+            handles
+                .into_iter()
+                .flat_map(|h| h.join().unwrap_or_else(|e| std::panic::resume_unwind(e)))
+                .collect()
+        })
+    };
+    results.sort_by_key(|(i, _)| *i);
+
+    let mut facts = Facts::default();
+    for (_, r) in results {
+        match r {
+            Read::Skip => {}
+            Read::Unsupported(p) => facts.unsupported.push(p),
+            Read::Incomplete(i) => facts.incomplete.push(i),
+            Read::File(f) => facts.files.push(*f),
+        }
     }
     facts.files.sort_by(|a, b| a.path.cmp(&b.path));
     facts.unsupported.sort();
