@@ -33,7 +33,7 @@ The tool exists for one person directing several AI coding agents from several v
 
 ## Architecture at a glance
 
-&#91;embedded content: five layers · evidence flows down, verdicts come out of the ledger\]
+![Five layers: evidence flows down, verdicts come out of the ledger](architecture.png)
 
 The ledger is the hub. Adapters feed it; checkers and desks read it and append findings; the policy engine computes a verdict from it; the human closes what only a human may close.
 
