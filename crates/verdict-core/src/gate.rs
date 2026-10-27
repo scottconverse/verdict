@@ -165,9 +165,48 @@ fn gate_check(
                 finished_at: now,
                 outcome,
                 detail: Some(detail),
+                tree_state: crate::baseline::tree_state_of_ledger(ledger),
             },
         )?
         .seq)
+}
+
+/// When the session's diff could not be read, say so in the ledger: a `check_unavailable` record
+/// for lane classification (the lane was set to the highest). Not repeated while the latest such
+/// record of the session says the same.
+fn record_lane_unavailable(
+    ledger: &mut Ledger,
+    session: &str,
+    live: &crate::verdict::Live,
+) -> Result<(), LedgerError> {
+    let Some(why) = &live.input.diff_unavailable else {
+        return Ok(());
+    };
+    let why = format!("{why}; the lane was set to release");
+    let same = ledger
+        .records_for_session(session)?
+        .iter()
+        .rev()
+        .find_map(|s| match &s.record {
+            Record::CheckUnavailable { component, reason }
+                if component == crate::lane::LANE_COMPONENT =>
+            {
+                Some(*reason == why)
+            }
+            _ => None,
+        })
+        .unwrap_or(false);
+    if !same {
+        ledger.append(
+            Writer::Core,
+            Some(session),
+            Record::CheckUnavailable {
+                component: crate::lane::LANE_COMPONENT.into(),
+                reason: why,
+            },
+        )?;
+    }
+    Ok(())
 }
 
 /// Run the pre-commit gate for the project in `opts.root`.
@@ -242,6 +281,7 @@ pub fn run_pre_commit(
     }
 
     let live = live_input(root, &ledger, &session, opts.home)?;
+    record_lane_unavailable(&mut ledger, &session, &live)?;
     let lane = crate::lane::effective_lane(&ledger, &session, live.input.implied_lane)?;
     let checkers = live
         .input
@@ -457,6 +497,7 @@ pub fn run_verdict(
         ));
     };
     let live = live_input(root, &ledger, &session, home)?;
+    record_lane_unavailable(&mut ledger, &session, &live)?;
     if let Some(runner) = runner {
         let lane = crate::lane::effective_lane(&ledger, &session, live.input.implied_lane)?;
         let checkers = live

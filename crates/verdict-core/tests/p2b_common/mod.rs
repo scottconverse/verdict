@@ -128,6 +128,7 @@ pub fn check(l: &mut Ledger, name: &str, tier: Tier, outcome: CheckOutcome) -> u
                 CheckOutcome::FailedToRun => Some("could not start".into()),
                 CheckOutcome::SkippedByPolicy => Some("policy did not require it".into()),
             },
+            tree_state: Some(TEST_TREE.into()),
         },
     )
     .unwrap()
@@ -213,16 +214,21 @@ pub fn human(l: &mut Ledger, decision: DecisionKind, choice: &str, reason: Optio
 }
 
 /// The verdict input for `lane` under the built-in default policy.
+/// The tree state the seeded tests' checks ran on, and the state `input` says the code is in now.
+pub const TEST_TREE: &str = "test-tree";
+
 pub fn input(lane: Lane) -> VerdictInput {
     let policy = Policy::builtin().unwrap();
-    VerdictInput::from_policy(
+    let mut i = VerdictInput::from_policy(
         &policy,
         verdict_core::lane::Classification {
             lane,
             reasons: vec![format!("test: {} lane", lane_name(lane))],
             warnings: vec![],
         },
-    )
+    );
+    i.current_tree = Some(TEST_TREE.into());
+    i
 }
 
 pub fn verdict_of(l: &Ledger, lane: Lane) -> Computed {
@@ -346,6 +352,7 @@ impl CheckRunner for FakeRunner {
                         finished_at: "2026-10-26T12:00:01.000Z".into(),
                         outcome: f.outcome,
                         detail: None,
+                        tree_state: verdict_core::baseline::tree_state_of_ledger(ledger),
                     },
                 )
                 .map_err(|e| e.to_string())?

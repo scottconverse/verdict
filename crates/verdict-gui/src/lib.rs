@@ -269,6 +269,9 @@ label { font-size: 21px; font-weight: 700; display: block; margin: 10px 0 6px; }
 button.danger { background: #8a0000; color: #ffffff; }
 button.danger:hover { background: #5c0000; color: #ffffff; }
 .fine { font-size: 19px; }
+blockquote.claim { font-size: 24px; font-weight: 700; line-height: 1.45; color: #111111; background: #fff6cc; border-left: 8px solid #111111; margin: 10px 0 14px; padding: 12px 16px; overflow-wrap: anywhere; }
+ul.names li { font-size: 24px; font-weight: 700; overflow-wrap: anywhere; }
+ul.names code { font-family: Consolas, 'Courier New', monospace; font-size: 24px; color: #111111; }
 ";
 
 pub(crate) fn page(title: &str, body: &str) -> String {

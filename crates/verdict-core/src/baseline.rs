@@ -148,6 +148,127 @@ fn text(bytes: Vec<u8>) -> String {
     String::from_utf8_lossy(&bytes).trim().to_string()
 }
 
+/// The state of the code at `root` right now, as one comparable string. A check records it when it
+/// runs; the verdict compares it with the state now, so a check counts only for the code it saw.
+///
+/// * In a git repository: `git:<blake3>` over every path git tracks or would track (index entries,
+///   with modified and untracked files hashed the way `git add` would hash them, deleted files
+///   dropped, ignored files and `.verdict/` left out). It does not depend on HEAD, so committing
+///   the checked code does not make a check stale; staging it does not either.
+/// * Elsewhere: `folder:<blake3>`, the folder content hash the baseline uses.
+///
+/// `None` when the state cannot be read; a check with no state never counts as current.
+pub fn tree_state(root: &Path) -> Option<String> {
+    match git(root, &["rev-parse", "--show-toplevel"]).map(text) {
+        Some(top) if !top.is_empty() => git_tree_state(Path::new(&top)),
+        _ => Some(format!("folder:{}", folder_snapshot(root).content_hash)),
+    }
+}
+
+/// [`tree_state`] of the project whose ledger this is (`<root>/.verdict/ledger.db`). `None` for an
+/// in-memory ledger or one stored anywhere else.
+pub fn tree_state_of_ledger(ledger: &crate::ledger::Ledger) -> Option<String> {
+    let dir = ledger.path()?.parent()?;
+    if dir.file_name()? != ".verdict" {
+        return None;
+    }
+    tree_state(dir.parent()?)
+}
+
+fn is_tool_state(path: &str) -> bool {
+    path == ".verdict" || path.starts_with(".verdict/") || path.contains("/.verdict/")
+}
+
+fn nul_split(bytes: &[u8]) -> impl Iterator<Item = String> + '_ {
+    bytes
+        .split(|b| *b == 0)
+        .filter(|p| !p.is_empty())
+        .map(|p| String::from_utf8_lossy(p).to_string())
+}
+
+fn git_tree_state(top: &Path) -> Option<String> {
+    use std::collections::BTreeMap;
+    use std::io::Write;
+    use std::process::Stdio;
+
+    let mut entries: BTreeMap<String, String> = BTreeMap::new();
+    for rec in nul_split(&git(top, &["ls-files", "-s", "-z"])?) {
+        let Some((meta, path)) = rec.split_once('\t') else {
+            continue;
+        };
+        if let Some(sha) = meta.split_whitespace().nth(1) {
+            entries.insert(path.to_string(), sha.to_string());
+        }
+    }
+    let mut changed: Vec<String> = nul_split(&git(
+        top,
+        &["diff", "--name-only", "--no-renames", "--no-relative", "-z"],
+    )?)
+    .collect();
+    changed.extend(nul_split(&git(
+        top,
+        &["ls-files", "--others", "--exclude-standard", "-z"],
+    )?));
+    changed.sort();
+    changed.dedup();
+
+    let mut to_hash: Vec<String> = Vec::new();
+    for path in changed {
+        match std::fs::symlink_metadata(top.join(&path)) {
+            Err(_) => {
+                entries.remove(&path);
+            }
+            Ok(m) if m.is_dir() => {
+                // A submodule whose checkout moved: name it changed, nothing more to read here.
+                entries.insert(path, "changed-directory".to_string());
+            }
+            Ok(_) if path.contains('\n') => {
+                let content = std::fs::read(top.join(&path)).ok()?;
+                entries.insert(path, format!("b3-{}", blake3::hash(&content).to_hex()));
+            }
+            Ok(_) => to_hash.push(path),
+        }
+    }
+    if !to_hash.is_empty() {
+        // `hash-object` without `-w` only computes; nothing is written to the repository.
+        let mut child = Command::new("git")
+            .arg("-C")
+            .arg(top)
+            .args(["hash-object", "--stdin-paths"])
+            .env("GIT_OPTIONAL_LOCKS", "0")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+            .ok()?;
+        let input = to_hash.join("\n") + "\n";
+        let mut stdin = child.stdin.take()?;
+        let writer = std::thread::spawn(move || stdin.write_all(input.as_bytes()));
+        let out = child.wait_with_output().ok()?;
+        writer.join().ok()?.ok()?;
+        if !out.status.success() {
+            return None;
+        }
+        let shas: Vec<String> = String::from_utf8_lossy(&out.stdout)
+            .lines()
+            .map(str::to_string)
+            .collect();
+        if shas.len() != to_hash.len() {
+            return None;
+        }
+        for (path, sha) in to_hash.into_iter().zip(shas) {
+            entries.insert(path, sha);
+        }
+    }
+
+    let mut hasher = blake3::Hasher::new();
+    hasher.update(b"verdict-tree-v1\n");
+    for (path, sha) in entries.iter().filter(|(p, _)| !is_tool_state(p)) {
+        hasher.update(format!("{path}\0{sha}\n").as_bytes());
+    }
+    Some(format!("git:{}", hasher.finalize().to_hex()))
+}
+
 /// Take the baseline snapshot of the project at `root`. Never fails: when git cannot be used the
 /// baseline says so.
 pub fn snapshot(root: &Path) -> Baseline {

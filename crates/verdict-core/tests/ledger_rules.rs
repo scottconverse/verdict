@@ -21,6 +21,7 @@ fn every_record_type_can_be_written_by_its_writer() {
                 finished_at: "b".into(),
                 outcome: CheckOutcome::Ran,
                 detail: None,
+                tree_state: None,
             },
         ),
         (
@@ -118,6 +119,7 @@ fn agent_cannot_write_finding_decision_or_verdict_and_it_is_recorded() {
             finished_at: "b".into(),
             outcome: CheckOutcome::Ran,
             detail: None,
+            tree_state: None,
         },
     ];
     for (i, attempt) in attempts.into_iter().enumerate() {

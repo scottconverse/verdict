@@ -454,6 +454,7 @@ fn append_check(
                 finished_at: now_rfc3339(),
                 outcome,
                 detail,
+                tree_state: verdict_core::baseline::tree_state_of_ledger(ledger),
             },
         )
         .map(|a| a.seq)

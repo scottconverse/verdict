@@ -85,6 +85,7 @@ fn build(m: &Move) -> Record {
             finished_at: "b".into(),
             outcome: CheckOutcome::Ran,
             detail: None,
+            tree_state: Some(TEST_TREE.into()),
         },
         Move::Verdict => Record::Verdict {
             word: VerdictWord::ClearToShip,

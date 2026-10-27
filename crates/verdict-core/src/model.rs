@@ -327,6 +327,12 @@ pub enum Record {
         outcome: CheckOutcome,
         /// Reason or detail.
         detail: Option<String>,
+        /// The state of the code when the check ran ([`crate::baseline::tree_state`]). A check
+        /// counts toward a verdict only while the code is still in this state. Absent in records
+        /// written before this field existed (they keep their hashes); such a check counts as run
+        /// on code that has since changed.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        tree_state: Option<String>,
     },
     /// A finding with at least one evidence pointer. Without one it becomes a hypothesis.
     Finding(Finding),

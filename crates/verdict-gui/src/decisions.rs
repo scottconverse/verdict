@@ -19,7 +19,7 @@ use verdict_core::lane::{ALL_LANES, lane_name};
 use verdict_core::part1c::{one_line, open_decisions, resolve_session};
 use verdict_core::report::render_report_with;
 use verdict_core::timefmt::format_unix_millis as format_millis;
-use verdict_core::verdict::{analyze, compute, live_input, word_label};
+use verdict_core::verdict::{analyze, compute, finding_view_at, live_input, word_label};
 use verdict_core::{DecisionKind, Ledger, LedgerError, Record, VerdictWord, Writer, list_sessions};
 
 use crate::{St, deny, error_page, esc, not_found, page};
@@ -200,15 +200,64 @@ fn session_html(
                     token,
                     id,
                     "accept_finding",
-                    &format!(
-                        "<input type=\"hidden\" name=\"value\" value=\"{}\">",
-                        esc(&f.finding.id)
-                    ),
+                    &format!("<input type=\"hidden\" name=\"value\" value=\"{}\">", f.seq),
                     "Accept as not real",
                     false
                 )
             ),
         ));
+    }
+    // A commit-anyway override from another session stays open until its finding is settled; the
+    // finding lives in that session, so its button is here too.
+    let all = l.records()?;
+    let mut shown: Vec<u64> = Vec::new();
+    for o in a
+        .overrides
+        .iter()
+        .filter(|o| o.open && o.session.as_deref().is_some_and(|s| s != id))
+    {
+        for fid in &o.finding_ids {
+            let Some(last) = all
+                .iter()
+                .rev()
+                .find(|s| matches!(&s.record, Record::Finding(f) if f.id == *fid))
+            else {
+                continue;
+            };
+            let Some(v) = finding_view_at(&all, last.seq).filter(|v| v.is_open()) else {
+                continue;
+            };
+            if shown.contains(&v.seq) {
+                continue;
+            }
+            shown.push(v.seq);
+            waiting += 1;
+            body.push_str(&card(
+                &format!(
+                    "Still open from session {}: {}",
+                    esc(o.session.as_deref().unwrap_or("")),
+                    esc(&v.finding.title)
+                ),
+                &format!(
+                    "<p>You committed past this in session {} (record {}, your reason: \"{}\"). \
+                     Until the finding is fixed, or you tell Verdict it is not real, no session can \
+                     reach CLEAR TO SHIP. (record {}, finding {})</p>{}",
+                    esc(o.session.as_deref().unwrap_or("")),
+                    o.seq,
+                    esc(&o.reason),
+                    v.seq,
+                    esc(&v.finding.id),
+                    form(
+                        token,
+                        id,
+                        "accept_finding",
+                        &format!("<input type=\"hidden\" name=\"value\" value=\"{}\">", v.seq),
+                        "Accept as not real",
+                        false
+                    )
+                ),
+            ));
+        }
     }
     let commands_answered = l.records()?.iter().any(|s| {
         matches!(
@@ -242,13 +291,31 @@ fn session_html(
                 ));
             }
             DecisionKind::AcceptPromptTranslation => {
+                let Some(seq) = d.record_seq else { continue };
                 waiting += 1;
+                let names = d
+                    .added_names
+                    .iter()
+                    .map(|n| format!("<li><code>{}</code></li>", esc(n)))
+                    .collect::<String>();
                 body.push_str(&card(
                     "A claim names something your prompt did not",
                     &format!(
-                        "<p>{}</p><p>Until you settle it the verdict stays at NEEDS YOU. This page cannot \
-                         answer it yet.</p>",
-                        esc(&d.question)
+                        "<p>The agent wrote down what it thinks you asked for:</p>\
+                         <blockquote class=\"claim\">{}</blockquote>\
+                         <p>It names these, which your prompt did not mention:</p>\
+                         <ul class=\"names\">{names}</ul>\
+                         <p>If that is what you asked for, accept it. Until you do, the verdict stays \
+                         at NEEDS YOU. (claim record {seq})</p>{}",
+                        esc(d.claim_text.as_deref().unwrap_or(&d.question)),
+                        form(
+                            token,
+                            id,
+                            "accept_translation",
+                            &format!("<input type=\"hidden\" name=\"value\" value=\"{seq}\">"),
+                            "Accept this claim as what I asked for",
+                            false
+                        )
                     ),
                 ));
             }
@@ -388,6 +455,12 @@ pub(crate) struct DecideForm {
 fn parse_action(f: &DecideForm) -> Result<Action, String> {
     Ok(match f.action.as_str() {
         "accept_finding" => Action::AcceptFinding(f.value.clone()),
+        "accept_translation" => Action::AcceptPromptTranslation(
+            f.value
+                .trim()
+                .parse()
+                .map_err(|_| format!("{:?} is not a claim record number", f.value))?,
+        ),
         "approve_commands" => Action::ApproveCommands,
         "raise_lane" => Action::RaiseLane(lane_from_text(&f.value)?),
         "set_mode" => Action::SetMode(f.value.clone()),
