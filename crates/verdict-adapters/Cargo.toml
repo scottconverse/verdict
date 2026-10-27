@@ -1,9 +1,19 @@
 [package]
 name = "verdict-adapters"
-description = "Verdict host adapters."
+description = "Verdict host adapters: Claude Code and Codex hooks, in shadow mode."
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
 authors.workspace = true
 publish = false
+
+[dependencies]
+blake3 = "1.8.7"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = { version = "1.0.154", features = ["preserve_order"] }
+verdict-core = { version = "0.0.0", path = "../verdict-core" }
+
+[dev-dependencies]
+proptest = "1.12.0"
+rusqlite = { version = "0.41.0", features = ["bundled"] }
