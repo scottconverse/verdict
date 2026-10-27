@@ -1,9 +1,19 @@
 [package]
 name = "verdict-desks"
-description = "Verdict LLM desks."
+description = "Verdict LLM desks: packaged rubrics, the provider interface and the cross-vendor router."
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
 authors.workspace = true
 publish = false
+
+[dependencies]
+blake3 = "1.8.7"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+verdict-core = { version = "0.0.0", path = "../verdict-core" }
+
+[[bin]]
+name = "vdt-fake-desk"
+path = "src/bin/vdt-fake-desk.rs"

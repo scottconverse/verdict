@@ -348,7 +348,7 @@ fn the_queue_lists_what_is_waiting_and_every_phase_two_control() {
     let decide_forms = b.matches("action=\"/decide\"").count();
     let install_forms = b.matches("action=\"/install-hooks\"").count();
     assert_eq!(decide_forms + install_forms, forms);
-    assert_eq!(install_forms, 2, "one button per host");
+    assert_eq!(install_forms, 4, "one button per host");
     assert_eq!(b.matches(&f.page.token).count(), forms);
 }
 

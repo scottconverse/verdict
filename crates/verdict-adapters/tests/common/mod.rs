@@ -36,6 +36,8 @@ impl Drop for TempDir {
 
 pub const CLAUDE: &str = include_str!("../fixtures/claude-session.json");
 pub const CODEX: &str = include_str!("../fixtures/codex-session.json");
+pub const CURSOR: &str = include_str!("../fixtures/cursor-session.json");
+pub const ANTIGRAVITY: &str = include_str!("../fixtures/antigravity-session.json");
 
 /// A project folder plus an empty "home" (so no real policy file is read).
 pub struct Project {

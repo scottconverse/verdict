@@ -348,7 +348,7 @@ pub struct OpenDecision {
 }
 
 /// Hosts whose hooks the human may install, as recorded in the decision's `choice`.
-pub const HOOK_HOSTS: [&str; 2] = ["claude_code", "codex"];
+pub const HOOK_HOSTS: [&str; 4] = ["claude_code", "codex", "cursor", "antigravity"];
 
 /// The human's open decisions, derived from the ledger alone. `session` limits the
 /// session-specific ones (prompt translations, findings) to one session; the project-wide ones

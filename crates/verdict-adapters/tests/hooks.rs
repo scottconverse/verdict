@@ -145,17 +145,74 @@ fn normalized(p: &Project) -> Vec<(String, String, serde_json::Value)> {
 }
 
 #[test]
-fn parity_same_logical_session_gives_the_same_records_on_both_hosts() {
+fn parity_same_logical_session_gives_the_same_records_on_all_four_hosts() {
     let a = Project::new();
     let b = Project::new();
+    let c = Project::new();
+    let d = Project::new();
     run_fixture(&a, "claude", CLAUDE);
     run_fixture(&b, "codex", CODEX);
-    let (na, nb) = (normalized(&a), normalized(&b));
+    run_fixture(&c, "cursor", CURSOR);
+    run_fixture(&d, "antigravity", ANTIGRAVITY);
+    let (na, nb, nc, nd) = (
+        normalized(&a),
+        normalized(&b),
+        normalized(&c),
+        normalized(&d),
+    );
     assert_eq!(na.len(), 5);
     assert_eq!(
         na, nb,
         "records differ beyond host name, raw ids, model and timings"
     );
+    assert_eq!(nc, na, "Cursor gives the same ledger records");
+    assert_eq!(nd, na, "Antigravity gives the same ledger records");
+}
+
+#[test]
+fn cursor_and_antigravity_record_their_own_host_name_and_vendor() {
+    let c = Project::new();
+    run_fixture(&c, "cursor", CURSOR);
+    let recs = c.records();
+    let Record::Session {
+        agent,
+        model,
+        vendor,
+        ..
+    } = &recs[0].record
+    else {
+        panic!()
+    };
+    assert_eq!(
+        (agent.as_str(), model.as_str(), vendor.as_str()),
+        ("cursor", "claude-sonnet-5-5", "anthropic"),
+        "a Cursor session's vendor comes from the model it served"
+    );
+
+    let a = Project::new();
+    run_fixture(&a, "antigravity", ANTIGRAVITY);
+    let recs = a.records();
+    let Record::Session {
+        agent,
+        model,
+        vendor,
+        ..
+    } = &recs[0].record
+    else {
+        panic!()
+    };
+    assert_eq!(
+        (agent.as_str(), model.as_str(), vendor.as_str()),
+        ("antigravity", "gemini-3-pro", "google")
+    );
+    let Record::Prompt { text, .. } = &recs[1].record else {
+        panic!()
+    };
+    assert_eq!(text, "add a login page", "PreInvocation carries the prompt");
+    let Record::ToolCall { tool, target, .. } = &recs[2].record else {
+        panic!()
+    };
+    assert_eq!((tool.as_str(), target.as_str()), ("shell", "cargo test"));
 }
 
 #[test]

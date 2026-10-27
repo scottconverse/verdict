@@ -1,9 +1,15 @@
 [package]
 name = "verdict-generate"
-description = "Verdict generator."
+description = "Verdict generator: host skill files and hook registrations, emitted from the policy."
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
 authors.workspace = true
 publish = false
+
+[dependencies]
+serde_json = "1.0.154"
+verdict-adapters = { version = "0.0.0", path = "../verdict-adapters" }
+verdict-core = { version = "0.0.0", path = "../verdict-core" }
+verdict-desks = { version = "0.0.0", path = "../verdict-desks" }

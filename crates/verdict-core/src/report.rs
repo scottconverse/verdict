@@ -5,6 +5,7 @@
 //! A session with no verdict at all reads honestly: the verdict line says nothing was checked
 //! (never VERIFIED, never clean). Either way the report ends with NOT ESTABLISHED.
 
+use std::collections::BTreeMap;
 use std::fmt::Write as _;
 
 use crate::lane::lane_name;
@@ -15,6 +16,37 @@ use crate::verdict::{CheckState, Computed, FindingStatus, analyze, sections};
 
 fn indent_block(text: &str, pad: &str) -> String {
     text.lines().collect::<Vec<_>>().join(&format!("\n{pad}"))
+}
+
+/// The desk a finding id names, if it came from one (`desk:<name>.<hash>`).
+fn desk_name(id: &str) -> Option<&str> {
+    id.strip_prefix("desk:")?.split('.').next()
+}
+
+/// A desk is capped at five findings in the report body; the rest stay in the ledger and are
+/// counted on one line.
+fn cap_desks(
+    items: &[crate::verdict::FixItem],
+) -> (Vec<&crate::verdict::FixItem>, BTreeMap<String, usize>) {
+    const CAP: usize = 5;
+    let mut shown: BTreeMap<String, usize> = BTreeMap::new();
+    let mut hidden: BTreeMap<String, usize> = BTreeMap::new();
+    let mut visible = Vec::new();
+    for f in items {
+        match desk_name(&f.id) {
+            Some(d) => {
+                let n = shown.entry(d.to_string()).or_default();
+                if *n < CAP {
+                    *n += 1;
+                    visible.push(f);
+                } else {
+                    *hidden.entry(d.to_string()).or_default() += 1;
+                }
+            }
+            None => visible.push(f),
+        }
+    }
+    (visible, hidden)
 }
 
 /// Render the report for `session_id`, or for the most recent session when `None`, with the
@@ -160,10 +192,11 @@ pub fn render_report_with(
     let _ = writeln!(o, "\nFIX FIRST");
     if let Some(a) = &analysis {
         let sec = sections(a, lane_for_sections);
-        if sec.fix_first.is_empty() {
+        let (visible, hidden) = cap_desks(&sec.fix_first);
+        if visible.is_empty() {
             let _ = writeln!(o, "  (none proven wrong)");
         }
-        for (i, f) in sec.fix_first.iter().enumerate() {
+        for (i, f) in visible.iter().enumerate() {
             let _ = writeln!(
                 o,
                 "  {}. [{:?}] {} ({}{}; record {})",
@@ -177,6 +210,9 @@ pub fn render_report_with(
                     .unwrap_or_default(),
                 f.seq
             );
+        }
+        for (desk, n) in hidden {
+            let _ = writeln!(o, "  (+{n} more from the {desk} desk, in the ledger)");
         }
     } else if findings.is_empty() {
         let _ = writeln!(
@@ -203,7 +239,8 @@ pub fn render_report_with(
     let mut n = 0;
     if let Some(a) = &analysis {
         let sec = sections(a, lane_for_sections);
-        for f in &sec.settle {
+        let (visible, hidden) = cap_desks(&sec.settle);
+        for f in &visible {
             n += 1;
             let _ = writeln!(
                 o,
@@ -216,6 +253,13 @@ pub fn render_report_with(
                     .map(|e| format!(", {e}"))
                     .unwrap_or_default(),
                 f.seq
+            );
+        }
+        for (desk, more) in hidden {
+            n += 1;
+            let _ = writeln!(
+                o,
+                "  {n}. (+{more} more from the {desk} desk, in the ledger)"
             );
         }
         for ov in a.overrides.iter().filter(|ov| ov.open) {

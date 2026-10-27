@@ -1944,6 +1944,12 @@ dependencies = [
 [[package]]
 name = "verdict-desks"
 version = "0.0.0"
+dependencies = [
+ "blake3",
+ "serde",
+ "serde_json",
+ "verdict-core",
+]
 
 [[package]]
 name = "verdict-extract"
@@ -1971,6 +1977,8 @@ dependencies = [
  "verdict-adapters",
  "verdict-checkers",
  "verdict-core",
+ "verdict-desks",
+ "verdict-generate",
  "verdict-gui",
  "verdict-mcp",
 ]
@@ -1978,6 +1986,12 @@ dependencies = [
 [[package]]
 name = "verdict-generate"
 version = "0.0.0"
+dependencies = [
+ "serde_json",
+ "verdict-adapters",
+ "verdict-core",
+ "verdict-desks",
+]
 
 [[package]]
 name = "verdict-gui"

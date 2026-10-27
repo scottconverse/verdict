@@ -102,6 +102,29 @@ enum Command {
         #[arg(long)]
         project: Option<std::path::PathBuf>,
     },
+    /// Run the lane's LLM desks through the providers the policy configures, and print one line
+    /// per receipt. Above the cross-vendor lane a same-vendor provider is refused (exit 3).
+    Desks {
+        /// Session id (default: the latest).
+        #[arg(long)]
+        session: Option<String>,
+        /// Lane to run under (default: the lane the session's changes imply).
+        #[arg(long)]
+        lane: Option<String>,
+        /// Project folder (default: found from the current folder).
+        #[arg(long)]
+        project: Option<std::path::PathBuf>,
+    },
+    /// Write the host skill files and hook registrations from the effective policy. The output is
+    /// byte-identical for the same policy on any machine.
+    Generate {
+        /// Folder to write the tree into (default: `<project>/.verdict/generated`).
+        #[arg(long)]
+        out: Option<std::path::PathBuf>,
+        /// Project folder (default: found from the current folder).
+        #[arg(long)]
+        project: Option<std::path::PathBuf>,
+    },
     /// Show the ledger in a browser on this machine only (127.0.0.1). Pressing a button on the
     /// page records one of your decisions; nothing else on it writes.
     Serve {
@@ -198,6 +221,55 @@ fn main() -> ExitCode {
             print!("{report}");
             return ExitCode::SUCCESS;
         }
+        Command::Desks {
+            session,
+            lane,
+            project,
+        } => {
+            let root = find_project_root(project.as_deref().unwrap_or(&cwd));
+            let mut out = std::io::stdout().lock();
+            return match runner::desks(&root, session.as_deref(), lane.as_deref(), &mut out) {
+                Ok(code) => ExitCode::from(code),
+                Err(e) => {
+                    eprintln!("vdt: {e}");
+                    ExitCode::from(1)
+                }
+            };
+        }
+        Command::Generate { out, project } => {
+            let root = find_project_root(project.as_deref().unwrap_or(&cwd));
+            let (policy, warning) = match verdict_core::verdict::load_policy(&root, None) {
+                Ok(p) => p,
+                Err(e) => {
+                    eprintln!("vdt: {e}");
+                    return ExitCode::from(1);
+                }
+            };
+            if let Some(w) = warning {
+                eprintln!(
+                    "vdt: the policy file could not be used, so the built-in default is in force: {w}"
+                );
+            }
+            let out = out
+                .clone()
+                .unwrap_or_else(|| root.join(".verdict/generated"));
+            return match verdict_generate::write_tree(&policy, &out) {
+                Ok(paths) => {
+                    println!(
+                        "generated {} file(s) in {} from policy v{} ({})",
+                        paths.len(),
+                        out.display(),
+                        policy.version,
+                        policy.hash
+                    );
+                    ExitCode::SUCCESS
+                }
+                Err(e) => {
+                    eprintln!("vdt: cannot write the generated tree: {e}");
+                    ExitCode::from(1)
+                }
+            };
+        }
         Command::Serve { port, project } => {
             let root = find_project_root(project.as_deref().unwrap_or(&cwd));
             return match verdict_gui::serve(root, *port) {
@@ -287,6 +359,8 @@ fn run(cli: Cli, cwd: &Path, out: &mut dyn Write) -> Result<u8, LedgerError> {
             | Command::Serve { .. }
             | Command::Scan { .. }
             | Command::Check { .. }
+            | Command::Desks { .. }
+            | Command::Generate { .. }
             | Command::Verdict { .. }
             | Command::Gate { .. }
             | Command::CommitAnyway(_) => {} // handled in main
@@ -341,6 +415,8 @@ fn run(cli: Cli, cwd: &Path, out: &mut dyn Write) -> Result<u8, LedgerError> {
         | Command::Serve { .. }
         | Command::Scan { .. }
         | Command::Check { .. }
+        | Command::Desks { .. }
+        | Command::Generate { .. }
         | Command::Verdict { .. }
         | Command::Gate { .. }
         | Command::CommitAnyway(_) => Ok(0), // handled in main

@@ -42,9 +42,10 @@ pub struct HooksRequest {
     pub vdt_path: Option<String>,
 }
 
-/// The command written into a hook entry.
+/// The command written into a hook entry. The event word is the host's own spelling; the `hook`
+/// driver parses every spelling of the five events.
 pub fn hook_command(vdt: &str, host: Host, event: EventKind) -> String {
-    format!("{vdt} hook {} {}", host.as_str(), event.as_str())
+    format!("{vdt} hook {} {}", host.as_str(), host.event_name(event))
 }
 
 /// The program word to use. Plain `vdt` works from PowerShell, cmd and POSIX shells alike; a
@@ -75,16 +76,45 @@ fn entry(vdt: &str, host: Host, event: EventKind) -> Value {
     })
 }
 
-/// The exact `hooks` block for `host`: `{ "hooks": { "<Event>": [ { "hooks": [ {...} ] } ] } }`.
+/// The exact `hooks` block for `host`.
+///
+/// * Claude Code and Codex: `{ "hooks": { "<Event>": [ { "hooks": [ {...} ] } ] } }`.
+/// * Cursor: `{ "version": 1, "hooks": { "<eventName>": [ { "command": ..., "timeout": N } ] } }`.
+/// * Antigravity: `{ "verdict": { "<Event>": [ { "hooks": [ {...} ] } ] } }`.
 pub fn hook_block(vdt: &str, host: Host) -> Value {
     let mut hooks = Map::new();
-    for ev in EventKind::ALL {
-        hooks.insert(
-            ev.as_str().to_string(),
-            json!([{ "hooks": [entry(vdt, host, ev)] }]),
-        );
+    match host {
+        Host::Cursor => {
+            for ev in EventKind::ALL {
+                hooks.insert(
+                    host.event_name(ev).to_string(),
+                    json!([{
+                        "command": hook_command(vdt, host, ev),
+                        "timeout": timeout_for(ev),
+                    }]),
+                );
+            }
+            json!({ "version": 1, "hooks": Value::Object(hooks) })
+        }
+        Host::Antigravity => {
+            for ev in EventKind::ALL {
+                hooks.insert(
+                    host.event_name(ev).to_string(),
+                    json!([{ "hooks": [entry(vdt, host, ev)] }]),
+                );
+            }
+            json!({ "verdict": Value::Object(hooks) })
+        }
+        _ => {
+            for ev in EventKind::ALL {
+                hooks.insert(
+                    ev.as_str().to_string(),
+                    json!([{ "hooks": [entry(vdt, host, ev)] }]),
+                );
+            }
+            json!({ "hooks": Value::Object(hooks) })
+        }
     }
-    json!({ "hooks": Value::Object(hooks) })
 }
 
 /// Is this command one of ours for `host`? The shape is exactly four words,
@@ -150,6 +180,11 @@ pub struct Change {
 
 /// Merge our entries for `host` into `root` (the parsed file), in place.
 pub fn merge_into(root: &mut Value, vdt: &str, host: Host) -> Result<Change, String> {
+    match host {
+        Host::Cursor => return cursor_merge(root, vdt),
+        Host::Antigravity => return antigravity_merge(root, vdt),
+        _ => {}
+    }
     let want: Vec<(String, Value)> = EventKind::ALL
         .iter()
         .map(|e| (e.as_str().to_string(), entry(vdt, host, *e)))
@@ -205,6 +240,11 @@ pub fn merge_into(root: &mut Value, vdt: &str, host: Host) -> Result<Change, Str
 /// Remove our entries for `host` from `root`, in place. Emptied groups and events are dropped;
 /// an emptied `hooks` key is dropped; nothing else is touched.
 pub fn remove_from(root: &mut Value, host: Host) -> Result<Change, String> {
+    match host {
+        Host::Cursor => return cursor_remove(root),
+        Host::Antigravity => return antigravity_remove(root),
+        _ => {}
+    }
     let mut removed = 0;
     if let Some(hooks) = hooks_object(root)? {
         let events: Vec<String> = hooks.keys().cloned().collect();
@@ -255,6 +295,8 @@ pub fn target_path(
 ) -> Result<PathBuf, String> {
     match host {
         Host::Claude => Ok(project.join(".claude").join("settings.json")),
+        Host::Cursor => Ok(project.join(".cursor").join("hooks.json")),
+        Host::Antigravity => Ok(project.join(".agents").join("hooks.json")),
         Host::Codex => {
             let home = match codex_home {
                 Some(h) => h.to_path_buf(),
@@ -267,6 +309,207 @@ pub fn target_path(
             Ok(home.join("hooks.json"))
         }
     }
+}
+
+/// Cursor's file is flat: `hooks.<eventName>` is a list of entries with `command` themselves.
+fn cursor_ours(entry: &Value) -> bool {
+    entry
+        .get("command")
+        .and_then(Value::as_str)
+        .is_some_and(|c| is_ours(c, Host::Cursor))
+}
+
+fn cursor_merge(root: &mut Value, vdt: &str) -> Result<Change, String> {
+    if let Some(hooks) = root
+        .get("hooks")
+        .and_then(Value::as_object)
+        .cloned()
+    {
+        let mut exact = true;
+        for ev in EventKind::ALL {
+            let key = Host::Cursor.event_name(ev);
+            let want = hook_command(vdt, Host::Cursor, ev);
+            let ours: Vec<&Value> = hooks
+                .get(key)
+                .and_then(Value::as_array)
+                .map(|a| a.iter().filter(|e| cursor_ours(e)).collect())
+                .unwrap_or_default();
+            if ours.len() != 1
+                || ours[0].get("command").and_then(Value::as_str) != Some(want.as_str())
+            {
+                exact = false;
+            }
+        }
+        if exact {
+            return Ok(Change {
+                added: 0,
+                removed: 0,
+                changed: false,
+            });
+        }
+    }
+    let removed = cursor_remove(root)?.removed;
+    let obj = root
+        .as_object_mut()
+        .ok_or("the file is not a JSON object")?;
+    obj.entry("version").or_insert(json!(1));
+    let hooks = obj
+        .entry("hooks")
+        .or_insert_with(|| Value::Object(Map::new()))
+        .as_object_mut()
+        .ok_or("the \"hooks\" key is not an object")?;
+    let mut added = 0;
+    for ev in EventKind::ALL {
+        let key = Host::Cursor.event_name(ev).to_string();
+        let list = hooks
+            .entry(key)
+            .or_insert_with(|| Value::Array(Vec::new()))
+            .as_array_mut()
+            .ok_or("a Cursor event entry is not a list")?;
+        list.push(json!({
+            "command": hook_command(vdt, Host::Cursor, ev),
+            "timeout": timeout_for(ev),
+        }));
+        added += 1;
+    }
+    Ok(Change {
+        added,
+        removed,
+        changed: true,
+    })
+}
+
+fn cursor_remove(root: &mut Value) -> Result<Change, String> {
+    let mut removed = 0;
+    if let Some(hooks) = root.get_mut("hooks").and_then(Value::as_object_mut) {
+        let events: Vec<String> = hooks.keys().cloned().collect();
+        for event in events {
+            let Some(list) = hooks.get_mut(&event).and_then(Value::as_array_mut) else {
+                continue;
+            };
+            let before = list.len();
+            list.retain(|e| !cursor_ours(e));
+            removed += before - list.len();
+            if list.is_empty() {
+                hooks.shift_remove(&event);
+            }
+        }
+        if hooks.is_empty()
+            && let Some(o) = root.as_object_mut()
+        {
+            o.shift_remove("hooks");
+        }
+    }
+    Ok(Change {
+        added: 0,
+        removed,
+        changed: removed > 0,
+    })
+}
+
+/// Antigravity's file is named groups: `"verdict".<Event>` is a list of matcher groups, each with
+/// a `hooks` list. Only the `verdict` group belongs to this tool.
+fn antigravity_ours(group: &Value, host: Host) -> bool {
+    group
+        .get("hooks")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .any(|h| {
+            h.get("command")
+                .and_then(Value::as_str)
+                .is_some_and(|c| is_ours(c, host))
+        })
+}
+
+fn antigravity_merge(root: &mut Value, vdt: &str) -> Result<Change, String> {
+    if let Some(group) = root.get("verdict").and_then(Value::as_object) {
+        let mut exact = true;
+        for ev in EventKind::ALL {
+            let key = Host::Antigravity.event_name(ev);
+            let want = hook_command(vdt, Host::Antigravity, ev);
+            let ours: Vec<&Value> = group
+                .get(key)
+                .and_then(Value::as_array)
+                .map(|a| {
+                    a.iter()
+                        .filter(|g| antigravity_ours(g, Host::Antigravity))
+                        .collect()
+                })
+                .unwrap_or_default();
+            let ok = ours.len() == 1
+                && ours[0]
+                    .get("hooks")
+                    .and_then(Value::as_array)
+                    .is_some_and(|l| {
+                        l.len() == 1
+                            && l[0].get("command").and_then(Value::as_str) == Some(want.as_str())
+                    });
+            if !ok {
+                exact = false;
+            }
+        }
+        if exact {
+            return Ok(Change {
+                added: 0,
+                removed: 0,
+                changed: false,
+            });
+        }
+    }
+    let removed = antigravity_remove(root)?.removed;
+    let obj = root
+        .as_object_mut()
+        .ok_or("the file is not a JSON object")?;
+    let group = obj
+        .entry("verdict")
+        .or_insert_with(|| Value::Object(Map::new()))
+        .as_object_mut()
+        .ok_or("the \"verdict\" key is not an object")?;
+    let mut added = 0;
+    for ev in EventKind::ALL {
+        let key = Host::Antigravity.event_name(ev).to_string();
+        let list = group
+            .entry(key)
+            .or_insert_with(|| Value::Array(Vec::new()))
+            .as_array_mut()
+            .ok_or("an Antigravity event entry is not a list")?;
+        list.push(json!({ "hooks": [entry(vdt, Host::Antigravity, ev)] }));
+        added += 1;
+    }
+    Ok(Change {
+        added,
+        removed,
+        changed: true,
+    })
+}
+
+fn antigravity_remove(root: &mut Value) -> Result<Change, String> {
+    let mut removed = 0;
+    if let Some(group) = root.get_mut("verdict").and_then(Value::as_object_mut) {
+        let events: Vec<String> = group.keys().cloned().collect();
+        for event in events {
+            let Some(groups) = group.get_mut(&event).and_then(Value::as_array_mut) else {
+                continue;
+            };
+            let before_len = groups.len();
+            groups.retain(|g| !antigravity_ours(g, Host::Antigravity));
+            removed += before_len - groups.len();
+            if groups.is_empty() {
+                group.shift_remove(&event);
+            }
+        }
+        if group.is_empty()
+            && let Some(o) = root.as_object_mut()
+        {
+            o.shift_remove("verdict");
+        }
+    }
+    Ok(Change {
+        added: 0,
+        removed,
+        changed: removed > 0,
+    })
 }
 
 fn read_json(path: &Path) -> Result<Option<Value>, String> {

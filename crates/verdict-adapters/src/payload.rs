@@ -15,14 +15,20 @@ pub enum Host {
     Claude,
     /// OpenAI Codex.
     Codex,
+    /// Cursor (agent chat).
+    Cursor,
+    /// Google Antigravity.
+    Antigravity,
 }
 
 impl Host {
-    /// Parse the command-line name (`claude`, `codex`), case-insensitively.
+    /// Parse the command-line name (`claude`, `codex`, `cursor`, `antigravity`), case-insensitively.
     pub fn parse(s: &str) -> Option<Host> {
         match s.trim().to_ascii_lowercase().as_str() {
             "claude" | "claude-code" => Some(Host::Claude),
             "codex" => Some(Host::Codex),
+            "cursor" => Some(Host::Cursor),
+            "antigravity" | "antigravity-cli" => Some(Host::Antigravity),
             _ => None,
         }
     }
@@ -32,15 +38,86 @@ impl Host {
         match self {
             Host::Claude => "claude",
             Host::Codex => "codex",
+            Host::Cursor => "cursor",
+            Host::Antigravity => "antigravity",
         }
     }
 
-    /// The model vendor recorded in the session record.
+    /// The model vendor recorded in the session record. Cursor serves models from several vendors,
+    /// so its vendor is derived from the model; `unknown` when the payload does not say.
     pub fn vendor(self) -> &'static str {
         match self {
             Host::Claude => "anthropic",
             Host::Codex => "openai",
+            Host::Cursor => "unknown",
+            Host::Antigravity => "google",
         }
+    }
+
+    /// The host's own event name (Cursor and Antigravity spell some of them differently).
+    pub fn event_name(self, kind: EventKind) -> &'static str {
+        match self {
+            Host::Cursor => match kind {
+                EventKind::SessionStart => "sessionStart",
+                EventKind::UserPromptSubmit => "beforeSubmitPrompt",
+                EventKind::PreToolUse => "preToolUse",
+                EventKind::PostToolUse => "postToolUse",
+                EventKind::Stop => "stop",
+            },
+            // Antigravity has no prompt-submit event. Its PreInvocation fires before the model is
+            // called and is where the prompt reaches a hook; the field names it sends are not
+            // verified yet (docs/HOSTS.md).
+            Host::Antigravity => match kind {
+                EventKind::UserPromptSubmit => "PreInvocation",
+                _ => kind.as_str(),
+            },
+            _ => kind.as_str(),
+        }
+    }
+
+    /// Where a project's hook registration lives, as a path relative to the project.
+    pub fn project_hooks_file(self) -> &'static str {
+        match self {
+            Host::Claude => ".claude/settings.json",
+            Host::Codex => ".codex/hooks.json",
+            Host::Cursor => ".cursor/hooks.json",
+            Host::Antigravity => ".agents/hooks.json",
+        }
+    }
+
+    /// Every host, in page order.
+    pub const ALL: [Host; 4] = [Host::Claude, Host::Codex, Host::Cursor, Host::Antigravity];
+}
+
+/// The vendor of a model name, for a host that serves more than one vendor.
+pub fn vendor_of_model(model: &str) -> Option<&'static str> {
+    let m = model.to_ascii_lowercase();
+    if m.contains("claude") || m.contains("anthropic") {
+        Some("anthropic")
+    } else if m.contains("gpt")
+        || (m.starts_with('o') && m.chars().nth(1).is_some_and(|c| c.is_ascii_digit()))
+    {
+        Some("openai")
+    } else if m.contains("gemini") || m.contains("google") {
+        Some("google")
+    } else if m.contains("deepseek") {
+        Some("deepseek")
+    } else if m.contains("llama") || m.contains("qwen") || m.contains("mistral") {
+        Some("local")
+    } else {
+        None
+    }
+}
+
+/// The vendor to record for a session: the host's own, refined by the model when the host can
+/// serve several vendors.
+pub fn session_vendor(host: Host, model: Option<&str>) -> String {
+    match host {
+        Host::Cursor => model
+            .and_then(vendor_of_model)
+            .unwrap_or("unknown")
+            .to_string(),
+        _ => host.vendor().to_string(),
     }
 }
 
@@ -69,7 +146,9 @@ impl EventKind {
             .to_ascii_lowercase();
         match key.as_str() {
             "sessionstart" => Some(EventKind::SessionStart),
-            "userpromptsubmit" => Some(EventKind::UserPromptSubmit),
+            "userpromptsubmit" | "beforesubmitprompt" | "preinvocation" => {
+                Some(EventKind::UserPromptSubmit)
+            }
             "pretooluse" => Some(EventKind::PreToolUse),
             "posttooluse" => Some(EventKind::PostToolUse),
             "stop" => Some(EventKind::Stop),
@@ -138,6 +217,19 @@ fn text(v: &Value, key: &str) -> Option<String> {
     }
 }
 
+/// The first of `keys` that holds a non-empty string. Cursor and Antigravity spell some fields
+/// differently from Claude Code and Codex, and neither spelling is verified against a live host
+/// yet (see `docs/HOSTS.md`), so both are read and a missing one stays `None`.
+fn first_text(v: &Value, keys: &[&str]) -> Option<String> {
+    keys.iter().find_map(|k| text(v, k))
+}
+
+fn first_value(v: &Value, keys: &[&str]) -> Value {
+    keys.iter()
+        .find_map(|k| v.get(*k).cloned())
+        .unwrap_or(Value::Null)
+}
+
 fn model_name(v: &Value) -> Option<String> {
     match v.get("model") {
         Some(Value::String(s)) if !s.is_empty() => Some(s.clone()),
@@ -159,22 +251,63 @@ pub fn parse_payload(host: Host, kind: EventKind, bytes: &[u8]) -> Result<HookEv
     Ok(HookEvent {
         host,
         kind,
-        session_id: text(&v, "session_id"),
-        turn_id: text(&v, "turn_id").or_else(|| text(&v, "prompt_id")),
-        cwd: text(&v, "cwd").map(PathBuf::from),
-        model: model_name(&v),
-        prompt: match v.get("prompt") {
-            Some(Value::String(s)) => Some(s.clone()),
-            _ => None,
-        },
-        tool_name: text(&v, "tool_name"),
-        tool_input: v.get("tool_input").cloned().unwrap_or(Value::Null),
-        tool_response: v.get("tool_response").cloned().unwrap_or(Value::Null),
-        tool_use_id: text(&v, "tool_use_id"),
-        duration_ms: v.get("duration_ms").and_then(Value::as_u64),
-        last_message: text(&v, "last_assistant_message"),
+        session_id: first_text(
+            &v,
+            &[
+                "session_id",
+                "sessionId",
+                "conversation_id",
+                "conversationId",
+                "thread_id",
+            ],
+        ),
+        turn_id: first_text(
+            &v,
+            &[
+                "turn_id",
+                "turnId",
+                "prompt_id",
+                "promptId",
+                "generation_id",
+                "generationId",
+            ],
+        ),
+        cwd: first_text(&v, &["cwd", "workspace", "workspace_path", "workspaceRoot"])
+            .map(PathBuf::from),
+        model: model_name(&v)
+            .or_else(|| v.get("model").and_then(Value::as_str).map(str::to_string)),
+        prompt: first_text(&v, &["prompt", "user_prompt", "userPrompt", "text"]),
+        tool_name: first_text(&v, &["tool_name", "toolName", "tool"]),
+        tool_input: first_value(&v, &["tool_input", "toolInput", "arguments", "input"]),
+        tool_response: first_value(
+            &v,
+            &[
+                "tool_response",
+                "toolResponse",
+                "tool_output",
+                "toolOutput",
+                "result",
+                "output",
+            ],
+        ),
+        tool_use_id: first_text(&v, &["tool_use_id", "toolUseId", "tool_call_id", "call_id"]),
+        duration_ms: v
+            .get("duration_ms")
+            .or_else(|| v.get("durationMs"))
+            .and_then(Value::as_u64),
+        last_message: first_text(
+            &v,
+            &[
+                "last_assistant_message",
+                "lastAssistantMessage",
+                "message",
+                "response",
+                "text",
+            ],
+        ),
         stop_hook_active: v
             .get("stop_hook_active")
+            .or_else(|| v.get("stopHookActive"))
             .and_then(Value::as_bool)
             .unwrap_or(false),
     })
@@ -187,9 +320,16 @@ pub fn parse_payload(host: Host, kind: EventKind, bytes: &[u8]) -> Result<HookEv
 pub fn canonical_tool(name: &str) -> String {
     match name {
         "Bash" | "PowerShell" | "exec_command" | "shell_command" | "shell" | "local_shell"
-        | "container.exec" => "shell".into(),
-        "Edit" | "MultiEdit" | "NotebookEdit" | "apply_patch" => "edit".into(),
-        "Write" => "write".into(),
+        | "container.exec" | "run_command" | "runCommand" | "Shell" => "shell".into(),
+        "Edit"
+        | "MultiEdit"
+        | "NotebookEdit"
+        | "apply_patch"
+        | "replace_file_content"
+        | "multi_replace_file_content"
+        | "edit_file"
+        | "ApplyPatch" => "edit".into(),
+        "Write" | "write_to_file" => "write".into(),
         other => other.into(),
     }
 }
@@ -260,6 +400,7 @@ pub fn tool_target(canonical: &str, input: &Value, base: Option<&std::path::Path
     if is_shell(canonical) {
         let cmd = str_of("command")
             .or_else(|| str_of("cmd"))
+            .or_else(|| str_of("CommandLine"))
             .or_else(|| match input.get("command").or_else(|| input.get("cmd")) {
                 Some(Value::Array(a)) => Some(
                     a.iter()
@@ -276,6 +417,7 @@ pub fn tool_target(canonical: &str, input: &Value, base: Option<&std::path::Path
         if let Some(p) = str_of("file_path")
             .or_else(|| str_of("notebook_path"))
             .or_else(|| str_of("path"))
+            .or_else(|| str_of("TargetFile"))
         {
             return clip(&relative_to(&p, base));
         }

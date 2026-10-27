@@ -1,0 +1,61 @@
+[
+  {
+    "event": "sessionStart",
+    "payload": {
+      "session_id": "cursor-1",
+      "conversation_id": "cursor-1",
+      "cwd": "__CWD__",
+      "hook_event_name": "sessionStart",
+      "model": "claude-sonnet-5-5"
+    }
+  },
+  {
+    "event": "beforeSubmitPrompt",
+    "payload": {
+      "session_id": "cursor-1",
+      "conversation_id": "cursor-1",
+      "cwd": "__CWD__",
+      "hook_event_name": "beforeSubmitPrompt",
+      "generation_id": "g1",
+      "prompt": "add a login page"
+    }
+  },
+  {
+    "event": "postToolUse",
+    "payload": {
+      "session_id": "cursor-1",
+      "conversation_id": "cursor-1",
+      "cwd": "__CWD__",
+      "hook_event_name": "postToolUse",
+      "generation_id": "g1",
+      "tool_name": "Shell",
+      "tool_input": { "command": "cargo test" },
+      "tool_response": { "stdout": "test result: ok. 3 passed\n", "stderr": "" },
+      "duration_ms": 1200
+    }
+  },
+  {
+    "event": "postToolUse",
+    "payload": {
+      "session_id": "cursor-1",
+      "conversation_id": "cursor-1",
+      "cwd": "__CWD__",
+      "hook_event_name": "postToolUse",
+      "generation_id": "g1",
+      "tool_name": "Edit",
+      "tool_input": { "file_path": "src/login.rs" },
+      "tool_response": { "type": "text", "text": "ok" }
+    }
+  },
+  {
+    "event": "stop",
+    "payload": {
+      "session_id": "cursor-1",
+      "conversation_id": "cursor-1",
+      "cwd": "__CWD__",
+      "hook_event_name": "stop",
+      "generation_id": "g1",
+      "last_assistant_message": "Login page added; tests pass."
+    }
+  }
+]

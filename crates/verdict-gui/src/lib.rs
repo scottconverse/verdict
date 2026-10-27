@@ -508,7 +508,7 @@ async fn install_hooks(State(st): State<St>, Form(form): Form<InstallForm>) -> R
         return deny(StatusCode::BAD_REQUEST, "Unknown host.");
     };
     let root = st.root.clone();
-    let codex_home = st.home.clone();
+    let codex_home = st.home.as_ref().map(|h| h.join(".codex"));
     let r = tokio::task::spawn_blocking(move || -> Result<(u64, String), LedgerError> {
         // The button is the human's decision, so this is where the hooks are actually merged in
         // (the adapters own the merge, the backup and the "never overwrite a file that is not

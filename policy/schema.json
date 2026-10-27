@@ -60,7 +60,27 @@
       "type": "object",
       "properties": {
         "cross_vendor_required_from_lane": { "$ref": "#/$defs/lane" },
-        "verifier_order": { "type": "array", "items": { "type": "string" } }
+        "verifier_order": { "type": "array", "items": { "type": "string" } },
+        "single_vendor": {
+          "description": "Global policy only: refuse (default) or warn when no other vendor can serve a required desk. A project's verdict.json may not set it.",
+          "enum": ["refuse", "warn"]
+        },
+        "providers": {
+          "description": "Desk providers. Each is a command that reads one JSON request on stdin and writes one JSON answer on stdout.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "vendor", "command"],
+            "properties": {
+              "name": { "type": "string", "minLength": 1 },
+              "vendor": { "type": "string", "minLength": 1 },
+              "command": { "type": "string", "minLength": 1 },
+              "args": { "type": "array", "items": { "type": "string" } },
+              "model": { "type": "string" },
+              "timeout_secs": { "type": "integer", "minimum": 1 }
+            }
+          }
+        }
       }
     },
     "gate": {

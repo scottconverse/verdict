@@ -21,7 +21,9 @@
   },
   "vendors": {
     "cross_vendor_required_from_lane": "standard",
-    "verifier_order": []
+    "verifier_order": [],
+    "single_vendor": "refuse",
+    "providers": []
   },
   "gate": { "mode": "shadow", "max_sendbacks": 2, "stop_timeout": "20s" },
   "decisions_owner": "human",

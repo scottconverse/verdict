@@ -1,0 +1,52 @@
+[
+  {
+    "event": "SessionStart",
+    "payload": {
+      "conversation_id": "antigravity-1",
+      "cwd": "__CWD__",
+      "hook_event_name": "SessionStart",
+      "model": "gemini-3-pro"
+    }
+  },
+  {
+    "event": "PreInvocation",
+    "payload": {
+      "conversation_id": "antigravity-1",
+      "cwd": "__CWD__",
+      "hook_event_name": "PreInvocation",
+      "prompt": "add a login page"
+    }
+  },
+  {
+    "event": "PostToolUse",
+    "payload": {
+      "conversation_id": "antigravity-1",
+      "cwd": "__CWD__",
+      "hook_event_name": "PostToolUse",
+      "toolName": "run_command",
+      "toolInput": { "CommandLine": "cargo test", "Cwd": "__CWD__" },
+      "toolResponse": { "output": "test result: ok. 3 passed\n" },
+      "durationMs": 1200
+    }
+  },
+  {
+    "event": "PostToolUse",
+    "payload": {
+      "conversation_id": "antigravity-1",
+      "cwd": "__CWD__",
+      "hook_event_name": "PostToolUse",
+      "toolName": "replace_file_content",
+      "toolInput": { "TargetFile": "src/login.rs" },
+      "toolResponse": { "output": "ok" }
+    }
+  },
+  {
+    "event": "Stop",
+    "payload": {
+      "conversation_id": "antigravity-1",
+      "cwd": "__CWD__",
+      "hook_event_name": "Stop",
+      "message": "Login page added; tests pass."
+    }
+  }
+]

@@ -66,6 +66,22 @@ pub trait CheckRunner {
         checkers: &[String],
         opts: &RunOptions,
     ) -> Result<Vec<CheckSummary>, String>;
+
+    /// Run the lane's desks, when this build has a desk engine and the policy configures a
+    /// provider. The implementation writes its own receipts and findings. An `Err` means the
+    /// desks could not run; the gate records that, it never treats it as a clean result.
+    ///
+    /// The default does nothing, so a runner that has no desks (the tests' fakes) leaves the
+    /// verdict exactly as before.
+    fn run_desks(
+        &self,
+        _ledger: &mut Ledger,
+        _root: &Path,
+        _session: &str,
+        _lane: crate::model::Lane,
+    ) -> Result<(), String> {
+        Ok(())
+    }
 }
 
 /// The runner used when none is wired in: it runs nothing and says so.
@@ -302,6 +318,22 @@ pub fn run_pre_commit(
         },
     )?;
 
+    let desks = catch_unwind(AssertUnwindSafe(|| {
+        runner.run_desks(&mut ledger, root, &session, lane)
+    }))
+    .unwrap_or_else(|_| Err("the desk engine crashed".into()));
+    if let Err(reason) = desks {
+        // The engine records the desks that could not run; a crash has not, so record it here.
+        ledger.append(
+            Writer::Core,
+            Some(&session),
+            Record::CheckUnavailable {
+                component: "desks".into(),
+                reason: reason.clone(),
+            },
+        )?;
+    }
+
     let computed = compute(&ledger, &session, &live.input)?;
     record_verdict(&mut ledger, &computed)?;
     let would_hold = computed.word == VerdictWord::Failed;
@@ -517,6 +549,20 @@ pub fn run_verdict(
                 timeout: default_timeout(&live.policy),
             },
         )?;
+        let desks = catch_unwind(AssertUnwindSafe(|| {
+            runner.run_desks(&mut ledger, root, &session, lane)
+        }))
+        .unwrap_or_else(|_| Err("the desk engine crashed".into()));
+        if let Err(reason) = desks {
+            ledger.append(
+                Writer::Core,
+                Some(&session),
+                Record::CheckUnavailable {
+                    component: "desks".into(),
+                    reason,
+                },
+            )?;
+        }
     }
     let c = compute(&ledger, &session, &live.input)?;
     let seq = record_verdict(&mut ledger, &c)?;

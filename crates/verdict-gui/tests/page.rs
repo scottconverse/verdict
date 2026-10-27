@@ -204,12 +204,14 @@ fn route_home_lists_sessions_and_a_hooks_button_per_host() {
         r.body
     );
     assert!(r.body.contains("claude / model-x"));
-    assert_eq!(r.body.matches("Install hooks in this project").count(), 2);
-    assert!(r.body.contains("Claude Code") && r.body.contains("Codex"));
+    assert_eq!(r.body.matches("Install hooks in this project").count(), 4);
+    for host in ["Claude Code", "Codex", "Cursor", "Antigravity"] {
+        assert!(r.body.contains(host), "{host} is missing");
+    }
     assert!(r.body.contains(&f.page.token));
-    // The page is read only: its only form posts to the install route.
-    assert_eq!(r.body.matches("<form").count(), 2);
-    assert_eq!(r.body.matches("action=\"/install-hooks\"").count(), 2);
+    // The page is read only: its only forms post to the install route.
+    assert_eq!(r.body.matches("<form").count(), 4);
+    assert_eq!(r.body.matches("action=\"/install-hooks\"").count(), 4);
 }
 
 #[test]

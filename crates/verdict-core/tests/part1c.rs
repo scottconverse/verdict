@@ -72,7 +72,7 @@ fn done_when_that_cannot_be_wrong_is_refused() {
 fn open_decisions_list_hooks_and_shrink_when_the_human_answers() {
     let mut l = Ledger::open_in_memory().unwrap();
     let before = open_decisions(&l, None).unwrap();
-    assert_eq!(before.len(), 2);
+    assert_eq!(before.len(), 4, "one per supported host");
     assert!(
         before
             .iter()
@@ -90,7 +90,7 @@ fn open_decisions_list_hooks_and_shrink_when_the_human_answers() {
     )
     .unwrap();
     let after = open_decisions(&l, None).unwrap();
-    assert_eq!(after.len(), 1);
+    assert_eq!(after.len(), 3);
     assert_eq!(after[0].key, "install_hooks:claude_code");
     assert_eq!(current_mode(&l).unwrap(), "shadow");
 }

@@ -1,7 +1,7 @@
-//! The hook block a human adds to a host's settings to install Verdict's hooks.
+//! The hook registration the page offers to install, for each host.
 //!
-//! Part 1b owns the real installer (`vdt hooks install`). Until it is merged this page records
-//! the decision and shows the block; it never edits the host's files itself.
+//! The block shown and the file the button writes are the adapters' own `hook_block`, so the page
+//! cannot drift from `vdt hooks install`.
 
 /// A host whose hooks the page can offer to install.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -10,17 +10,28 @@ pub enum Host {
     ClaudeCode,
     /// Codex.
     Codex,
+    /// Cursor.
+    Cursor,
+    /// Google Antigravity.
+    Antigravity,
 }
 
 impl Host {
-    /// Both hosts, in page order.
-    pub const ALL: [Host; 2] = [Host::ClaudeCode, Host::Codex];
+    /// Every host, in page order.
+    pub const ALL: [Host; 4] = [
+        Host::ClaudeCode,
+        Host::Codex,
+        Host::Cursor,
+        Host::Antigravity,
+    ];
 
     /// The stable key stored as the decision's choice.
     pub fn key(self) -> &'static str {
         match self {
             Host::ClaudeCode => "claude_code",
             Host::Codex => "codex",
+            Host::Cursor => "cursor",
+            Host::Antigravity => "antigravity",
         }
     }
 
@@ -34,6 +45,8 @@ impl Host {
         match self {
             Host::ClaudeCode => "Claude Code",
             Host::Codex => "Codex",
+            Host::Cursor => "Cursor",
+            Host::Antigravity => "Antigravity",
         }
     }
 
@@ -42,6 +55,8 @@ impl Host {
         match self {
             Host::ClaudeCode => ".claude/settings.json in this project",
             Host::Codex => "hooks.json in your Codex home folder (normally ~/.codex/hooks.json)",
+            Host::Cursor => ".cursor/hooks.json in this project",
+            Host::Antigravity => ".agents/hooks.json in this project",
         }
     }
 
@@ -50,31 +65,14 @@ impl Host {
         match self {
             Host::ClaudeCode => verdict_adapters::payload::Host::Claude,
             Host::Codex => verdict_adapters::payload::Host::Codex,
+            Host::Cursor => verdict_adapters::payload::Host::Cursor,
+            Host::Antigravity => verdict_adapters::payload::Host::Antigravity,
         }
     }
 
-    /// The exact block to add: three hooks, each calling `vdt hook <host> <event>`.
-    /// The Stop hook has a 20 second timeout, as the design says.
+    /// The exact registration, in this host's own shape.
     pub fn block(self) -> String {
-        let (name, tools) = match self {
-            Host::ClaudeCode => ("claude", "Edit|Write|MultiEdit|NotebookEdit|Bash"),
-            Host::Codex => ("codex", "apply_patch|Bash"),
-        };
-        format!(
-            r#"{{
-  "hooks": {{
-    "UserPromptSubmit": [
-      {{ "hooks": [ {{ "type": "command", "command": "vdt hook {name} UserPromptSubmit" }} ] }}
-    ],
-    "PostToolUse": [
-      {{ "matcher": "{tools}",
-        "hooks": [ {{ "type": "command", "command": "vdt hook {name} PostToolUse" }} ] }}
-    ],
-    "Stop": [
-      {{ "hooks": [ {{ "type": "command", "command": "vdt hook {name} Stop", "timeout": 20 }} ] }}
-    ]
-  }}
-}}"#
-        )
+        let value = verdict_adapters::install::hook_block("vdt", self.adapter_host());
+        serde_json::to_string_pretty(&value).unwrap_or_default()
     }
 }

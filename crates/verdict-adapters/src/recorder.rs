@@ -65,7 +65,7 @@ pub fn record_event(ev: &HookEvent, opts: &Options) -> Result<(), String> {
                 &SessionParams {
                     agent: ev.host.as_str().into(),
                     model: model.clone(),
-                    vendor: ev.host.vendor().into(),
+                    vendor: crate::payload::session_vendor(ev.host, Some(&model)),
                     home: opts.home.clone(),
                 },
             )

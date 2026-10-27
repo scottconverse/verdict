@@ -62,6 +62,108 @@ fn existing_settings() -> Value {
 }
 
 #[test]
+fn cursor_install_writes_its_flat_schema_and_uninstall_restores_the_file() {
+    let p = Project::new();
+    let file = p.dir.path().join(".cursor/hooks.json");
+    std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+    let original = json!({
+        "version": 1,
+        "hooks": {
+            "afterFileEdit": [ { "command": "prettier --write $FILE", "timeout": 5 } ]
+        }
+    });
+    std::fs::write(&file, serde_json::to_string_pretty(&original).unwrap()).unwrap();
+
+    let text = run(
+        &req(Host::Cursor, p.dir.path(), None, true, true),
+        p.dir.path(),
+    );
+    assert!(text.contains("installed 5 cursor hooks"), "{text}");
+    let v = read(&file);
+    assert_eq!(v["version"], 1);
+    let hooks = v["hooks"].as_object().unwrap();
+    assert!(hooks["afterFileEdit"][0]["command"] == "prettier --write $FILE");
+    for ev in [
+        "sessionStart",
+        "beforeSubmitPrompt",
+        "preToolUse",
+        "postToolUse",
+        "stop",
+    ] {
+        let list = hooks[ev]
+            .as_array()
+            .unwrap_or_else(|| panic!("{ev} missing: {v}"));
+        assert_eq!(list.len(), 1, "{ev}: {v}");
+        assert_eq!(list[0]["command"], format!("vdt hook cursor {ev}"));
+        assert!(list[0]["timeout"].is_number());
+    }
+    // Idempotent, one backup.
+    let text = run(
+        &req(Host::Cursor, p.dir.path(), None, true, true),
+        p.dir.path(),
+    );
+    assert!(text.contains("already installed"), "{text}");
+    assert_eq!(backups(file.parent().unwrap()).len(), 1);
+    // Uninstall removes only ours and puts the original back.
+    run(
+        &req(Host::Cursor, p.dir.path(), None, true, false),
+        p.dir.path(),
+    );
+    assert_eq!(read(&file), original);
+}
+
+#[test]
+fn antigravity_install_writes_its_named_group_and_uninstall_restores_the_file() {
+    let p = Project::new();
+    let file = p.dir.path().join(".agents/hooks.json");
+    std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+    let original = json!({
+        "my-linter": {
+            "PostToolUse": [
+                { "matcher": "run_command", "hooks": [ { "type": "command", "command": "./lint.sh" } ] }
+            ]
+        }
+    });
+    std::fs::write(&file, serde_json::to_string_pretty(&original).unwrap()).unwrap();
+
+    let text = run(
+        &req(Host::Antigravity, p.dir.path(), None, true, true),
+        p.dir.path(),
+    );
+    assert!(text.contains("installed 5 antigravity hooks"), "{text}");
+    let v = read(&file);
+    assert!(v["my-linter"].is_object(), "another tool's hook is kept");
+    let group = v["verdict"].as_object().unwrap();
+    for ev in [
+        "SessionStart",
+        "PreInvocation",
+        "PreToolUse",
+        "PostToolUse",
+        "Stop",
+    ] {
+        let list = group[ev]
+            .as_array()
+            .unwrap_or_else(|| panic!("{ev} missing: {v}"));
+        assert_eq!(list.len(), 1);
+        assert_eq!(
+            list[0]["hooks"][0]["command"],
+            format!("vdt hook antigravity {ev}")
+        );
+    }
+    let text = run(
+        &req(Host::Antigravity, p.dir.path(), None, true, true),
+        p.dir.path(),
+    );
+    assert!(text.contains("already installed"), "{text}");
+    assert_eq!(backups(file.parent().unwrap()).len(), 1);
+    run(
+        &req(Host::Antigravity, p.dir.path(), None, true, false),
+        p.dir.path(),
+    );
+    assert_eq!(read(&file), original);
+}
+
+#[test]
 fn without_the_human_flag_it_prints_the_exact_block_and_writes_nothing() {
     let proj = TempDir::new("inst");
     let text = run(
