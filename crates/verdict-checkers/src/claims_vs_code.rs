@@ -99,14 +99,49 @@ fn symbol_ident(name: &str) -> String {
         .to_string()
 }
 
+static REMOVAL_VERB: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)\b(?:delet\w*|remov\w*|drop(?:ped|ping)?|renam\w*)\b").expect("static regex")
+});
+
+/// Where a clause that started with a removal verb ends: a sentence break, or "and added ...".
+static CLAUSE_END: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"(?i)\b(?:and|but|then|while|whereas|plus|also)\s+(?:then\s+)?(?:add|creat|introduc|wrot|writ|implement|updat|chang|modif|extend|fix|renam|mov|replac|insert|new)\w*|[;\n]|\.\s|\.$",
+    )
+    .expect("static regex")
+});
+
+/// Is `name` the target of a verb matched by `verbs` in `text`? The target must sit in the same
+/// clause as the verb, a few words after it ("removed the unused file `a.rs`", "deleted a.rs and
+/// b.rs"), so "removed old.txt and added new.txt" aims the verb at old.txt only.
+fn directed_at(text: &str, name: &str, verbs: &Regex) -> bool {
+    let pat = format!(
+        r#"(?i)^\s*(?:(?:[\w-]+\s+|[^\s,;]+\s*,\s*(?:and\s+)?|[^\s,;]+\s+and\s+)){{0,3}}[`'"]?{}(?:[^\w]|$)"#,
+        regex::escape(name)
+    );
+    let Ok(name_re) = Regex::new(&pat) else {
+        return false;
+    };
+    verbs.find_iter(text).any(|m| {
+        let rest = &text[m.end()..];
+        let clause = match CLAUSE_END.find(rest) {
+            Some(e) => &rest[..e.start()],
+            None => rest,
+        };
+        name_re.is_match(clause)
+    })
+}
+
 /// Does the claim direct a removal or rename at `name` ("removed old.txt", "deleted the file
 /// `old.txt`")?
 fn directed_removal(text: &str, name: &str) -> bool {
-    let pat = format!(
-        r#"(?i)\b(?:delet\w*|remov\w*|drop(?:ped|ping)?|renam\w*)\s+(?:[\w-]+\s+){{0,3}}[`'"]?{}"#,
-        regex::escape(name)
-    );
-    Regex::new(&pat).is_ok_and(|re| re.is_match(text))
+    directed_at(text, name, &REMOVAL_VERB)
+}
+
+/// Does the claim say `name` is gone, moved, replaced or retired? Only a claim like that excuses
+/// a name that is absent from the project.
+fn directed_gone(text: &str, name: &str) -> bool {
+    directed_at(text, name, &NEGATIVE_VERB)
 }
 
 fn file_exists(ctx: &CheckContext, name: &str) -> bool {
@@ -173,6 +208,40 @@ fn find_definition(ctx: &CheckContext, ident: &str) -> Option<(String, u64)> {
     None
 }
 
+/// Why the list of project paths may be short, or `None` when the walk saw everything.
+fn path_gap(ctx: &CheckContext) -> Option<String> {
+    let t = ctx.tree();
+    if t.incomplete.is_empty() {
+        None
+    } else {
+        Some(t.incomplete.join("; "))
+    }
+}
+
+/// Why a search of the source text may have missed something, or `None` when every source file
+/// was read. Files that are not source (and noise paths) do not count.
+fn symbol_gap(ctx: &CheckContext) -> Option<String> {
+    let t = ctx.tree();
+    let mut why: Vec<String> = t.incomplete.clone();
+    let mut skipped: Vec<String> = t
+        .text_gaps
+        .iter()
+        .filter(|(p, _)| is_source_for_symbols(p) && !paths::is_noise_path(p))
+        .map(|(p, w)| format!("{p} was not read ({w})"))
+        .collect();
+    let more = skipped.len().saturating_sub(3);
+    skipped.truncate(3);
+    why.extend(skipped);
+    if more > 0 {
+        why.push(format!("and {more} more file(s) were not read"));
+    }
+    if why.is_empty() {
+        None
+    } else {
+        Some(why.join("; "))
+    }
+}
+
 impl Checker for ClaimsVsCode {
     fn name(&self) -> &'static str {
         "claims_vs_code"
@@ -214,7 +283,6 @@ impl Checker for ClaimsVsCode {
                     names.push(n);
                 }
             }
-            let any_negative = NEGATIVE_VERB.is_match(&claim.text);
             for name in &names {
                 match classify(name) {
                     Kind::File => {
@@ -228,17 +296,23 @@ impl Checker for ClaimsVsCode {
                             continue;
                         }
                         let exists = file_exists(ctx, n);
-                        let directed = directed_removal(&claim.text, name);
-                        if !exists && !any_negative {
-                            drafts.push(self.draft(
-                                ctx,
-                                claim,
-                                "missing-file",
-                                format!("the claim names {name}, which is not in the project"),
-                                "create the file or correct the claim",
-                                None,
-                            ));
-                        } else if exists && directed {
+                        if !exists {
+                            // Absent. That only counts if the walk saw every path.
+                            if let Some(why) = path_gap(ctx) {
+                                ctx.unestablished(format!(
+                                    "could not tell whether {name} is in the project: {why}"
+                                ));
+                            } else if !directed_gone(&claim.text, name) {
+                                drafts.push(self.draft(
+                                    ctx,
+                                    claim,
+                                    "missing-file",
+                                    format!("the claim names {name}, which is not in the project"),
+                                    "create the file or correct the claim",
+                                    None,
+                                ));
+                            }
+                        } else if directed_removal(&claim.text, name) {
                             let at = ctx
                                 .tree()
                                 .paths
@@ -264,22 +338,32 @@ impl Checker for ClaimsVsCode {
                             continue;
                         }
                         let found = find_symbol(ctx, &ident);
-                        let directed = directed_removal(&claim.text, name)
-                            || directed_removal(&claim.text, &ident);
                         match found {
-                            None if !any_negative && !ctx.tree().truncated => {
-                                drafts.push(self.draft(
-                                    ctx,
-                                    claim,
-                                    "missing-symbol",
-                                    format!(
-                                        "the claim names {name}, which appears in no source file"
-                                    ),
-                                    "write it or correct the claim",
-                                    None,
-                                ));
+                            None => {
+                                // Absent. That only counts if every source file was read.
+                                if let Some(why) = symbol_gap(ctx) {
+                                    ctx.unestablished(format!(
+                                        "could not tell whether {name} appears in the code: {why}"
+                                    ));
+                                } else if !(directed_gone(&claim.text, name)
+                                    || directed_gone(&claim.text, &ident))
+                                {
+                                    drafts.push(self.draft(
+                                        ctx,
+                                        claim,
+                                        "missing-symbol",
+                                        format!(
+                                            "the claim names {name}, which appears in no source file"
+                                        ),
+                                        "write it or correct the claim",
+                                        None,
+                                    ));
+                                }
                             }
-                            Some(_) if directed => {
+                            Some(_)
+                                if directed_removal(&claim.text, name)
+                                    || directed_removal(&claim.text, &ident) =>
+                            {
                                 if let Some((p, l)) = find_definition(ctx, &ident) {
                                     drafts.push(self.draft(
                                         ctx,
@@ -291,7 +375,7 @@ impl Checker for ClaimsVsCode {
                                     ));
                                 }
                             }
-                            _ => {}
+                            Some(_) => {}
                         }
                     }
                     Kind::Url | Kind::Other => {}
@@ -354,6 +438,23 @@ mod tests {
             "new.txt"
         ));
         assert!(directed_removal("deleted the unused file `a.rs`", "a.rs"));
+    }
+
+    #[test]
+    fn removal_targets_are_tied_to_their_own_verb() {
+        let t = "Removed src/old.rs and added src/new.rs";
+        assert!(directed_gone(t, "src/old.rs"));
+        assert!(!directed_gone(t, "src/new.rs"));
+        assert!(directed_removal(
+            "Removed old_helper and added new_helper",
+            "old_helper"
+        ));
+        assert!(!directed_removal(
+            "Removed old_helper and added new_helper",
+            "new_helper"
+        ));
+        assert!(directed_removal("deleted a.rs and b.rs", "b.rs"));
+        assert!(!directed_removal("renamed old.rs to new.rs", "new.rs"));
     }
 
     #[test]

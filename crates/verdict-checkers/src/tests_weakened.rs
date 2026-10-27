@@ -198,10 +198,19 @@ impl TestsWeakened {
         if f.binary || !paths::is_code(&f.path) {
             return;
         }
-        let is_rust_inline = paths::ext(&f.path) == "rs"
-            && ctx
-                .read_text(&f.path)
-                .is_some_and(|t| t.contains("#[cfg(test)]"));
+        // A production .rs file holds inline tests if it has the marker now, had it at the
+        // baseline, or the lines this session removed carried it (a deleted test module).
+        let is_rust_inline = paths::ext(&f.path) == "rs" && {
+            const MARKER: &str = "#[cfg(test)]";
+            let from = match &f.status {
+                Status::Renamed(from) => from.clone(),
+                _ => f.path.clone(),
+            };
+            ctx.read_text(&f.path).is_some_and(|t| t.contains(MARKER))
+                || f.removed.iter().any(|l| l.text.contains(MARKER))
+                || (!matches!(f.status, Status::Added)
+                    && ctx.baseline_text(&from).is_some_and(|t| t.contains(MARKER)))
+        };
         if !paths::is_test_path(&f.path) && !is_rust_inline {
             return;
         }

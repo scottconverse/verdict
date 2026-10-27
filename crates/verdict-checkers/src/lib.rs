@@ -272,6 +272,24 @@ pub fn run_lane_with_home(
     };
     let ctx = CheckContext::from_ledger(ledger, root, session, opts.lane, opts.timeout, policy)?;
     ctx.warm();
+    if let Some(problem) = &policy_problem {
+        // The policy says which checkers run, what exec may run and what to exclude. If it cannot
+        // be read, running under the built-in defaults would answer a different question, so no
+        // checker runs: each one says why, and exec runs nothing.
+        let mut summaries = Vec::new();
+        for name in order_checkers(checkers) {
+            let started = now_rfc3339();
+            summaries.push(unavailable(
+                ledger,
+                session,
+                &name,
+                &started,
+                &ctx.inputs_hash(&name),
+                format!("policy could not be read: {problem}"),
+            )?);
+        }
+        return Ok(summaries);
+    }
     let available = registry();
     let existing = existing_ids(ledger, session)?;
     let mut seen_ids = existing;
@@ -317,12 +335,7 @@ pub fn run_lane_with_home(
             .unwrap_or_else(|_| Err(Unavailable::new("the checker crashed (a bug in Verdict)")));
         match result {
             Err(u) => {
-                let mut reason = u.reason;
-                if let Some(p) = &policy_problem {
-                    reason.push_str(&format!(
-                        " (policy files unusable, built-in default used: {p})"
-                    ));
-                }
+                let reason = u.reason;
                 summaries.push(unavailable(
                     ledger,
                     session,
@@ -346,11 +359,6 @@ pub fn run_lane_with_home(
                     detail.push_str("; ");
                     detail.push_str(&n);
                 }
-                if let Some(p) = &policy_problem {
-                    detail.push_str(&format!(
-                        "; policy files unusable, built-in default used: {p}"
-                    ));
-                }
                 if let Some(t) = ctx.exec_tail() {
                     detail.push_str("; output tail: ");
                     detail.push_str(&t);
@@ -359,6 +367,25 @@ pub fn run_lane_with_home(
                     .reached_tier()
                     .or_else(|| checker.tiers().first().copied())
                     .unwrap_or(Tier::Static);
+                write_receipts(ledger, session, &ctx, &started, &ctx.inputs_hash(&name))?;
+                let gaps = ctx.unestablished_reasons();
+                if !gaps.is_empty() {
+                    // Part of what this checker was asked could not be established. Its findings
+                    // stay in the ledger, but the check reads as unavailable, never as clean.
+                    let reason = format!(
+                        "{written} finding(s) written, but not everything could be looked up: {}",
+                        gaps.join("; ")
+                    );
+                    summaries.push(unavailable(
+                        ledger,
+                        session,
+                        &name,
+                        &started,
+                        &ctx.inputs_hash(&name),
+                        reason,
+                    )?);
+                    continue;
+                }
                 let seq = append_check(
                     ledger,
                     session,
@@ -379,6 +406,44 @@ pub fn run_lane_with_home(
         }
     }
     Ok(summaries)
+}
+
+/// One `check` record per command exec ran, written before the checker's own `check` record (the
+/// latest record about a checker is the one that counts), so a reviewer can tell each command's
+/// output apart: command, tier, how it ended, output hash and a bounded tail.
+fn write_receipts(
+    ledger: &mut Ledger,
+    session: &str,
+    ctx: &CheckContext,
+    started: &str,
+    inputs_hash: &str,
+) -> Result<(), String> {
+    for r in ctx.receipts() {
+        let mut detail = format!(
+            "receipt: `{}`; tier {}; {}; output hash {}",
+            r.command,
+            r.tier.as_str(),
+            r.ended,
+            r.output_hash
+        );
+        if let Some(p) = &r.problem {
+            detail.push_str(&format!("; problem: {p}"));
+        }
+        if !r.tail.is_empty() {
+            detail.push_str(&format!("; output tail: {}", r.tail));
+        }
+        append_check(
+            ledger,
+            session,
+            "exec",
+            r.tier,
+            inputs_hash,
+            started,
+            CheckOutcome::Ran,
+            Some(bounded(detail)),
+        )?;
+    }
+    Ok(())
 }
 
 fn bounded(mut text: String) -> String {

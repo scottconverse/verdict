@@ -20,6 +20,7 @@
 //! cannot run, record a [`Record::CheckUnavailable`] and the result reads unverified.
 
 pub mod baseline;
+pub mod exec_approval;
 pub mod gate;
 pub mod githook;
 pub mod human;

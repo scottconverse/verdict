@@ -14,6 +14,9 @@ use axum::{
 };
 use serde::Deserialize;
 use std::path::Path as FsPath;
+use verdict_core::exec_approval::{
+    ApprovalChoice, commands_hash, describe_commands, parse_choice, policy_timeout_text,
+};
 use verdict_core::human::{Action, active_pause, apply, chosen_mode, lane_from_text};
 use verdict_core::lane::{ALL_LANES, lane_name};
 use verdict_core::part1c::{one_line, open_decisions, resolve_session};
@@ -210,25 +213,73 @@ fn session_html(
             ),
         ));
     }
-    let commands_answered = l.records()?.iter().any(|s| {
-        matches!(
-            &s.record,
-            Record::Decision {
-                decision: DecisionKind::RunProjectCommands,
-                who: Writer::Human,
-                ..
-            }
-        )
-    });
-    if c.required.iter().any(|n| n == "exec") && !commands_answered {
+    // The latest answer about running the repo's commands. An approval covers the exact commands,
+    // tiers, shell and timeout it was given for; if the policy changed since, it is asked again.
+    let mut commands_state = None;
+    for s in l.records()? {
+        if let Record::Decision {
+            decision: DecisionKind::RunProjectCommands,
+            choice,
+            who: Writer::Human,
+            ..
+        } = &s.record
+        {
+            commands_state = Some(parse_choice(choice));
+        }
+    }
+    let current_hash = commands_hash(&live.policy);
+    let approval_current =
+        matches!(&commands_state, Some(ApprovalChoice::Approved(h)) if *h == current_hash);
+    let commands_refused = matches!(&commands_state, Some(ApprovalChoice::Refused));
+    if c.required.iter().any(|n| n == "exec") && !approval_current && !commands_refused {
         waiting += 1;
+        let why_again = match &commands_state {
+            Some(ApprovalChoice::Approved(_)) => {
+                "<p><strong>The commands changed since you approved them.</strong> Your earlier \
+                 approval no longer counts. Read the list again.</p>"
+            }
+            Some(ApprovalChoice::Unbound) => {
+                "<p>Your earlier approval did not record which commands it covered, so it counts \
+                 for none. Read the list and approve again.</p>"
+            }
+            _ => "",
+        };
+        let listed = describe_commands(&live.policy);
+        let list_html = if live.policy_warning.is_some() {
+            "<p><strong>The policy file could not be read, so there are no commands to approve \
+             yet. Fix the policy file first.</strong></p>"
+                .to_string()
+        } else if listed.is_empty() {
+            "<p><strong>The policy lists no commands.</strong></p>".to_string()
+        } else {
+            format!(
+                "<p><strong>These are the commands you would be approving. Verdict will run \
+                 exactly these, on this computer, in this folder:</strong></p>\
+                 <pre style=\"font-size:26px;font-weight:700;line-height:1.6\">{}</pre>\
+                 <p>Time limit for each: {}.</p>",
+                listed.iter().map(|x| esc(x)).collect::<Vec<_>>().join("\n"),
+                esc(&policy_timeout_text(&live.policy).unwrap_or_else(|| "the default".into()))
+            )
+        };
+        let button = if live.policy_warning.is_some() || listed.is_empty() {
+            String::new()
+        } else {
+            form(
+                token,
+                id,
+                "approve_commands",
+                "",
+                "Approve this repo's commands",
+                false,
+            )
+        };
         body.push_str(&card(
             "Run this repo's own commands?",
             &format!(
                 "<p>The build, lint and test commands listed in this project's policy are run to get a \
                  <strong>ran</strong> result. Verdict runs none that the policy does not list. Until you \
-                 approve, that check reads as not run.</p>{}",
-                form(token, id, "approve_commands", "", "Approve this repo's commands", false)
+                 approve, that check reads as not run. If the list changes later, you are asked again.</p>\
+                 {why_again}{list_html}{button}"
             ),
         ));
     }

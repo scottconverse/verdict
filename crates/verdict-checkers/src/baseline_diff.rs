@@ -1,6 +1,6 @@
 //! baseline_diff: things that appeared this session that nothing the human wrote asked for.
 //!
-//! "Asked for" means the name shows up in a prompt or a claim of this session (the file, its
+//! "Asked for" means the name shows up in a prompt of this session or in a claim the human accepted (the file, its
 //! folder, the thing a test file tests, the dependency, the table, the route path). Never blocks:
 //! every finding is severity `Major`, which forces NEEDS YOU.
 //!
@@ -91,12 +91,19 @@ impl Checker for BaselineDiff {
                  or routes are new",
             ));
         }
+        // What counts as asked for: what the human wrote (the prompts), and claims the human
+        // accepted with an `accept_prompt_translation` decision. The agent's own words never
+        // authorize work.
         let mut corpus = String::new();
         for p in &ctx.prompts {
             corpus.push_str(p);
             corpus.push('\n');
         }
-        for c in &ctx.claims {
+        for c in ctx
+            .claims
+            .iter()
+            .filter(|c| ctx.accepted_claims.contains(&c.seq))
+        {
             corpus.push_str(&c.text);
             corpus.push('\n');
             for n in &c.names {
@@ -106,7 +113,8 @@ impl Checker for BaselineDiff {
         }
         if corpus.trim().is_empty() {
             return Err(Unavailable::new(
-                "this session has no prompt or claim, so nothing says what was asked for",
+                "this session has no prompt from the human and no claim the human accepted, so \
+                 nothing says what was asked for",
             ));
         }
         let asked = corpus.to_ascii_lowercase().replace('\\', "/");
@@ -163,7 +171,7 @@ impl Checker for BaselineDiff {
                     rule,
                     severity: Severity::Major,
                     title: format!(
-                        "{what} {} that nothing in this session's prompts or claims asked for{extra}",
+                        "{what} {} that nothing in this session's prompts or accepted claims asked for{extra}",
                         f.path
                     ),
                     claim_seq: None,
@@ -282,7 +290,7 @@ impl BaselineDiff {
                         rule: "new-table",
                         severity: Severity::Major,
                         title: format!(
-                            "new table {table} at {}:{} that nothing in this session's prompts or claims asked for",
+                            "new table {table} at {}:{} that nothing in this session's prompts or accepted claims asked for",
                             f.path, l.no
                         ),
                         claim_seq: None,
@@ -309,7 +317,7 @@ impl BaselineDiff {
                         rule: "new-route",
                         severity: Severity::Major,
                         title: format!(
-                            "new route {route} at {}:{} that nothing in this session's prompts or claims asked for",
+                            "new route {route} at {}:{} that nothing in this session's prompts or accepted claims asked for",
                             f.path, l.no
                         ),
                         claim_seq: None,
@@ -420,7 +428,7 @@ impl BaselineDiff {
                 rule: "new-dependency",
                 severity: Severity::Major,
                 title: format!(
-                    "new dependency {dep} in {}:{line} that nothing in this session's prompts or claims asked for",
+                    "new dependency {dep} in {}:{line} that nothing in this session's prompts or accepted claims asked for",
                     f.path
                 ),
                 claim_seq: None,

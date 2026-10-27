@@ -233,7 +233,17 @@ pub fn apply(
             }
             (DecisionKind::AcceptFindingNotReal, id.to_string(), None)
         }
-        Action::ApproveCommands => (DecisionKind::RunProjectCommands, "approved".into(), None),
+        Action::ApproveCommands => {
+            // The approval covers exactly the commands the policy lists right now.
+            let policy = crate::policy::Policy::load(root, home).map_err(|e| {
+                format!("the policy could not be read, so there are no commands to approve: {e}")
+            })?;
+            (
+                DecisionKind::RunProjectCommands,
+                crate::exec_approval::approval_choice(&policy),
+                None,
+            )
+        }
         Action::RaiseLane(lane) => {
             let c = compute_live(root, ledger, session, home).map_err(io)?;
             if *lane <= c.lane {

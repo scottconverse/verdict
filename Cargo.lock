@@ -1852,11 +1852,13 @@ name = "verdict-checkers"
 version = "0.0.0"
 dependencies = [
  "blake3",
+ "libc",
  "regex",
  "serde_json",
  "tempfile",
  "verdict-core",
  "walkdir",
+ "windows-sys",
 ]
 
 [[package]]
