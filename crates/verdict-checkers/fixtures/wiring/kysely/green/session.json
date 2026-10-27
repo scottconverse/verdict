@@ -1,0 +1,6 @@
+{
+  "prompts": ["Store each note in the database"],
+  "claims": [
+    { "source": "final_message", "text": "The `saveNote` server function saves each note to the notes table" }
+  ]
+}

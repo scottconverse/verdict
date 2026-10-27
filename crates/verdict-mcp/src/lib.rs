@@ -9,7 +9,8 @@
 //! * `verdict_check`: returns the verdict the core computes from the ledger (the agent cannot
 //!   write or change it) and the same report `vdt report` prints. It does not run checkers; what
 //!   has not run reads NOT ESTABLISHED, never clean.
-//! * `verdict_scan`: this build has no scanner, so it says so and the report reads NOT ESTABLISHED.
+//! * `verdict_scan`: the scan `vdt scan` runs (wiring, regressions and unfinished over the whole
+//!   tree, no session, no claims). It writes nothing to the ledger; unread stacks read unverified.
 //! * `verdict_decisions`: read only. Lists the human's open decisions.
 //!
 //! The server also recognizes the names an agent might try for a forbidden write (for example
@@ -33,7 +34,7 @@ use verdict_core::part1c::{
 use verdict_core::verdict::compute_and_record;
 use verdict_core::{
     ClaimSource, DecisionKind, Finding, Ledger, LedgerError, Record, Severity, Tier, VerdictWord,
-    Writer, render_report, render_report_with,
+    Writer, render_report_with,
 };
 
 /// The tools this server advertises.
@@ -149,9 +150,12 @@ pub fn tool_definitions() -> Vec<Tool> {
         ),
         Tool::new(
             "verdict_scan",
-            "Return Verdict's report after a wiring scan of the project. In this build no scanner \
-             exists, so nothing is scanned and the report says NOT ESTABLISHED. It never says clean.",
-            schema(json!({"type": "object", "properties": {"session": session.clone()}})),
+            "Scan the whole project, with no session and no claims, and return the report `vdt scan` \
+             prints: every broken call, every route or command nothing calls, every control with no \
+             handler, every called stub, unfinished work and regressions, and a count of CONNECTED, \
+             BROKEN, NOT BUILT, HALF BUILT and SKIPPED. Code in a stack it does not read is listed \
+             as unverified, never clean. It writes nothing to the ledger and is not a verdict.",
+            schema(json!({"type": "object", "properties": {}})),
         ),
         Tool::new(
             "verdict_decisions",
@@ -181,7 +185,7 @@ pub fn handle_tool(root: &Path, name: &str, args: &Map<String, Value>) -> Option
         "verdict_claim" => claim(root, args),
         "verdict_done_when" => done_when(root, args),
         "verdict_check" => check_tool(root, args),
-        "verdict_scan" => report_tool(root, args, "verdict_scan", "scanned"),
+        "verdict_scan" => scan_tool(root),
         "verdict_decisions" => decisions(root, args),
         n if FORBIDDEN_TOOL_NAMES.contains(&n) => forbidden(root, n, args),
         _ => return None,
@@ -316,54 +320,15 @@ fn check_tool(root: &Path, args: &Map<String, Value>) -> Result<ToolOutcome, Led
     )))
 }
 
-fn report_tool(
-    root: &Path,
-    args: &Map<String, Value>,
-    tool: &str,
-    verb: &str,
-) -> Result<ToolOutcome, LedgerError> {
-    let Some(mut ledger) = Ledger::open_existing(root)? else {
-        return Ok(ToolOutcome::ok(format!(
-            "NOT ESTABLISHED. {tool}: nothing was {verb}. There is no ledger in this project yet, \
-             so there is no session to report on. This is not a pass."
-        )));
-    };
-    let Some(session) = resolve_session(&ledger, str_arg(args, "session"))? else {
-        return Ok(ToolOutcome::ok(format!(
-            "NOT ESTABLISHED. {tool}: nothing was {verb}. This project's ledger has no session yet. \
-             This is not a pass."
-        )));
-    };
-    // Say once per session, in the ledger, that this component could not run.
-    let already = ledger.records_for_session(&session)?.iter().any(
-        |s| matches!(&s.record, Record::CheckUnavailable { component, .. } if component == tool),
-    );
-    if !already {
-        ledger.append(
-            Writer::Core,
-            Some(&session),
-            Record::CheckUnavailable {
-                component: tool.to_string(),
-                reason: format!(
-                    "this build has no {}, so nothing was {verb}",
-                    if tool == "verdict_scan" {
-                        "wiring scanner"
-                    } else {
-                        "checkers"
-                    }
-                ),
-            },
-        )?;
-    }
-    let report = render_report(&ledger, Some(&session))?;
+/// `verdict_scan`: the same scan `vdt scan` runs (wiring, regressions and unfinished over the
+/// whole tree, no session, no claims). It reads the code and writes nothing: no ledger record,
+/// no file. A scan is not a verdict.
+fn scan_tool(root: &Path) -> Result<ToolOutcome, LedgerError> {
+    let report = verdict_checkers::scan::scan(root, None).render();
     Ok(ToolOutcome::ok(format!(
-        "{tool}: nothing was {verb}. This build has no {} yet, so the result is NOT ESTABLISHED. \
-         It is not a pass. This is the same report `vdt report` prints:\n\n{report}",
-        if tool == "verdict_scan" {
-            "wiring scanner"
-        } else {
-            "checkers"
-        }
+        "verdict_scan: read the whole project with no session and no claims. Nothing was written to \
+         the ledger, and this is not a verdict: only the core computes one. This is the same report \
+         `vdt scan` prints:\n\n{report}"
     )))
 }
 

@@ -18,6 +18,7 @@ blake3 = "1.8.7"
 regex = "1"
 serde_json = "1.0.154"
 verdict-core = { version = "0.0.0", path = "../verdict-core" }
+verdict-extract = { version = "0.0.0", path = "../verdict-extract" }
 walkdir = "2"
 
 # exec stops the whole process tree a command started: a Job Object on Windows, a process group

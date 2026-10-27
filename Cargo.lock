@@ -1922,6 +1922,7 @@ dependencies = [
  "serde_json",
  "tempfile",
  "verdict-core",
+ "verdict-extract",
  "walkdir",
  "windows-sys",
 ]
@@ -1996,6 +1997,7 @@ dependencies = [
  "rmcp",
  "serde_json",
  "tokio",
+ "verdict-checkers",
  "verdict-core",
 ]
 

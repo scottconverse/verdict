@@ -231,8 +231,39 @@ fn mcp_round_trip_against_the_real_binary() {
     ));
     drop(l);
 
-    // verdict_check and verdict_scan: the same report as `vdt report`, honestly not established.
-    for tool in ["verdict_check", "verdict_scan"] {
+    // verdict_scan: the same report as `vdt scan`, and it writes nothing to the ledger.
+    let before = Ledger::open_existing(&t.0)
+        .unwrap()
+        .unwrap()
+        .records()
+        .unwrap()
+        .len();
+    let (err, text) = m.call("verdict_scan", json!({}));
+    assert!(!err, "{text}");
+    let after = Ledger::open_existing(&t.0)
+        .unwrap()
+        .unwrap()
+        .records()
+        .unwrap()
+        .len();
+    assert_eq!(before, after, "verdict_scan must write nothing: {text}");
+    assert!(text.contains("SCAN: "), "{text}");
+    assert!(text.contains("nothing written to the ledger"), "{text}");
+    assert!(text.contains("NOT ESTABLISHED"), "{text}");
+    assert!(text.contains("wiring: Ran, tier static: "), "{text}");
+    for bad in ["VERDICT: VERIFIED", "CLEAR TO SHIP", "all clear"] {
+        assert!(!text.contains(bad), "verdict_scan said {bad:?}: {text}");
+    }
+    let (ok, cli_scan) = vdt_stdout(&t.0, &["scan"]);
+    assert!(ok);
+    assert!(
+        text.ends_with(&cli_scan),
+        "verdict_scan must end with exactly what `vdt scan` prints.\n--- tool ---\n{text}\n--- cli ---\n{cli_scan}"
+    );
+
+    // verdict_check: the same report as `vdt report`, honestly not established.
+    {
+        let tool = "verdict_check";
         let (err, text) = m.call(tool, json!({}));
         assert!(!err, "{text}");
         assert!(text.contains("NOT ESTABLISHED"), "{tool}: {text}");
@@ -258,7 +289,7 @@ fn mcp_round_trip_against_the_real_binary() {
     );
     assert!(text.contains("the verdict is UNVERIFIED"), "{text}");
     assert!(!cli_report.contains("check unavailable: verdict_check"));
-    assert!(cli_report.contains("check unavailable: verdict_scan"));
+    assert!(!cli_report.contains("check unavailable: verdict_scan"));
     let verdicts = Ledger::open_existing(&t.0)
         .unwrap()
         .unwrap()

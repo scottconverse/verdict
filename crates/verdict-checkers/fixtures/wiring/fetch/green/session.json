@@ -1,0 +1,6 @@
+{
+  "prompts": ["Send new notes to the server"],
+  "claims": [
+    { "source": "final_message", "text": "POST `/api/notes` sends a new note to the server" }
+  ]
+}

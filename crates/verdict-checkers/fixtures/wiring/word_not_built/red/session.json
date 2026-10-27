@@ -1,0 +1,6 @@
+{
+  "prompts": ["Add a CSV export"],
+  "claims": [
+    { "source": "final_message", "text": "Added `src/export.ts` with the `exportCsv` function" }
+  ]
+}

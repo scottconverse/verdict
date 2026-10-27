@@ -1,0 +1,6 @@
+{
+  "prompts": ["Add an MCP tool that searches the notes"],
+  "claims": [
+    { "source": "final_message", "text": "Added the `search` MCP tool" }
+  ]
+}

@@ -113,7 +113,7 @@ fn check_prints_one_line_per_checker_and_finds_a_new_problem() {
 fn unknown_names_and_lanes_are_reported_not_hidden() {
     let t = Tmp::new();
     std::fs::write(t.0.join("a.txt"), "a\n").unwrap();
-    let o = vdt(&t.0, &["check", "--checkers", "wiring"]);
+    let o = vdt(&t.0, &["check", "--checkers", "mutation"]);
     assert!(o.status.success());
     assert!(
         text(&o).contains("could not run (check_unavailable)"),

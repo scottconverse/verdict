@@ -25,9 +25,11 @@ pub mod context;
 pub mod exec;
 pub mod paths;
 pub mod regressions;
+pub mod scan;
 pub mod tests_weakened;
 pub mod tree;
 pub mod unfinished;
+pub mod wiring;
 
 use std::io::Write;
 use std::panic::AssertUnwindSafe;
@@ -56,7 +58,8 @@ pub trait Checker: Send + Sync {
 }
 
 /// Names of the checkers this crate provides.
-pub const CHECKER_NAMES: [&str; 6] = [
+pub const CHECKER_NAMES: [&str; 7] = [
+    "wiring",
     "baseline_diff",
     "regressions",
     "tests_weakened",
@@ -191,6 +194,7 @@ impl Checker for Stubbed {
 /// The real checkers.
 pub fn real_registry() -> Vec<Box<dyn Checker>> {
     vec![
+        Box::new(wiring::Wiring),
         Box::new(baseline_diff::BaselineDiff),
         Box::new(regressions::Regressions),
         Box::new(tests_weakened::TestsWeakened),
@@ -645,7 +649,7 @@ mod tests {
     #[test]
     fn star_and_minus_expand() {
         let all = expand_selection(&v(&["*"]));
-        assert_eq!(all.len(), 6);
+        assert_eq!(all.len(), 7);
         assert_eq!(all.last().map(String::as_str), Some("claims_vs_code"));
         let some = expand_selection(&v(&["*", "-exec", "-unfinished"]));
         assert!(!some.contains(&"exec".to_string()));

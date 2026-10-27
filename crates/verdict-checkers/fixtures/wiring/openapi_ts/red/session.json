@@ -1,0 +1,6 @@
+{
+  "prompts": ["Load the user on the profile screen"],
+  "claims": [
+    { "source": "final_message", "text": "GET `/user/{id}` loads one user for the profile screen" }
+  ]
+}
