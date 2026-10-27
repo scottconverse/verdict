@@ -410,3 +410,58 @@ fn the_stop_budget_plus_the_failure_record_fits_inside_twenty_seconds() {
     assert!(STOP_BUDGET + UNAVAILABLE_BUDGET < Duration::from_secs(20));
     assert!(OTHER_BUDGET < STOP_BUDGET);
 }
+
+#[test]
+fn secrets_in_prompts_commands_and_final_messages_never_reach_the_ledger() {
+    let p = Project::new();
+    let cwd = p.dir.path().to_string_lossy().to_string();
+    let send = |event: &str, extra: serde_json::Value| {
+        let mut v = serde_json::json!({
+            "session_id": "claude-sess-secret",
+            "cwd": cwd,
+            "hook_event_name": event,
+            "model": "m",
+        });
+        for (k, val) in extra.as_object().unwrap() {
+            v[k] = val.clone();
+        }
+        run_bytes(&p, "claude", event, v.to_string().as_bytes());
+    };
+    send(
+        "UserPromptSubmit",
+        serde_json::json!({ "prompt": "use API_KEY=promptsecret111 for the call" }),
+    );
+    send(
+        "PostToolUse",
+        serde_json::json!({
+            "tool_name": "Bash",
+            "tool_input": { "command": "curl -H \"Authorization: Bearer cmdsecret222\" https://x.test" },
+            "tool_response": { "stdout": "ok" }
+        }),
+    );
+    send(
+        "Stop",
+        serde_json::json!({ "last_assistant_message": "Done. Your token: ghp_abcdefghijklmnopqrstuvwxyz0123" }),
+    );
+    let dump = serde_json::to_string(
+        &p.records()
+            .iter()
+            .map(|s| serde_json::to_value(&s.record).unwrap())
+            .collect::<Vec<_>>(),
+    )
+    .unwrap();
+    for secret in [
+        "promptsecret111",
+        "cmdsecret222",
+        "ghp_abcdefghijklmnopqrstuvwxyz0123",
+    ] {
+        assert!(
+            !dump.contains(secret),
+            "{secret} reached the ledger: {dump}"
+        );
+    }
+    assert_eq!(
+        kinds(&p.records()),
+        ["session", "prompt", "tool_call", "claim"]
+    );
+}

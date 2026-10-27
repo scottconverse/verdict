@@ -87,22 +87,19 @@ pub fn hook_block(vdt: &str, host: Host) -> Value {
     json!({ "hooks": Value::Object(hooks) })
 }
 
-/// Is this command one of ours for `host`? The shape is `<...>vdt[.exe] hook <host> <Event>`.
+/// Is this command one of ours for `host`? The shape is exactly four words,
+/// `<program> hook <host> <Event>`, with nothing after them. The program may be plain `vdt` or
+/// any path given with `--vdt-path` (for example `C:/tools/verdict-debug.exe`), so a hook
+/// installed with a custom path can still be found and removed. A command with more words (for
+/// example `vdt hook claude Stop && node policy-check.js`) is the user's own and is never touched.
 pub fn is_ours(command: &str, host: Host) -> bool {
-    let mut words = command.split_whitespace();
-    let (Some(prog), Some(hook), Some(h), Some(ev)) =
-        (words.next(), words.next(), words.next(), words.next())
-    else {
+    let words: Vec<&str> = command.split_whitespace().collect();
+    let [prog, hook, h, ev] = words.as_slice() else {
         return false;
     };
     let prog = prog.trim_matches(['"', '\'']);
-    let name = prog.rsplit(['/', '\\']).next().unwrap_or(prog);
-    let stem = name
-        .strip_suffix(".exe")
-        .or(name.strip_suffix(".EXE"))
-        .unwrap_or(name);
-    stem == "vdt"
-        && hook == "hook"
+    !prog.is_empty()
+        && *hook == "hook"
         && h.eq_ignore_ascii_case(host.as_str())
         && EventKind::parse(ev).is_some()
 }
@@ -301,18 +298,122 @@ fn backup(path: &Path) -> Result<PathBuf, String> {
     Ok(bak)
 }
 
+/// Write `v` to `path` through a new temporary file beside it. The temporary file is created
+/// with `create_new`, so an existing file or link of that name is never truncated or followed;
+/// a name that is taken is skipped. The temporary file is removed if anything fails.
 fn write_json(path: &Path, v: &Value) -> Result<(), String> {
     if let Some(dir) = path.parent() {
         fs::create_dir_all(dir).map_err(|e| format!("cannot create {}: {e}", dir.display()))?;
     }
-    let tmp = path.with_extension(format!("vdt-tmp{}", std::process::id()));
     let mut text = serde_json::to_string_pretty(v).map_err(|e| e.to_string())?;
     text.push('\n');
-    fs::write(&tmp, text).map_err(|e| format!("cannot write {}: {e}", tmp.display()))?;
-    fs::rename(&tmp, path).map_err(|e| {
-        let _ = fs::remove_file(&tmp);
-        format!("cannot replace {}: {e}", path.display())
-    })
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.subsec_nanos())
+        .unwrap_or(0);
+    let mut last_err = None;
+    for attempt in 0..16u32 {
+        let tmp = path.with_extension(format!("vdt-tmp{}-{nanos:x}-{attempt}", std::process::id()));
+        let mut f = match fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&tmp)
+        {
+            Ok(f) => f,
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
+                last_err = Some(e);
+                continue;
+            }
+            Err(e) => return Err(format!("cannot write {}: {e}", tmp.display())),
+        };
+        let written = f.write_all(text.as_bytes()).and_then(|()| f.sync_all());
+        drop(f);
+        if let Err(e) = written {
+            let _ = fs::remove_file(&tmp);
+            return Err(format!("cannot write {}: {e}", tmp.display()));
+        }
+        return fs::rename(&tmp, path).map_err(|e| {
+            let _ = fs::remove_file(&tmp);
+            format!("cannot replace {}: {e}", path.display())
+        });
+    }
+    Err(format!(
+        "cannot find a free temporary name beside {}: {}",
+        path.display(),
+        last_err.map(|e| e.to_string()).unwrap_or_default()
+    ))
+}
+
+/// Read the file's raw text (`None` when missing), to see later whether someone changed it.
+fn read_raw(path: &Path) -> Result<Option<String>, String> {
+    match fs::read_to_string(path) {
+        Ok(s) => Ok(Some(s)),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(format!("cannot read {}: {e}", path.display())),
+    }
+}
+
+/// Read, change and write `path`, but only write if the file still holds what was read. If the
+/// host or an editor saved it in between, start again from the new text (a few times), so their
+/// change is kept, never overwritten with an old copy.
+fn change_file(
+    path: &Path,
+    create_if_missing: bool,
+    edit: &dyn Fn(&mut Value) -> Result<Change, String>,
+) -> Result<Outcome, String> {
+    for _ in 0..5 {
+        let raw = read_raw(path)?;
+        let existed = read_json(path)?;
+        if raw.is_some() != existed.is_some() {
+            continue; // the file appeared or vanished between the two reads
+        }
+        let Some(mut doc) = existed
+            .clone()
+            .or_else(|| create_if_missing.then(|| Value::Object(Map::new())))
+        else {
+            return Ok(Outcome {
+                path: path.to_path_buf(),
+                backup: None,
+                change: Change {
+                    added: 0,
+                    removed: 0,
+                    changed: false,
+                },
+            });
+        };
+        let change = edit(&mut doc)?;
+        if !change.changed {
+            return Ok(Outcome {
+                path: path.to_path_buf(),
+                backup: None,
+                change,
+            });
+        }
+        if read_raw(path)? != raw {
+            continue; // changed under us: redo the edit on the new text
+        }
+        let bak = if existed.is_some() {
+            Some(backup(path)?)
+        } else {
+            None
+        };
+        // The backup holds what we read; if the file moved on while it was copied, start over.
+        if let Some(b) = &bak
+            && read_raw(b)? != raw
+        {
+            continue;
+        }
+        write_json(path, &doc)?;
+        return Ok(Outcome {
+            path: path.to_path_buf(),
+            backup: bak,
+            change,
+        });
+    }
+    Err(format!(
+        "{} kept changing while vdt tried to update it, so it was left alone; try again",
+        path.display()
+    ))
 }
 
 /// What installing or uninstalling did to a file.
@@ -328,47 +429,12 @@ pub struct Outcome {
 
 /// Merge our hooks into `path` (creating it if needed), with a backup.
 pub fn install_file(path: &Path, vdt: &str, host: Host) -> Result<Outcome, String> {
-    let existed = read_json(path)?;
-    let mut doc = existed.clone().unwrap_or_else(|| Value::Object(Map::new()));
-    let change = merge_into(&mut doc, vdt, host)?;
-    let mut bak = None;
-    if change.changed {
-        if existed.is_some() {
-            bak = Some(backup(path)?);
-        }
-        write_json(path, &doc)?;
-    }
-    Ok(Outcome {
-        path: path.to_path_buf(),
-        backup: bak,
-        change,
-    })
+    change_file(path, true, &|doc| merge_into(doc, vdt, host))
 }
 
 /// Remove our hooks from `path`, with a backup. A missing file is nothing to do.
 pub fn uninstall_file(path: &Path, host: Host) -> Result<Outcome, String> {
-    let Some(mut doc) = read_json(path)? else {
-        return Ok(Outcome {
-            path: path.to_path_buf(),
-            backup: None,
-            change: Change {
-                added: 0,
-                removed: 0,
-                changed: false,
-            },
-        });
-    };
-    let change = remove_from(&mut doc, host)?;
-    let mut bak = None;
-    if change.changed {
-        bak = Some(backup(path)?);
-        write_json(path, &doc)?;
-    }
-    Ok(Outcome {
-        path: path.to_path_buf(),
-        backup: bak,
-        change,
-    })
+    change_file(path, false, &|doc| remove_from(doc, host))
 }
 
 /// Run `vdt hooks install|uninstall`. Returns the exit code (0 fine, 1 error).

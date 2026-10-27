@@ -383,3 +383,73 @@ fn an_installed_claude_block_is_what_the_hook_command_understands() {
         );
     }
 }
+
+#[test]
+fn a_hook_with_extra_commands_after_ours_is_the_users_and_is_kept() {
+    let proj = TempDir::new("inst");
+    let file = proj.path().join(".claude").join("settings.json");
+    std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+    let mine = "vdt hook claude Stop && node policy-check.js";
+    std::fs::write(
+        &file,
+        serde_json::to_string_pretty(&json!({
+            "hooks": { "Stop": [ { "hooks": [ { "type": "command", "command": mine } ] } ] }
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+    run(
+        &req(Host::Claude, proj.path(), None, true, true),
+        proj.path(),
+    );
+    assert!(std::fs::read_to_string(&file).unwrap().contains(mine));
+    run(
+        &req(Host::Claude, proj.path(), None, true, false),
+        proj.path(),
+    );
+    let doc = read(&file);
+    assert_eq!(doc["hooks"]["Stop"][0]["hooks"][0]["command"], mine);
+    assert_eq!(
+        doc["hooks"]["Stop"][0]["hooks"].as_array().unwrap().len(),
+        1
+    );
+}
+
+#[test]
+fn hooks_installed_with_a_custom_program_name_can_be_uninstalled() {
+    let proj = TempDir::new("inst");
+    let file = proj.path().join(".claude").join("settings.json");
+    let mut r = req(Host::Claude, proj.path(), None, true, true);
+    r.vdt_path = Some(r"C:\tools\verdict-debug.exe".into());
+    run(&r, proj.path());
+    let out = run(&r, proj.path());
+    assert!(
+        out.contains("nothing changed"),
+        "a second install changes nothing: {out}"
+    );
+    r.install = false;
+    let out = run(&r, proj.path());
+    assert!(out.contains("removed 5"), "{out}");
+    assert!(
+        !std::fs::read_to_string(&file)
+            .unwrap()
+            .contains("verdict-debug")
+    );
+}
+
+#[test]
+fn no_temporary_file_is_left_beside_the_settings() {
+    let proj = TempDir::new("inst");
+    run(
+        &req(Host::Claude, proj.path(), None, true, true),
+        proj.path(),
+    );
+    let dir = proj.path().join(".claude");
+    let leftovers: Vec<String> = std::fs::read_dir(&dir)
+        .unwrap()
+        .filter_map(|e| e.ok())
+        .map(|e| e.file_name().to_string_lossy().to_string())
+        .filter(|n| n.contains("vdt-tmp"))
+        .collect();
+    assert!(leftovers.is_empty(), "{leftovers:?}");
+}

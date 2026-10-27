@@ -19,6 +19,7 @@ use verdict_core::{
 use crate::payload::{
     EventKind, HookEvent, Host, canonical_tool, is_shell, shell_output_text, tool_target,
 };
+use crate::redact::redact;
 use crate::state::{self, Lock, SessionState};
 
 /// Knobs for tests. `Options::default()` is what the real hook uses.
@@ -102,7 +103,7 @@ pub fn record_event(ev: &HookEvent, opts: &Options) -> Result<(), String> {
                 &mut ledger,
                 Record::Prompt {
                     ordinal: st.ordinal,
-                    text: prompt,
+                    text: redact(&prompt),
                     agent: ev.host.as_str().into(),
                     model: st.model.clone(),
                 },
@@ -137,7 +138,7 @@ pub fn record_event(ev: &HookEvent, opts: &Options) -> Result<(), String> {
             append(
                 &mut ledger,
                 Record::ToolCall {
-                    target: tool_target(&tool, &ev.tool_input, ev.cwd.as_deref()),
+                    target: redact(&tool_target(&tool, &ev.tool_input, ev.cwd.as_deref())),
                     tool,
                     output_hash,
                     duration_ms,
@@ -155,7 +156,7 @@ pub fn record_event(ev: &HookEvent, opts: &Options) -> Result<(), String> {
                     &mut ledger,
                     Record::Claim {
                         source: ClaimSource::FinalMessage,
-                        text: text.clone(),
+                        text: redact(text),
                         names: Vec::new(),
                         prompt_ordinal: ordinal,
                     },

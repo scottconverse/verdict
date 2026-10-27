@@ -14,6 +14,7 @@ pub mod hook;
 pub mod install;
 pub mod payload;
 pub mod recorder;
+pub mod redact;
 pub mod state;
 
 pub use hook::{run_hook, run_hook_cli};

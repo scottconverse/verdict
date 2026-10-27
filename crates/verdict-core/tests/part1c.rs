@@ -130,3 +130,66 @@ fn a_claim_naming_something_the_prompt_did_not_is_an_open_decision() {
         "{open:?}"
     );
 }
+
+#[test]
+fn given_names_cannot_hide_a_file_the_line_names() {
+    let names = check_claim_line("src/billing.rs charges the card", &["charges".into()]).unwrap();
+    assert!(names.iter().any(|n| n == "src/billing.rs"), "{names:?}");
+}
+
+fn ledger_with_two_prompts(claim_names: Vec<String>) -> (Ledger, String) {
+    let mut l = Ledger::open_in_memory().unwrap();
+    let s = "s-test000003".to_string();
+    l.append(Writer::Adapter, Some(&s), common::session_record(&s))
+        .unwrap();
+    for (ordinal, text) in [
+        (1, "fix login"),
+        (2, "explain src/billing.rs; do not change it"),
+    ] {
+        l.append(
+            Writer::Adapter,
+            Some(&s),
+            Record::Prompt {
+                ordinal,
+                text: text.into(),
+                agent: "claude".into(),
+                model: "m".into(),
+            },
+        )
+        .unwrap();
+    }
+    l.append(
+        Writer::Agent,
+        Some(&s),
+        Record::Claim {
+            source: ClaimSource::PromptTranslation,
+            text: "src/billing.rs charges the card".into(),
+            names: claim_names,
+            prompt_ordinal: Some(1),
+        },
+    )
+    .unwrap();
+    (l, s)
+}
+
+#[test]
+fn a_translation_is_checked_against_its_own_prompt_only() {
+    let (l, s) = ledger_with_two_prompts(vec!["src/billing.rs".into()]);
+    let open = open_decisions(&l, Some(&s)).unwrap();
+    assert!(
+        open.iter()
+            .any(|d| d.decision == DecisionKind::AcceptPromptTranslation),
+        "{open:?}"
+    );
+}
+
+#[test]
+fn a_short_names_list_stored_in_the_ledger_cannot_hide_a_target() {
+    let (l, s) = ledger_with_two_prompts(vec!["charges".into()]);
+    let open = open_decisions(&l, Some(&s)).unwrap();
+    assert!(
+        open.iter()
+            .any(|d| d.decision == DecisionKind::AcceptPromptTranslation),
+        "{open:?}"
+    );
+}

@@ -211,6 +211,13 @@ pub fn check_claim_line(text: &str, given: &[String]) -> Result<Vec<String>, Str
                 out.push(n.to_string());
             }
         }
+        // The agent's list may add names, never hide them: every URL, file and symbol the line
+        // itself names is recorded too, so a foreign file cannot slip past the decision check.
+        for n in extract_names(line) {
+            if !out.contains(&n) {
+                out.push(n);
+            }
+        }
         return Ok(out);
     }
     let names = extract_names(line);
@@ -377,17 +384,31 @@ pub fn open_decisions(
                 source: ClaimSource::PromptTranslation,
                 text,
                 names,
-                ..
+                prompt_ordinal,
             } => {
+                // Compare against the prompt this claim translates. With no ordinal, any prompt
+                // of the session counts.
                 let prompts: Vec<String> = all
                     .iter()
                     .filter(|p| p.session_id == s.session_id)
                     .filter_map(|p| match &p.record {
-                        Record::Prompt { text, .. } => Some(text.to_lowercase()),
+                        Record::Prompt { ordinal, text, .. }
+                            if prompt_ordinal.is_none_or(|want| want == *ordinal) =>
+                        {
+                            Some(text.to_lowercase())
+                        }
                         _ => None,
                     })
                     .collect();
-                let foreign: Vec<&String> = names
+                // The stored names plus whatever the text itself names, so a short `names`
+                // list cannot hide a target.
+                let mut targets: Vec<String> = names.clone();
+                for n in extract_names(text) {
+                    if !targets.contains(&n) {
+                        targets.push(n);
+                    }
+                }
+                let foreign: Vec<&String> = targets
                     .iter()
                     .filter(|n| {
                         let n = n.to_lowercase();

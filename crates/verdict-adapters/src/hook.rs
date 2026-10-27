@@ -77,7 +77,9 @@ pub fn run_hook(
         let ctx = Arc::clone(&ctx);
         let host_arg = host_arg.to_string();
         let event_arg = event_arg.to_string();
-        std::thread::spawn(move || {
+        // Builder::spawn returns an error instead of panicking when the OS refuses a thread,
+        // so even that case ends quietly with exit 0.
+        let spawned = std::thread::Builder::new().spawn(move || {
             let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                 work(&host_arg, &event_arg, stdin, &opts, &ctx)
             }));
@@ -86,6 +88,9 @@ pub fn run_hook(
                 Err(_) => Err("the adapter crashed while handling the event".to_string()),
             });
         });
+        if spawned.is_err() {
+            return;
+        }
     }
     let failure = match rx.recv_timeout(budget) {
         Ok(Ok(())) => return,
@@ -109,7 +114,7 @@ pub fn run_hook(
     };
     let reason = format!("{event_arg}: {failure}");
     let (tx2, rx2) = mpsc::channel();
-    std::thread::spawn(move || {
+    let spawned = std::thread::Builder::new().spawn(move || {
         let _ = tx2.send(record_unavailable(
             &label,
             cwd.as_deref(),
@@ -117,7 +122,9 @@ pub fn run_hook(
             &reason,
         ));
     });
-    let _ = rx2.recv_timeout(UNAVAILABLE_BUDGET);
+    if spawned.is_ok() {
+        let _ = rx2.recv_timeout(UNAVAILABLE_BUDGET);
+    }
 }
 
 fn work(
