@@ -1,0 +1,444 @@
+//! The session page with the verdict at the top and the decisions queue, and the one route
+//! (`POST /decide`) that answers them.
+//!
+//! Every button here records exactly one decision as writer `human`, through the same
+//! Host/Origin/token guard as the hooks button (the guard is a layer on the whole router). A
+//! request without this run's token writes nothing. The validation and the record itself live in
+//! `verdict_core::human`, shared with `vdt`, so the page and the command line cannot disagree.
+
+use axum::{
+    Form,
+    extract::{Path, Query, State},
+    http::StatusCode,
+    response::{Html, IntoResponse, Redirect, Response},
+};
+use serde::Deserialize;
+use std::path::Path as FsPath;
+use verdict_core::human::{Action, active_pause, apply, chosen_mode, lane_from_text};
+use verdict_core::lane::{ALL_LANES, lane_name};
+use verdict_core::part1c::{one_line, open_decisions, resolve_session};
+use verdict_core::report::render_report_with;
+use verdict_core::timefmt::format_unix_millis as format_millis;
+use verdict_core::verdict::{analyze, compute, live_input, word_label};
+use verdict_core::{DecisionKind, Ledger, LedgerError, Record, VerdictWord, Writer, list_sessions};
+
+use crate::{St, deny, error_page, esc, not_found, page};
+
+#[derive(Deserialize, Default)]
+pub(crate) struct RecordedQuery {
+    recorded: Option<u64>,
+}
+
+fn now_ms() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or(0)
+}
+
+fn word_class(w: VerdictWord) -> &'static str {
+    match w {
+        VerdictWord::Failed => "w-failed",
+        VerdictWord::NeedsYou => "w-needs",
+        VerdictWord::Verified | VerdictWord::ClearToShip => "w-verified",
+        VerdictWord::Partial => "w-partial",
+        VerdictWord::Unverified => "w-unverified",
+    }
+}
+
+fn word_gloss(w: VerdictWord) -> &'static str {
+    match w {
+        VerdictWord::Failed => {
+            "Something is proven wrong. Fix it, or tell Verdict below that it is not real."
+        }
+        VerdictWord::NeedsYou => {
+            "Nothing is proven wrong, but something is yours to settle. See below."
+        }
+        VerdictWord::Verified => {
+            "Checked, and nothing wrong was found. The word in brackets says how: static means the code was only read, ran means your tests were run, browsed means a page was loaded."
+        }
+        VerdictWord::ClearToShip => {
+            "Every release check passed and nothing is open. Tagging the release is still yours."
+        }
+        VerdictWord::Partial => "A check this lane needs did not run, so this is not a pass.",
+        VerdictWord::Unverified => "Nothing was checked. This is not a pass.",
+    }
+}
+
+/// One form that records one decision. Nothing is shown to the browser that is not escaped.
+fn form(
+    token: &str,
+    session: &str,
+    action: &str,
+    inner: &str,
+    button: &str,
+    danger: bool,
+) -> String {
+    format!(
+        "<form method=\"post\" action=\"/decide\">\
+         <input type=\"hidden\" name=\"token\" value=\"{}\">\
+         <input type=\"hidden\" name=\"session\" value=\"{}\">\
+         <input type=\"hidden\" name=\"action\" value=\"{}\">{inner}\
+         <button type=\"submit\"{}>{}</button></form>",
+        esc(token),
+        esc(session),
+        esc(action),
+        if danger { " class=\"danger\"" } else { "" },
+        esc(button)
+    )
+}
+
+fn card(title: &str, body: &str) -> String {
+    format!("<div class=\"card\"><h3>{title}</h3>{body}</div>")
+}
+
+fn session_html(
+    root: &FsPath,
+    home: Option<&FsPath>,
+    token: &str,
+    id: &str,
+    recorded: Option<u64>,
+) -> Result<Option<String>, LedgerError> {
+    let Some(l) = Ledger::open_existing(root)? else {
+        return Ok(None);
+    };
+    if !list_sessions(&l)?.iter().any(|s| s.id == id) {
+        return Ok(None);
+    }
+    let live = live_input(root, &l, id, home)?;
+    let c = compute(&l, id, &live.input)?;
+    let report = render_report_with(&l, Some(id), Some(&c))?;
+    let a = analyze(&l, id)?;
+    let mode = chosen_mode(&l)?.unwrap_or_else(|| live.policy.gate_mode().to_string());
+    let pause = active_pause(&l, now_ms())?;
+
+    let mut body = format!(
+        "<p><a href=\"/\">Back to the sessions list</a> &nbsp; \
+         <a href=\"/session/{id}/log\">Record log for this session</a></p>",
+        id = esc(id)
+    );
+
+    if let Some(seq) = recorded
+        && let Some(s) = l.get(seq)?
+        && s.writer == Writer::Human
+        && matches!(s.record, Record::Decision { .. })
+    {
+        body.push_str(&format!(
+            "<div class=\"note\"><strong>Your decision is recorded</strong> as record {seq} \
+             (written by: human): {}. The verdict below was worked out again from the ledger.</div>",
+            esc(&one_line(&s.record))
+        ));
+    }
+
+    // The verdict, first and large.
+    body.push_str(&format!(
+        "<div class=\"word {}\">VERDICT: {}<small>{}</small></div>",
+        word_class(c.word),
+        esc(&word_label(c.word, c.highest_tier)),
+        esc(word_gloss(c.word))
+    ));
+    body.push_str(&format!(
+        "<p>Lane: <strong>{}</strong>{}. Gate mode: <strong>{}</strong>.{}</p>",
+        lane_name(c.lane),
+        if c.lane != c.implied_lane {
+            format!(
+                " (you raised it; what the changes touch implies {})",
+                lane_name(c.implied_lane)
+            )
+        } else {
+            format!(
+                " (from what the changes touch: {})",
+                esc(c.lane_reasons.first().map_or("nothing", String::as_str))
+            )
+        },
+        esc(&mode),
+        match &pause {
+            Some(p) => format!(
+                " The gate is <strong>paused</strong> until {}.",
+                esc(&format_millis(p.until_ms))
+            ),
+            None => String::new(),
+        }
+    ));
+    if let Some(w) = &live.policy_warning {
+        body.push_str(&format!(
+            "<div class=\"note\">The policy file could not be used, so the built-in default was used instead: {}</div>",
+            esc(w)
+        ));
+    }
+
+    // ---- what is waiting for you
+    body.push_str("<h2>Waiting for you</h2>");
+    let mut waiting = 0;
+    let mut open: Vec<_> = a.findings.iter().filter(|f| f.is_open()).collect();
+    open.sort_by_key(|f| !c.fix_first.iter().any(|x| x.id == f.finding.id));
+    for f in open {
+        waiting += 1;
+        let blocking = c.fix_first.iter().any(|x| x.id == f.finding.id);
+        let ev = f
+            .finding
+            .evidence
+            .iter()
+            .map(|e| esc(&e.describe()))
+            .collect::<Vec<_>>()
+            .join(", ");
+        body.push_str(&card(
+            &format!(
+                "{} [{:?}] {}",
+                if blocking { "Proven wrong:" } else { "To settle:" },
+                f.finding.severity,
+                esc(&f.finding.title)
+            ),
+            &format!(
+                "<p>Found by a check at the <strong>{}</strong> tier. Evidence: {}. (record {}, finding {})</p>\
+                 <p>If this is a false alarm, tell Verdict. That closes this one finding and nothing else.</p>{}",
+                esc(f.finding.tier.as_str()),
+                if ev.is_empty() { "none".to_string() } else { ev },
+                f.seq,
+                esc(&f.finding.id),
+                form(
+                    token,
+                    id,
+                    "accept_finding",
+                    &format!(
+                        "<input type=\"hidden\" name=\"value\" value=\"{}\">",
+                        esc(&f.finding.id)
+                    ),
+                    "Accept as not real",
+                    false
+                )
+            ),
+        ));
+    }
+    let commands_answered = l.records()?.iter().any(|s| {
+        matches!(
+            &s.record,
+            Record::Decision {
+                decision: DecisionKind::RunProjectCommands,
+                who: Writer::Human,
+                ..
+            }
+        )
+    });
+    if c.required.iter().any(|n| n == "exec") && !commands_answered {
+        waiting += 1;
+        body.push_str(&card(
+            "Run this repo's own commands?",
+            &format!(
+                "<p>The build, lint and test commands listed in this project's policy are run to get a \
+                 <strong>ran</strong> result. Verdict runs none that the policy does not list. Until you \
+                 approve, that check reads as not run.</p>{}",
+                form(token, id, "approve_commands", "", "Approve this repo's commands", false)
+            ),
+        ));
+    }
+    for d in open_decisions(&l, Some(id))? {
+        match d.decision {
+            DecisionKind::InstallHooks => {
+                waiting += 1;
+                body.push_str(&card(
+                    &esc(&d.question),
+                    "<p>Answer it on the <a href=\"/\">sessions page</a>, under Hooks.</p>",
+                ));
+            }
+            DecisionKind::AcceptPromptTranslation => {
+                waiting += 1;
+                body.push_str(&card(
+                    "A claim names something your prompt did not",
+                    &format!(
+                        "<p>{}</p><p>Until you settle it the verdict stays at NEEDS YOU. This page cannot \
+                         answer it yet.</p>",
+                        esc(&d.question)
+                    ),
+                ));
+            }
+            _ => {}
+        }
+    }
+    if waiting == 0 {
+        body.push_str("<div class=\"note\">Nothing is waiting for you.</div>");
+    }
+
+    // ---- controls
+    body.push_str("<h2>Your controls</h2>");
+    let higher: Vec<_> = ALL_LANES.into_iter().filter(|l| *l > c.lane).collect();
+    if higher.is_empty() {
+        body.push_str(&card(
+            "Raise the lane",
+            "<p>The lane is already the highest.</p>",
+        ));
+    } else {
+        let options: String = higher
+            .iter()
+            .map(|l| format!("<option value=\"{0}\">{0}</option>", lane_name(*l)))
+            .collect();
+        body.push_str(&card(
+            "Raise the lane",
+            &format!(
+                "<p>More checks run in a higher lane. You can raise it; nothing can lower it below what the changes touch.</p>{}",
+                form(
+                    token,
+                    id,
+                    "raise_lane",
+                    &format!("<label for=\"lane\">Raise it to</label><select id=\"lane\" name=\"value\">{options}</select>"),
+                    "Raise the lane",
+                    false
+                )
+            ),
+        ));
+    }
+    let other_mode = if mode == "enforce" {
+        "shadow"
+    } else {
+        "enforce"
+    };
+    body.push_str(&card(
+        &format!("Gate mode: {}", esc(&mode)),
+        &format!(
+            "<p>Shadow never holds a commit; it only records what it would have done. Enforce holds a \
+             commit whose verdict is FAILED, until you commit anyway or fix it.</p>{}",
+            form(
+                token,
+                id,
+                "set_mode",
+                &format!("<input type=\"hidden\" name=\"value\" value=\"{other_mode}\">"),
+                &format!("Switch to {other_mode}"),
+                false
+            )
+        ),
+    ));
+    body.push_str(&card(
+        "Pause the gate",
+        &format!(
+            "<p>The gate does nothing until the time you give is over, and records that it was paused.</p>{}",
+            form(
+                token,
+                id,
+                "pause",
+                "<label for=\"dur\">Pause for (for example 30m, 2h, 1d)</label><input id=\"dur\" name=\"value\" value=\"30m\" size=\"8\">",
+                "Pause the gate",
+                false
+            )
+        ),
+    ));
+    if c.word == VerdictWord::Failed {
+        body.push_str(&card(
+            "Commit anyway",
+            &format!(
+                "<p>This lets the commit that is staged right now go through even though the verdict is \
+                 FAILED. <strong>The verdict stays FAILED</strong>, and your reason is kept beside it. \
+                 You must type a reason.</p>{}",
+                form(
+                    token,
+                    id,
+                    "commit_anyway",
+                    "<label for=\"why\">Why are you committing past this?</label><textarea id=\"why\" name=\"reason\"></textarea>",
+                    "Commit anyway",
+                    true
+                )
+            ),
+        ));
+    } else {
+        body.push_str(&card(
+            "Commit anyway",
+            "<p>This appears here when the verdict is FAILED and a commit is held.</p>",
+        ));
+    }
+
+    body.push_str(&format!(
+        "<h2>The report</h2><pre>{}</pre>\
+         <p>This is the report exactly as <code>vdt report</code> prints it.</p>",
+        esc(&report)
+    ));
+    Ok(Some(page(&format!("Report for session {id}"), &body)))
+}
+
+pub(crate) async fn session_page(
+    State(st): State<St>,
+    Path(id): Path<String>,
+    Query(q): Query<RecordedQuery>,
+) -> Response {
+    let (root, home, token) = (st.root.clone(), st.home.clone(), st.token.clone());
+    let r = tokio::task::spawn_blocking(move || {
+        session_html(&root, home.as_deref(), &token, &id, q.recorded)
+    })
+    .await;
+    match r {
+        Ok(Ok(Some(html))) => Html(html).into_response(),
+        Ok(Ok(None)) => not_found("There is no such session in this project's ledger."),
+        Ok(Err(e)) => error_page(&e),
+        Err(e) => error_page(&LedgerError::Invalid(e.to_string())),
+    }
+}
+
+#[derive(Deserialize)]
+pub(crate) struct DecideForm {
+    #[serde(default)]
+    token: String,
+    #[serde(default)]
+    session: String,
+    #[serde(default)]
+    action: String,
+    #[serde(default)]
+    value: String,
+    #[serde(default)]
+    reason: String,
+}
+
+fn parse_action(f: &DecideForm) -> Result<Action, String> {
+    Ok(match f.action.as_str() {
+        "accept_finding" => Action::AcceptFinding(f.value.clone()),
+        "approve_commands" => Action::ApproveCommands,
+        "raise_lane" => Action::RaiseLane(lane_from_text(&f.value)?),
+        "set_mode" => Action::SetMode(f.value.clone()),
+        "pause" => Action::Pause(f.value.clone()),
+        "commit_anyway" => Action::CommitAnyway {
+            reason: f.reason.clone(),
+            tree: None,
+        },
+        other => return Err(format!("{other:?} is not something this page can record")),
+    })
+}
+
+pub(crate) async fn decide(State(st): State<St>, Form(form): Form<DecideForm>) -> Response {
+    if form.token != st.token {
+        return deny(
+            StatusCode::FORBIDDEN,
+            "Refused: the page token is missing or wrong. Reload the page and press the button again.",
+        );
+    }
+    let action = match parse_action(&form) {
+        Ok(a) => a,
+        Err(why) => {
+            return deny(
+                StatusCode::BAD_REQUEST,
+                &format!("Nothing was recorded. {why}"),
+            );
+        }
+    };
+    let (root, home) = (st.root.clone(), st.home.clone());
+    let session = form.session.clone();
+    let r = tokio::task::spawn_blocking(
+        move || -> Result<Result<(u64, String), String>, LedgerError> {
+            let mut l = Ledger::open(&root)?;
+            let Some(id) = resolve_session(&l, Some(&session)).ok().flatten() else {
+                return Ok(Err(
+                    "There is no such session in this project's ledger.".into()
+                ));
+            };
+            Ok(apply(&root, &mut l, &id, &action, home.as_deref()).map(|seq| (seq, id)))
+        },
+    )
+    .await;
+    match r {
+        Ok(Ok(Ok((seq, id)))) => {
+            Redirect::to(&format!("/session/{id}?recorded={seq}")).into_response()
+        }
+        Ok(Ok(Err(why))) => deny(
+            StatusCode::BAD_REQUEST,
+            &format!("Nothing was recorded. {why}"),
+        ),
+        Ok(Err(e)) => error_page(&e),
+        Err(e) => error_page(&LedgerError::Invalid(e.to_string())),
+    }
+}

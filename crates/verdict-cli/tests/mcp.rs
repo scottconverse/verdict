@@ -246,6 +246,9 @@ fn mcp_round_trip_against_the_real_binary() {
             assert!(!text.contains(bad), "{tool} said {bad:?}: {text}");
         }
     }
+    // verdict_check wrote the verdict (as the core) once; asking again writes nothing new, so the
+    // tool and the command line print exactly the same report.
+    m.call("verdict_check", json!({}));
     let (ok, cli_report) = vdt_stdout(&t.0, &["report"]);
     assert!(ok);
     let (_, text) = m.call("verdict_check", json!({}));
@@ -253,8 +256,22 @@ fn mcp_round_trip_against_the_real_binary() {
         text.ends_with(&cli_report),
         "verdict_check must end with exactly what `vdt report` prints.\n--- tool ---\n{text}\n--- cli ---\n{cli_report}"
     );
-    assert!(cli_report.contains("check unavailable: verdict_check"));
+    assert!(text.contains("the verdict is UNVERIFIED"), "{text}");
+    assert!(!cli_report.contains("check unavailable: verdict_check"));
     assert!(cli_report.contains("check unavailable: verdict_scan"));
+    let verdicts = Ledger::open_existing(&t.0)
+        .unwrap()
+        .unwrap()
+        .records()
+        .unwrap()
+        .into_iter()
+        .filter(|s| matches!(s.record, Record::Verdict { .. }))
+        .collect::<Vec<_>>();
+    assert!(!verdicts.is_empty());
+    assert!(
+        verdicts.iter().all(|s| s.writer == Writer::Core),
+        "only the core writes verdicts"
+    );
 
     // verdict_decisions: read only; lists the human's open decisions.
     let (err, text) = m.call("verdict_decisions", json!({}));

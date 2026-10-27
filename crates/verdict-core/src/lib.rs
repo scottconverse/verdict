@@ -20,6 +20,10 @@
 //! cannot run, record a [`Record::CheckUnavailable`] and the result reads unverified.
 
 pub mod baseline;
+pub mod gate;
+pub mod githook;
+pub mod human;
+pub mod lane;
 pub mod ledger;
 pub mod model;
 pub mod part1c;
@@ -27,8 +31,10 @@ pub mod pointer;
 pub mod policy;
 pub mod project;
 pub mod report;
+pub mod report_head;
 pub mod session;
 pub mod timefmt;
+pub mod verdict;
 pub mod verify;
 
 pub use baseline::{Baseline, FolderBaseline, GitBaseline, snapshot as baseline_snapshot};
@@ -40,6 +46,6 @@ pub use model::{
 pub use pointer::{EvidencePointer, PointerStatus};
 pub use policy::{Policy, PolicyError, PolicySource};
 pub use project::{find_project_root, ledger_path};
-pub use report::render_report;
+pub use report::{render_report, render_report_with};
 pub use session::{SessionInfo, SessionParams, SessionStarted, list_sessions, start_session};
 pub use verify::{Problem, VerifyReport};

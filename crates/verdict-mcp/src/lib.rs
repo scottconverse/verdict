@@ -6,8 +6,10 @@
 //! * `verdict_claim`: record one checkable line naming a URL, file or symbol (writer `agent`).
 //! * `verdict_done_when`: for a vague prompt, how the human will know it is done. A condition that
 //!   cannot be wrong is refused.
-//! * `verdict_check` and `verdict_scan`: return the same report `vdt report` prints. This build has
-//!   no checkers and no scanner, so they say so and the report reads NOT ESTABLISHED, never clean.
+//! * `verdict_check`: returns the verdict the core computes from the ledger (the agent cannot
+//!   write or change it) and the same report `vdt report` prints. It does not run checkers; what
+//!   has not run reads NOT ESTABLISHED, never clean.
+//! * `verdict_scan`: this build has no scanner, so it says so and the report reads NOT ESTABLISHED.
 //! * `verdict_decisions`: read only. Lists the human's open decisions.
 //!
 //! The server also recognizes the names an agent might try for a forbidden write (for example
@@ -28,9 +30,10 @@ use serde_json::{Map, Value, json};
 use verdict_core::part1c::{
     check_claim_line, check_done_when, current_mode, open_decisions, resolve_session,
 };
+use verdict_core::verdict::compute_and_record;
 use verdict_core::{
     ClaimSource, DecisionKind, Finding, Ledger, LedgerError, Record, Severity, Tier, VerdictWord,
-    Writer, render_report,
+    Writer, render_report, render_report_with,
 };
 
 /// The tools this server advertises.
@@ -138,9 +141,10 @@ pub fn tool_definitions() -> Vec<Tool> {
         ),
         Tool::new(
             "verdict_check",
-            "Return Verdict's report for the session, the same text `vdt report` prints. In this \
-             build no checker exists, so nothing is checked and the report says NOT ESTABLISHED. \
-             It never says clean.",
+            "Return Verdict's verdict and report for the session, the same text `vdt report` \
+             prints. The verdict is computed by the core from the ledger; you cannot write or \
+             change it. This tool does not run the checkers, so anything that has not run is \
+             listed under NOT ESTABLISHED. It says clean only when the ledger proves it.",
             schema(json!({"type": "object", "properties": {"session": session.clone()}})),
         ),
         Tool::new(
@@ -176,7 +180,7 @@ pub fn handle_tool(root: &Path, name: &str, args: &Map<String, Value>) -> Option
     let out = match name {
         "verdict_claim" => claim(root, args),
         "verdict_done_when" => done_when(root, args),
-        "verdict_check" => report_tool(root, args, "verdict_check", "checked"),
+        "verdict_check" => check_tool(root, args),
         "verdict_scan" => report_tool(root, args, "verdict_scan", "scanned"),
         "verdict_decisions" => decisions(root, args),
         n if FORBIDDEN_TOOL_NAMES.contains(&n) => forbidden(root, n, args),
@@ -282,6 +286,33 @@ fn done_when(root: &Path, args: &Map<String, Value>) -> Result<ToolOutcome, Ledg
         "Recorded done-when as record {} in session {session}. The human can now judge it; nothing \
          has been checked.",
         appended.seq
+    )))
+}
+
+/// `verdict_check`: the verdict, computed by the core from the ledger, plus the report. The agent
+/// cannot write or change it; this tool does not run checkers (the pre-commit gate and
+/// `vdt verdict` do), so a required checker that has not run reads as not established.
+fn check_tool(root: &Path, args: &Map<String, Value>) -> Result<ToolOutcome, LedgerError> {
+    let Some(mut ledger) = Ledger::open_existing(root)? else {
+        return Ok(ToolOutcome::ok(
+            "NOT ESTABLISHED. verdict_check: nothing was checked. There is no ledger in this project yet, \
+             so there is no session to report on. This is not a pass.",
+        ));
+    };
+    let Some(session) = resolve_session(&ledger, str_arg(args, "session"))? else {
+        return Ok(ToolOutcome::ok(
+            "NOT ESTABLISHED. verdict_check: nothing was checked. This project's ledger has no session yet. \
+             This is not a pass.",
+        ));
+    };
+    let (computed, _) = compute_and_record(root, &mut ledger, &session, None, true)?;
+    let report = render_report_with(&ledger, Some(&session), Some(&computed))?;
+    Ok(ToolOutcome::ok(format!(
+        "verdict_check: the verdict is {}. The core computed it from the ledger; an agent cannot write \
+         or change a verdict. This tool does not run the checkers (the pre-commit gate and `vdt verdict` \
+         do), so anything that has not run is listed under NOT ESTABLISHED. It is not a pass unless \
+         the word says so. This is the same report `vdt report` prints:\n\n{report}",
+        computed.label()
     )))
 }
 
@@ -394,6 +425,7 @@ fn forbidden(
             counts_by_tier: Default::default(),
             not_established: vec![],
             policy_version: 0,
+            lane: None,
         },
         _ => {
             let (decision, default_choice) = match name {

@@ -45,6 +45,7 @@ fn every_record_type_can_be_written_by_its_writer() {
                 counts_by_tier: Default::default(),
                 not_established: vec!["everything".into()],
                 policy_version: 1,
+                lane: None,
             },
         ),
         (
@@ -107,6 +108,7 @@ fn agent_cannot_write_finding_decision_or_verdict_and_it_is_recorded() {
             counts_by_tier: Default::default(),
             not_established: vec![],
             policy_version: 1,
+            lane: None,
         },
         Record::Check {
             name: "n".into(),
@@ -290,6 +292,7 @@ fn correction_references_the_old_record_and_never_edits_it() {
                     counts_by_tier: Default::default(),
                     not_established: vec![],
                     policy_version: 1,
+                    lane: None,
                 })),
             },
         )

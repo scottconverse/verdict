@@ -7,12 +7,16 @@
 //! Exit codes: 0 fine, 1 the request could not be served (for example an unknown session),
 //! 2 the ledger failed verification.
 
+mod p2b;
+mod runner;
+
 use clap::{Parser, Subcommand};
 use std::io::Write;
 use std::path::Path;
 use std::process::ExitCode;
 
-use verdict_core::{Ledger, LedgerError, find_project_root, list_sessions, render_report};
+use verdict_core::verdict::report_for_project;
+use verdict_core::{Ledger, LedgerError, find_project_root, list_sessions};
 
 #[derive(Parser)]
 #[command(
@@ -58,7 +62,27 @@ enum Command {
         #[arg(long)]
         project: Option<std::path::PathBuf>,
     },
-    /// Show the ledger in a browser on this machine only (127.0.0.1), read only.
+    /// Compute the verdict of a session from the ledger, write it (as the core) and print the report.
+    Verdict {
+        /// Session id (default: the latest).
+        #[arg(long)]
+        session: Option<String>,
+        /// Run the lane's checkers first (through the checker runner wired into this build).
+        #[arg(long)]
+        run: bool,
+        /// Project folder (default: found from the current folder).
+        #[arg(long)]
+        project: Option<std::path::PathBuf>,
+    },
+    /// The pre-commit gate: check, compute the verdict, hold only in enforce mode.
+    Gate {
+        #[command(subcommand)]
+        action: p2b::GateAction,
+    },
+    /// Commit past a FAILED pre-commit gate, with a reason you type (human only).
+    CommitAnyway(p2b::CommitAnywayArgs),
+    /// Show the ledger in a browser on this machine only (127.0.0.1). Pressing a button on the
+    /// page records one of your decisions; nothing else on it writes.
     Serve {
         /// Port to listen on.
         #[arg(long, default_value_t = verdict_gui::DEFAULT_PORT)]
@@ -142,6 +166,13 @@ fn main() -> ExitCode {
                 }
             };
         }
+        Command::Verdict {
+            session,
+            run,
+            project,
+        } => return p2b::verdict(session.as_deref(), *run, project.as_deref(), &cwd),
+        Command::Gate { action } => return p2b::gate(action, &cwd),
+        Command::CommitAnyway(args) => return p2b::commit_anyway(args, &cwd),
         _ => {}
     }
     let stdout = std::io::stdout();
@@ -210,7 +241,11 @@ fn run(cli: Cli, cwd: &Path, out: &mut dyn Write) -> Result<u8, LedgerError> {
                 "no ledger in {} yet: nothing to verify",
                 root.display()
             )?,
-            Command::Mcp { .. } | Command::Serve { .. } => {} // handled in main
+            Command::Mcp { .. }
+            | Command::Serve { .. }
+            | Command::Verdict { .. }
+            | Command::Gate { .. }
+            | Command::CommitAnyway(_) => {} // handled in main
         }
         return Ok(0);
     };
@@ -253,11 +288,15 @@ fn run(cli: Cli, cwd: &Path, out: &mut dyn Write) -> Result<u8, LedgerError> {
                 writeln!(out, "no sessions recorded yet")?;
                 return Ok(0);
             }
-            let text = render_report(&ledger, session.as_deref())?;
+            let text = report_for_project(&root, &ledger, session.as_deref(), None)?;
             write!(out, "{text}")?;
             Ok(if ledger.verify()?.is_ok() { 0 } else { 2 })
         }
         Command::Hook { .. } | Command::Hooks { .. } => Ok(0),
-        Command::Mcp { .. } | Command::Serve { .. } => Ok(0), // handled in main
+        Command::Mcp { .. }
+        | Command::Serve { .. }
+        | Command::Verdict { .. }
+        | Command::Gate { .. }
+        | Command::CommitAnyway(_) => Ok(0), // handled in main
     }
 }
