@@ -65,7 +65,7 @@ impl Writer {
             Check | Verdict | RefusedWrite => matches!(self, Core),
             Finding | Hypothesis => matches!(self, Checker | Desk),
             Decision => matches!(self, Human),
-            CheckUnavailable => matches!(self, Adapter | Core),
+            CheckUnavailable => matches!(self, Adapter | Core | Checker | Desk),
             // Anyone may correct, but only their own records (checked by the ledger).
             Correction => true,
         }

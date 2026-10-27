@@ -1,6 +1,7 @@
 //! The baseline snapshot of a session: a git tree hash plus a content hash of the uncommitted
 //! files. Never a copy of the code. Works on Windows without WSL (it only runs `git`), and in a
-//! folder that is not a git repository (the record says so).
+//! folder that is not a git repository: the record says so and holds a content hash of the
+//! folder's files instead (bounded, skipping build and tool folders).
 
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
@@ -17,6 +18,106 @@ pub struct Baseline {
     pub git: Option<GitBaseline>,
     /// Human-readable note, for example why there is no git data.
     pub note: Option<String>,
+    /// Content hash of the folder's files, when it is not a git repository.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub folder: Option<Box<FolderBaseline>>,
+}
+
+/// Baseline of a folder that is not a git repository: a content hash of its files.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FolderBaseline {
+    /// blake3 over every file's relative path and content hash, in sorted order.
+    pub content_hash: String,
+    /// How many files went into that hash.
+    pub files: u64,
+    /// False when the walk stopped at the file or byte limit; the hash then covers only part of
+    /// the folder.
+    pub complete: bool,
+    /// Folder names that were skipped wherever they appear.
+    pub skipped: Vec<String>,
+}
+
+/// Folders never hashed: tool state, version control and build output.
+const SKIP_DIRS: &[&str] = &[
+    ".verdict",
+    ".git",
+    ".hg",
+    ".svn",
+    "target",
+    "node_modules",
+    ".venv",
+    "venv",
+    "__pycache__",
+    "dist",
+    "build",
+];
+/// Stop after this many files.
+const MAX_FILES: u64 = 10_000;
+/// Stop after reading this many bytes of file content.
+const MAX_BYTES: u64 = 256 * 1024 * 1024;
+
+/// Hash the files under `root` (not following links), skipping [`SKIP_DIRS`], within the limits.
+fn folder_snapshot(root: &Path) -> FolderBaseline {
+    let mut files: Vec<(String, String)> = Vec::new();
+    let mut bytes = 0u64;
+    let mut complete = true;
+    let mut pending: Vec<(PathBuf, String)> = vec![(root.to_path_buf(), String::new())];
+    'walk: while let Some((dir, rel)) = pending.pop() {
+        let Ok(entries) = std::fs::read_dir(&dir) else {
+            continue;
+        };
+        let mut entries: Vec<_> = entries.flatten().collect();
+        entries.sort_by_key(|e| e.file_name());
+        for entry in entries {
+            let name = entry.file_name().to_string_lossy().to_string();
+            let path = entry.path();
+            let rel_path = if rel.is_empty() {
+                name.clone()
+            } else {
+                format!("{rel}/{name}")
+            };
+            let Ok(meta) = std::fs::symlink_metadata(&path) else {
+                continue;
+            };
+            if meta.is_dir() {
+                if !SKIP_DIRS.contains(&name.as_str()) {
+                    pending.push((path, rel_path));
+                }
+                continue;
+            }
+            if files.len() as u64 >= MAX_FILES || bytes.saturating_add(meta.len()) > MAX_BYTES {
+                complete = false;
+                break 'walk;
+            }
+            let content = if meta.file_type().is_symlink() {
+                match std::fs::read_link(&path) {
+                    Ok(target) => format!("link:{}", target.to_string_lossy()),
+                    Err(_) => "link".to_string(),
+                }
+            } else {
+                match std::fs::read(&path) {
+                    Ok(data) => {
+                        bytes += data.len() as u64;
+                        blake3::hash(&data).to_hex().to_string()
+                    }
+                    Err(_) => "unreadable".to_string(),
+                }
+            };
+            files.push((rel_path, content));
+        }
+    }
+    files.sort();
+    let mut hasher = blake3::Hasher::new();
+    hasher.update(b"verdict-folder-v1\n");
+    for (path, content) in &files {
+        hasher.update(format!("{path}\0{content}\n").as_bytes());
+    }
+    FolderBaseline {
+        content_hash: hasher.finalize().to_hex().to_string(),
+        files: files.len() as u64,
+        complete,
+        skipped: SKIP_DIRS.iter().map(|s| s.to_string()).collect(),
+    }
 }
 
 /// Git part of the baseline.
@@ -31,8 +132,6 @@ pub struct GitBaseline {
     /// How many uncommitted paths went into that hash.
     pub uncommitted_files: u64,
 }
-
-const NO_GIT_MARK: &str = "verdict-baseline-v1:not-a-git-repo";
 
 fn git(root: &Path, args: &[&str]) -> Option<Vec<u8>> {
     let out = Command::new("git")
@@ -52,14 +151,29 @@ fn text(bytes: Vec<u8>) -> String {
 /// Take the baseline snapshot of the project at `root`. Never fails: when git cannot be used the
 /// baseline says so.
 pub fn snapshot(root: &Path) -> Baseline {
-    let not_git = |note: &str| Baseline {
-        hash: blake3::hash(NO_GIT_MARK.as_bytes()).to_hex().to_string(),
-        is_git_repo: false,
-        git: None,
-        note: Some(note.to_string()),
-    };
     let Some(top) = git(root, &["rev-parse", "--show-toplevel"]).map(text) else {
-        return not_git("not a git repository (or git is not installed); no baseline snapshot");
+        let folder = folder_snapshot(root);
+        let mut combined = blake3::Hasher::new();
+        combined.update(b"verdict-baseline-v1:folder\n");
+        combined.update(folder.content_hash.as_bytes());
+        let note = if folder.complete {
+            format!(
+                "not a git repository (or git is not installed); content hash of {} files",
+                folder.files
+            )
+        } else {
+            format!(
+                "not a git repository (or git is not installed); PARTIAL content hash: stopped at {} files",
+                folder.files
+            )
+        };
+        return Baseline {
+            hash: combined.finalize().to_hex().to_string(),
+            is_git_repo: false,
+            git: None,
+            note: Some(note),
+            folder: Some(Box::new(folder)),
+        };
     };
     let top = PathBuf::from(top);
     let head_commit = git(root, &["rev-parse", "--verify", "-q", "HEAD"]).map(text);
@@ -117,5 +231,6 @@ pub fn snapshot(root: &Path) -> Baseline {
             uncommitted_files: counted,
         }),
         note: None,
+        folder: None,
     }
 }

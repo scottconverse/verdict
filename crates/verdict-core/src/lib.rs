@@ -30,7 +30,7 @@ pub mod session;
 pub mod timefmt;
 pub mod verify;
 
-pub use baseline::{Baseline, GitBaseline, snapshot as baseline_snapshot};
+pub use baseline::{Baseline, FolderBaseline, GitBaseline, snapshot as baseline_snapshot};
 pub use ledger::{Appended, Ledger, LedgerError, Stored};
 pub use model::{
     CheckOutcome, ClaimSource, DecisionKind, Finding, Lane, Record, RecordKind, Severity, Tier,

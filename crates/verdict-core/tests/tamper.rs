@@ -170,3 +170,115 @@ fn appending_after_tampering_does_not_hide_it() {
     l.append(Writer::Agent, None, claim("later")).unwrap();
     assert_eq!(l.verify().unwrap().first_broken_seq(), Some(2));
 }
+
+/// The exact delete trigger the ledger installs, so an attacker can put it back unchanged.
+const NO_DELETE_SQL: &str = "CREATE TRIGGER records_no_delete BEFORE DELETE ON records
+BEGIN SELECT RAISE(ABORT, 'verdict ledger is append-only: rows cannot be deleted'); END";
+
+#[test]
+fn a_normal_append_after_a_hidden_truncation_does_not_erase_the_evidence() {
+    // Codex review finding 1: cut the tail, reset the counter, restore the exact trigger, then
+    // append through the API. The append must not move ledger.head back to cover the cut.
+    let t = TempDir::new("cut-then-append");
+    drop(seeded(t.path()));
+    let c = raw(&t);
+    c.execute_batch("DROP TRIGGER records_no_delete").unwrap();
+    c.execute("DELETE FROM records WHERE seq >= 4", []).unwrap();
+    c.execute(
+        "UPDATE sqlite_sequence SET seq = 3 WHERE name = 'records'",
+        [],
+    )
+    .unwrap();
+    c.execute_batch(NO_DELETE_SQL).unwrap();
+    drop(c);
+    let mut l = Ledger::open(t.path()).unwrap();
+    l.append(Writer::Agent, None, claim("new record 4"))
+        .unwrap();
+    let r = l.verify().unwrap();
+    assert!(!r.is_ok(), "the cut must still show: {}", r.summary());
+    assert_eq!(r.first_broken_seq(), Some(5), "{}", r.summary());
+    // And it keeps showing after more appends pass the old head.
+    l.append(Writer::Agent, None, claim("new record 5"))
+        .unwrap();
+    l.append(Writer::Agent, None, claim("new record 6"))
+        .unwrap();
+    let r = l.verify().unwrap();
+    assert!(!r.is_ok(), "{}", r.summary());
+    assert_eq!(r.first_broken_seq(), Some(5), "{}", r.summary());
+}
+
+/// Insert a correctly chained row with raw SQL, as someone going around the ledger API would.
+fn forge(t: &TempDir, writer: &str, record: &Record) {
+    let c = raw(t);
+    let (seq, prev): (i64, String) = c
+        .query_row(
+            "SELECT seq, hash FROM records ORDER BY seq DESC LIMIT 1",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .unwrap();
+    let seq = seq + 1;
+    let ts = "2026-10-26T13:00:00.000Z";
+    let kind = record.kind();
+    let body = serde_json::to_string(record).unwrap();
+    let hash = verdict_core::ledger::record_hash(
+        seq as u64,
+        ts,
+        writer,
+        Some("s-test000001"),
+        kind.as_str(),
+        &prev,
+        &body,
+    );
+    c.execute(
+        "INSERT INTO records (seq, ts, writer, session_id, kind, body, prev_hash, hash)
+         VALUES (?1, ?2, ?3, 's-test000001', ?4, ?5, ?6, ?7)",
+        rusqlite::params![seq, ts, writer, kind.as_str(), body, prev, hash],
+    )
+    .unwrap();
+}
+
+#[test]
+fn raw_sql_agent_verdicts_decisions_and_uncited_findings_fail_verify() {
+    // Codex review finding 2: rows that obey the chain but break who-may-write-what.
+    let cases: Vec<(&str, Record)> = vec![
+        (
+            "agent",
+            Record::Verdict {
+                word: VerdictWord::ClearToShip,
+                highest_tier: Some(Tier::Ran),
+                counts_by_tier: Default::default(),
+                not_established: vec![],
+                policy_version: 1,
+            },
+        ),
+        (
+            "agent",
+            Record::Decision {
+                decision: DecisionKind::CommitAnyway,
+                choice: "commit".into(),
+                reason: Some("trust me".into()),
+                who: Writer::Human,
+            },
+        ),
+        (
+            "agent",
+            Record::Decision {
+                decision: DecisionKind::ModeSwitch,
+                choice: "shadow".into(),
+                reason: None,
+                who: Writer::Human,
+            },
+        ),
+        ("checker", Record::Finding(finding("F-1", vec![]))),
+        ("agent", Record::Finding(finding("F-2", vec![]))),
+    ];
+    for (writer, record) in cases {
+        let t = TempDir::new("forge");
+        drop(seeded(t.path()));
+        forge(&t, writer, &record);
+        let r = verify(&t);
+        assert!(!r.is_ok(), "{writer} {} slipped past verify", record.kind());
+        assert_eq!(r.first_broken_seq(), Some(6), "{}", r.summary());
+    }
+}

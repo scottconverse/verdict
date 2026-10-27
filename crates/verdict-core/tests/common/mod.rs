@@ -90,6 +90,7 @@ pub fn session_record(id: &str) -> Record {
             is_git_repo: false,
             git: None,
             note: Some("not a git repository".into()),
+            folder: None,
         },
         agent: "claude".into(),
         model: "model-x".into(),

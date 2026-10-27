@@ -4,9 +4,10 @@
 use rusqlite::OptionalExtension;
 
 use crate::ledger::{
-    GENESIS_HASH, Ledger, LedgerError, SQL_CHAIN, SQL_NO_DELETE, SQL_NO_UPDATE, record_hash,
+    GENESIS_HASH, Ledger, LedgerError, RawRow, SQL_CHAIN, SQL_NO_DELETE, SQL_NO_UPDATE, parse_head,
+    record_hash,
 };
-use crate::model::Record;
+use crate::model::{Record, RecordKind, Writer};
 
 /// One thing wrong with the ledger.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -68,11 +69,19 @@ impl VerifyReport {
 impl Ledger {
     /// Check the whole ledger: contiguous sequence numbers, every `prev_hash`, every record hash
     /// recomputed from its stored content, readable bodies whose type matches the kind, no missing
-    /// tail (the database's own sequence counter and the `ledger.head` sidecar), and that the
-    /// append-only triggers are still in place.
+    /// tail (the database's own sequence counter and the `ledger.head` sidecar), that the
+    /// append-only triggers are still in place, and that every row obeys the who-may-write-what
+    /// rules and the hypothesis rule (so a row slipped in with raw SQL is caught too).
+    ///
+    /// All database reads happen in one read transaction, so a concurrent append cannot make a
+    /// healthy ledger look truncated.
     pub fn verify(&self) -> Result<VerifyReport, LedgerError> {
         let mut problems = Vec::new();
+        // Read the head file before the snapshot: it is only written after a commit, so whatever
+        // it names is already inside the snapshot taken next.
+        let head_text = self.head_file().map(std::fs::read_to_string);
         let conn = self.conn();
+        let _snapshot = conn.unchecked_transaction()?;
 
         let has_table: bool = conn.query_row(
             "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='records')",
@@ -168,7 +177,14 @@ impl Ledger {
                         rec.kind()
                     ),
                 }),
-                Ok(_) => {}
+                Ok(rec) => {
+                    if let Err(message) = row_obeys_rules(row, &rec, &rows) {
+                        problems.push(Problem {
+                            seq: Some(row.seq as u64),
+                            message,
+                        });
+                    }
+                }
             }
             prev = row.hash.clone();
         }
@@ -193,28 +209,26 @@ impl Ledger {
                 ),
             });
         }
-        if let Some(file) = self.head_file()
-            && let Ok(text) = std::fs::read_to_string(file)
-        {
-            let mut parts = text.split_whitespace();
-            if let (Some(seq), Some(hash)) = (
-                parts.next().and_then(|s| s.parse::<i64>().ok()),
-                parts.next(),
-            ) {
-                if seq > last_seq {
-                    problems.push(Problem {
-                        seq: Some((last_seq + 1) as u64),
-                        message: format!(
-                            "ledger truncated: ledger.head says record {seq} existed but the ledger stops at {last_seq}"
-                        ),
-                    });
-                } else if let Some(row) = rows.iter().find(|r| r.seq == seq)
-                    && row.hash != hash
-                {
-                    problems.push(Problem {
-                        seq: Some(seq as u64),
-                        message: "record differs from the hash saved in ledger.head".into(),
-                    });
+        // No head file (or no file path) means there is just no extra check.
+        if let Some(Ok(text)) = head_text {
+            match parse_head(&text) {
+                None => problems.push(Problem {
+                    seq: None,
+                    message: "ledger.head is unreadable".into(),
+                }),
+                Some((seq, _)) if seq > last_seq => problems.push(Problem {
+                    seq: Some((last_seq + 1) as u64),
+                    message: format!(
+                        "ledger truncated: ledger.head says record {seq} existed but the ledger stops at {last_seq}"
+                    ),
+                }),
+                Some((seq, hash)) => {
+                    if rows.iter().find(|r| r.seq == seq).is_some_and(|r| r.hash != hash) {
+                        problems.push(Problem {
+                            seq: Some(seq as u64),
+                            message: "record differs from the hash saved in ledger.head".into(),
+                        });
+                    }
                 }
             }
         }
@@ -227,4 +241,67 @@ impl Ledger {
             problems,
         })
     }
+}
+
+/// The who-may-write-what rules and the hypothesis rule, checked on a stored row. The ledger API
+/// enforces these on append; this catches a row inserted around the API with raw SQL.
+fn row_obeys_rules(row: &RawRow, rec: &Record, rows: &[RawRow]) -> Result<(), String> {
+    let Some(writer) = Writer::parse(&row.writer) else {
+        return Err(format!("unknown writer {:?}", row.writer));
+    };
+    let kind = rec.kind();
+    if !writer.may_write(kind) {
+        return Err(format!(
+            "written by {writer}, who may not write a {kind} record (not made through the ledger)"
+        ));
+    }
+    match rec {
+        Record::Finding(f) if f.evidence.is_empty() => {
+            return Err("a finding with no evidence pointer (must be a hypothesis)".into());
+        }
+        Record::Decision { who, .. } if *who != Writer::Human => {
+            return Err("a decision whose `who` is not the human".into());
+        }
+        Record::Correction {
+            target_seq,
+            replacement,
+            ..
+        } => {
+            let target = rows
+                .iter()
+                .find(|r| r.seq == *target_seq as i64 && r.seq < row.seq);
+            let Some(target) = target else {
+                return Err(format!(
+                    "correction targets record {target_seq}, which is not an earlier record"
+                ));
+            };
+            if !matches!(writer, Writer::Core | Writer::Human)
+                && Writer::parse(&target.writer) != Some(writer)
+            {
+                return Err(format!(
+                    "{writer} corrected record {target_seq}, written by {}",
+                    target.writer
+                ));
+            }
+            if let Some(rep) = replacement {
+                let rep_kind = rep.kind();
+                if rep_kind == RecordKind::Correction || !writer.may_write(rep_kind) {
+                    return Err(format!("{writer} may not correct into a {rep_kind} record"));
+                }
+                match &**rep {
+                    Record::Finding(f) if f.evidence.is_empty() => {
+                        return Err("a correction into a finding with no evidence pointer".into());
+                    }
+                    Record::Decision { who, .. } if *who != Writer::Human => {
+                        return Err(
+                            "a correction into a decision whose `who` is not the human".into()
+                        );
+                    }
+                    _ => {}
+                }
+            }
+        }
+        _ => {}
+    }
+    Ok(())
 }

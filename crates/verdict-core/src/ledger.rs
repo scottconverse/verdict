@@ -267,9 +267,17 @@ impl Ledger {
         session_id: Option<&str>,
         record: Record,
     ) -> Result<Appended, LedgerError> {
+        let head_file = self.head_file();
         let tx = self
             .conn
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        // Only move the head file forward if it still agrees with the database. If it names a
+        // record that is gone or different, the ledger was cut or rewritten; leaving the file as
+        // it is keeps that evidence for verify instead of overwriting it.
+        let head_trusted = match &head_file {
+            Some(file) => head_file_agrees(&tx, file)?,
+            None => false,
+        };
         let decision = permission(&tx, writer, &record)?;
         let (outcome, head) = match decision {
             Err(reason) => {
@@ -303,9 +311,9 @@ impl Ledger {
             }
         };
         tx.commit()?;
-        if let Some(file) = self.head_file() {
-            // Best effort: a stale head file is harmless, a missing one is just no extra check.
-            let _ = std::fs::write(file, format!("{} {}\n", head.0, head.1));
+        if head_trusted && let Some(file) = head_file {
+            // Best effort: a head file that lags is harmless, a missing one is just no extra check.
+            write_head_file(&file, head.0, &head.1);
         }
         outcome
     }
@@ -409,6 +417,52 @@ impl Ledger {
             out.write_all(b"\n")?;
         }
         Ok(())
+    }
+}
+
+/// Parse the `ledger.head` text: `seq hash`.
+pub(crate) fn parse_head(text: &str) -> Option<(i64, String)> {
+    let mut parts = text.split_whitespace();
+    let seq = parts.next()?.parse::<i64>().ok()?;
+    let hash = parts.next()?.to_string();
+    Some((seq, hash))
+}
+
+/// True when the head file is absent (nothing to protect yet) or names a record that exists with
+/// the same hash. False when it is unreadable or names a missing or different record.
+fn head_file_agrees(tx: &rusqlite::Transaction<'_>, file: &Path) -> Result<bool, LedgerError> {
+    let text = match std::fs::read_to_string(file) {
+        Ok(t) => t,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(true),
+        Err(_) => return Ok(false),
+    };
+    let Some((seq, hash)) = parse_head(&text) else {
+        return Ok(false);
+    };
+    let stored: Option<String> = tx
+        .query_row(
+            "SELECT hash FROM records WHERE seq = ?1",
+            params![seq],
+            |r| r.get(0),
+        )
+        .optional()?;
+    Ok(stored.as_deref() == Some(hash.as_str()))
+}
+
+/// Write the head file atomically (temp file, then rename), and never move it backward: a
+/// concurrent writer may already have recorded a later head.
+fn write_head_file(file: &Path, seq: u64, hash: &str) {
+    if let Ok(text) = std::fs::read_to_string(file)
+        && let Some((current, _)) = parse_head(&text)
+        && current >= seq as i64
+    {
+        return;
+    }
+    let tmp = file.with_file_name(format!("ledger.head.{}.tmp", std::process::id()));
+    if std::fs::write(&tmp, format!("{seq} {hash}\n")).is_ok()
+        && std::fs::rename(&tmp, file).is_err()
+    {
+        let _ = std::fs::remove_file(&tmp);
     }
 }
 

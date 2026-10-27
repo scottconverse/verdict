@@ -269,3 +269,35 @@ fn project_root_is_found_from_a_subfolder() {
         t.path().canonicalize().unwrap()
     );
 }
+
+#[test]
+fn non_git_baseline_is_a_content_hash_of_the_folder() {
+    let t = TempDir::new("nogit-content");
+    let p = t.path();
+    std::fs::create_dir_all(p.join("src")).unwrap();
+    std::fs::write(p.join("src").join("main.rs"), "fn main() {}").unwrap();
+    std::fs::write(p.join("README.md"), "hello").unwrap();
+    let first = baseline_snapshot(p);
+    assert!(!first.is_git_repo);
+    let folder = first.folder.clone().expect("folder hash");
+    assert_eq!(folder.files, 2);
+    assert!(folder.complete);
+    assert_eq!(baseline_snapshot(p), first, "stable when nothing changed");
+
+    // Tool state and build output do not count.
+    std::fs::create_dir_all(p.join(".verdict")).unwrap();
+    std::fs::write(p.join(".verdict").join("ledger.db"), "x").unwrap();
+    std::fs::create_dir_all(p.join("target").join("debug")).unwrap();
+    std::fs::write(p.join("target").join("debug").join("out"), "x").unwrap();
+    assert_eq!(baseline_snapshot(p).hash, first.hash);
+
+    // A content change, a new file and a rename each change the hash.
+    std::fs::write(p.join("src").join("main.rs"), "fn main() { 1; }").unwrap();
+    let edited = baseline_snapshot(p);
+    assert_ne!(edited.hash, first.hash);
+    std::fs::write(p.join("notes.txt"), "n").unwrap();
+    let added = baseline_snapshot(p);
+    assert_ne!(added.hash, edited.hash);
+    std::fs::rename(p.join("notes.txt"), p.join("notes2.txt")).unwrap();
+    assert_ne!(baseline_snapshot(p).hash, added.hash);
+}
