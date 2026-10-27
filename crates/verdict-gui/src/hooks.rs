@@ -45,6 +45,14 @@ impl Host {
         }
     }
 
+    /// The same host, as the adapter crate names it.
+    pub fn adapter_host(self) -> verdict_adapters::payload::Host {
+        match self {
+            Host::ClaudeCode => verdict_adapters::payload::Host::Claude,
+            Host::Codex => verdict_adapters::payload::Host::Codex,
+        }
+    }
+
     /// The exact block to add: three hooks, each calling `vdt hook <host> <event>`.
     /// The Stop hook has a 20 second timeout, as the design says.
     pub fn block(self) -> String {

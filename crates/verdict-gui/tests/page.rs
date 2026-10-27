@@ -306,6 +306,26 @@ fn pressing_install_hooks_records_a_human_decision_and_shows_the_block() {
             "claude_code".to_string()
         )
     );
+    // The button is wired end to end: the project's Claude Code settings now hold the three
+    // entries, and the file is valid JSON.
+    let settings = std::fs::read_to_string(f.dir.0.join(".claude/settings.json"))
+        .expect("the install button writes the project's Claude Code settings");
+    assert!(settings.contains("vdt hook claude Stop"), "{settings}");
+    let parsed: serde_json::Value = serde_json::from_str(&settings).unwrap();
+    assert!(parsed["hooks"]["PostToolUse"].is_array(), "{settings}");
+    // Codex goes to the isolated Codex home, never the real one.
+    let r = http(
+        &f.page,
+        "POST",
+        "/install-hooks",
+        &[("Origin", &origin(&f)), ("Sec-Fetch-Site", "same-origin")],
+        Some(&install_body(&f, "codex", &f.page.token)),
+        None,
+    );
+    assert_eq!(r.status, 200, "{}", r.body);
+    let codex = std::fs::read_to_string(f._home.0.join(".codex/hooks.json"))
+        .expect("the install button writes the Codex home hooks.json");
+    assert!(codex.contains("vdt hook codex Stop"), "{codex}");
     // The home page now says so.
     assert!(
         get(&f.page, "/")

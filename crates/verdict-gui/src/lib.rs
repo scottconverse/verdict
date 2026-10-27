@@ -469,14 +469,11 @@ async fn log_page(State(st): State<St>, Path(id): Path<String>) -> Response {
 
 fn block_html(h: Host) -> String {
     format!(
-        "<p>Add this to <strong>{}</strong>. If that file already has a \"hooks\" section, merge \
-         the three entries into it; do not replace your other hooks.</p><pre>{}</pre>\
-         <p>This block is Verdict's best-known form of the hooks for {} and has not been \
-         checked against a real {} session yet.</p>",
+        "<p>These are the hook entries for <strong>{}</strong>. The Install button on a report \
+         page merges them in for you and keeps every other hook and key. To add them by hand, put \
+         them in that file's \"hooks\" section.</p><pre>{}</pre>",
         esc(h.target_file()),
-        esc(&h.block()),
-        esc(h.title()),
-        esc(h.title())
+        esc(&h.block())
     )
 }
 
@@ -511,7 +508,18 @@ async fn install_hooks(State(st): State<St>, Form(form): Form<InstallForm>) -> R
         return deny(StatusCode::BAD_REQUEST, "Unknown host.");
     };
     let root = st.root.clone();
-    let r = tokio::task::spawn_blocking(move || -> Result<(u64, Option<String>), LedgerError> {
+    let codex_home = st.home.clone();
+    let r = tokio::task::spawn_blocking(move || -> Result<(u64, String), LedgerError> {
+        // The button is the human's decision, so this is where the hooks are actually merged in
+        // (the adapters own the merge, the backup and the "never overwrite a file that is not
+        // JSON" rule). The decision is recorded only when the install succeeded or had nothing
+        // to do.
+        let adapter_host = h.adapter_host();
+        let path =
+            verdict_adapters::install::target_path(adapter_host, &root, codex_home.as_deref())
+                .map_err(|e| LedgerError::Invalid(format!("the hooks were not installed: {e}")))?;
+        let outcome = verdict_adapters::install::install_file(&path, "vdt", adapter_host)
+            .map_err(|e| LedgerError::Invalid(format!("the hooks were not installed: {e}")))?;
         let mut l = Ledger::open(&root)?;
         let session = resolve_session(&l, None)?;
         let a = l.append(
@@ -524,16 +532,30 @@ async fn install_hooks(State(st): State<St>, Form(form): Form<InstallForm>) -> R
                 who: Writer::Human,
             },
         )?;
-        Ok((a.seq, session))
+        let summary = if outcome.change.changed {
+            format!(
+                "Verdict added the {} hook entries to {}.",
+                h.title(),
+                path.display()
+            )
+        } else {
+            format!(
+                "The {} hook entries were already in {}; nothing changed.",
+                h.title(),
+                path.display()
+            )
+        };
+        Ok((a.seq, summary))
     })
     .await;
     match r {
-        Ok(Ok((seq, _))) => Html(page(
+        Ok(Ok((seq, summary))) => Html(page(
             &format!("Recorded: install {} hooks", h.title()),
             &format!(
                 "<div class=\"note\"><strong>Your decision is recorded</strong> as record {seq} \
-                 (written by: human). Verdict did not change any of your files.</div>{}\
+                 (written by: human). {}</div>{}\
                  <p><a href=\"/\">Back to the sessions list</a></p>",
+                esc(&summary),
                 block_html(h)
             ),
         ))

@@ -288,6 +288,27 @@ fn backup(path: &Path) -> Result<PathBuf, String> {
     let stamp = format!("{}-{}", &digits[..8], &digits[8..14]);
     let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("file");
     let base = path.with_file_name(format!("{name}.bak-vdt-{stamp}"));
+    let current = fs::read(path).map_err(|e| format!("cannot read {}: {e}", path.display()))?;
+    // A retry after an interrupted attempt must not leave a second copy of the same bytes behind:
+    // an existing backup of this file that already holds exactly what we are about to back up is
+    // reused.
+    if let Some(dir) = path.parent()
+        && let Ok(entries) = fs::read_dir(dir)
+    {
+        let prefix = format!("{name}.bak-vdt-");
+        for entry in entries.flatten() {
+            let fname = entry.file_name();
+            let Some(fname) = fname.to_str() else {
+                continue;
+            };
+            if !fname.starts_with(&prefix) {
+                continue;
+            }
+            if fs::read(entry.path()).is_ok_and(|b| b == current) {
+                return Ok(entry.path());
+            }
+        }
+    }
     let mut bak = base.clone();
     let mut n = 2;
     while bak.exists() {
@@ -398,9 +419,12 @@ fn change_file(
             None
         };
         // The backup holds what we read; if the file moved on while it was copied, start over.
+        // Our own copy of a version that is no longer current is removed, so a retry never
+        // leaves an extra backup file behind.
         if let Some(b) = &bak
             && read_raw(b)? != raw
         {
+            let _ = fs::remove_file(b);
             continue;
         }
         write_json(path, &doc)?;
@@ -532,4 +556,43 @@ pub fn hooks_command(req: &HooksRequest, cwd: &Path, out: &mut dyn Write) -> Res
         .map_err(io)?;
     }
     Ok(0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A retry of the same install, or a retry after an interrupted attempt, must not leave a
+    /// second copy of the same bytes beside the settings file.
+    #[test]
+    fn a_retried_backup_of_the_same_bytes_reuses_the_one_already_there() {
+        let dir = std::env::temp_dir().join(format!(
+            "vdt-install-bak-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("settings.json");
+        fs::write(&file, "{\"hooks\":{}}\n").unwrap();
+
+        let first = backup(&file).unwrap();
+        let again = backup(&file).unwrap();
+        assert_eq!(first, again, "the same bytes reuse the same backup");
+        let count = fs::read_dir(&dir)
+            .unwrap()
+            .flatten()
+            .filter(|e| e.file_name().to_string_lossy().contains(".bak-vdt-"))
+            .count();
+        assert_eq!(count, 1, "exactly one backup file");
+
+        // Different bytes are a different backup: the old one is not overwritten.
+        fs::write(&file, "{\"hooks\":{},\"x\":1}\n").unwrap();
+        let third = backup(&file).unwrap();
+        assert_ne!(third, first);
+        assert_eq!(fs::read(&first).unwrap(), b"{\"hooks\":{}}\n");
+        let _ = fs::remove_dir_all(&dir);
+    }
 }

@@ -419,6 +419,33 @@ fn agent_cannot_write_finding_decision_verdict_mode_or_commit_anyway_over_mcp() 
 }
 
 #[test]
+fn a_claim_with_a_secret_is_redacted_before_the_ledger_keeps_it() {
+    let (t, _home, _sid) = project_with_session();
+    let mut m = Mcp::start(&t.0);
+    let (err, text) = m.call(
+        "verdict_claim",
+        json!({"text": "src/config.rs: set API_KEY=supersecretvalue1 for the build"}),
+    );
+    assert!(!err, "{text}");
+    let l = Ledger::open_existing(&t.0).unwrap().unwrap();
+    let stored: String = l
+        .records()
+        .unwrap()
+        .into_iter()
+        .find_map(|s| match s.record {
+            Record::Claim { text, .. } => Some(text),
+            _ => None,
+        })
+        .expect("the claim was recorded");
+    assert!(
+        !stored.contains("supersecretvalue1"),
+        "the secret is in the ledger: {stored}"
+    );
+    assert!(stored.contains("[REDACTED]"), "{stored}");
+    assert!(stored.contains("src/config.rs"), "{stored}");
+}
+
+#[test]
 fn with_no_session_a_claim_is_refused_and_a_check_is_not_established() {
     let t = Tmp::new();
     let mut m = Mcp::start(&t.0);

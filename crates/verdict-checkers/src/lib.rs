@@ -289,6 +289,7 @@ pub fn run_lane_with_home(
                 &name,
                 &started,
                 &ctx.inputs_hash(&name),
+                &verdict_core::baseline::tree_state_of_ledger(ledger),
                 format!("policy could not be read: {problem}"),
             )?);
         }
@@ -302,6 +303,10 @@ pub fn run_lane_with_home(
     for name in order_checkers(checkers) {
         ctx.reset_run_state();
         let started = now_rfc3339();
+        // The code the check is about is the code as it stands when the check starts. An edit
+        // made while the check runs must not be stamped as "seen": the verdict compares this
+        // stamp with the tree now and drops the check when they differ.
+        let tree_at_start = verdict_core::baseline::tree_state_of_ledger(ledger);
         let Some(checker) = available.iter().find(|c| c.name() == name) else {
             summaries.push(unavailable(
                 ledger,
@@ -309,6 +314,7 @@ pub fn run_lane_with_home(
                 &name,
                 &started,
                 &ctx.inputs_hash(&name),
+                &tree_at_start,
                 format!("no checker named {name} is installed in this build"),
             )?);
             continue;
@@ -321,6 +327,7 @@ pub fn run_lane_with_home(
                 Tier::Unverified,
                 &ctx.inputs_hash(&name),
                 &started,
+                &tree_at_start,
                 CheckOutcome::SkippedByPolicy,
                 Some(format!(
                     "the policy's {} lane does not list {name}",
@@ -346,6 +353,7 @@ pub fn run_lane_with_home(
                     &name,
                     &started,
                     &ctx.inputs_hash(&name),
+                    &tree_at_start,
                     reason,
                 )?);
             }
@@ -371,7 +379,14 @@ pub fn run_lane_with_home(
                     .reached_tier()
                     .or_else(|| checker.tiers().first().copied())
                     .unwrap_or(Tier::Static);
-                write_receipts(ledger, session, &ctx, &started, &ctx.inputs_hash(&name))?;
+                write_receipts(
+                    ledger,
+                    session,
+                    &ctx,
+                    &started,
+                    &tree_at_start,
+                    &ctx.inputs_hash(&name),
+                )?;
                 let gaps = ctx.unestablished_reasons();
                 if !gaps.is_empty() {
                     // Part of what this checker was asked could not be established. Its findings
@@ -386,6 +401,7 @@ pub fn run_lane_with_home(
                         &name,
                         &started,
                         &ctx.inputs_hash(&name),
+                        &tree_at_start,
                         reason,
                     )?);
                     continue;
@@ -397,6 +413,7 @@ pub fn run_lane_with_home(
                     tier,
                     &ctx.inputs_hash(&name),
                     &started,
+                    &tree_at_start,
                     CheckOutcome::Ran,
                     Some(bounded(detail)),
                 )?;
@@ -420,6 +437,7 @@ fn write_receipts(
     session: &str,
     ctx: &CheckContext,
     started: &str,
+    tree: &Option<String>,
     inputs_hash: &str,
 ) -> Result<(), String> {
     for r in ctx.receipts() {
@@ -443,6 +461,7 @@ fn write_receipts(
             r.tier,
             inputs_hash,
             started,
+            tree,
             CheckOutcome::Ran,
             Some(bounded(detail)),
         )?;
@@ -506,6 +525,7 @@ fn append_check(
     tier: Tier,
     inputs_hash: &str,
     started: &str,
+    tree: &Option<String>,
     outcome: CheckOutcome,
     detail: Option<String>,
 ) -> Result<u64, String> {
@@ -523,19 +543,21 @@ fn append_check(
                 finished_at: now_rfc3339(),
                 outcome,
                 detail,
-                tree_state: verdict_core::baseline::tree_state_of_ledger(ledger),
+                tree_state: tree.clone(),
             },
         )
         .map(|a| a.seq)
         .map_err(s)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn unavailable(
     ledger: &mut Ledger,
     session: &str,
     name: &str,
     started: &str,
     inputs_hash: &str,
+    tree: &Option<String>,
     reason: String,
 ) -> Result<CheckSummary, String> {
     ledger
@@ -555,6 +577,7 @@ fn unavailable(
         Tier::HonestRed,
         inputs_hash,
         started,
+        tree,
         CheckOutcome::FailedToRun,
         Some(bounded(reason)),
     )?;

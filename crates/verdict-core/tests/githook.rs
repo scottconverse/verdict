@@ -64,6 +64,21 @@ fn without_the_human_flag_it_prints_what_it_would_write_and_writes_nothing() {
 }
 
 #[test]
+fn a_configured_core_hooks_path_is_where_the_hook_goes() {
+    let repo = git_repo("hook-hookspath");
+    git(repo.path(), &["config", "core.hooksPath", "my-hooks"]);
+    let dir = hooks_dir(repo.path()).unwrap();
+    assert_eq!(dir, repo.path().join("my-hooks"), "{}", dir.display());
+    let (code, text) = run(&req(&repo, true, true));
+    assert_eq!(code, 0, "{text}");
+    assert!(
+        repo.path().join("my-hooks/pre-commit").exists(),
+        "the hook is in the configured folder, which is the one git runs"
+    );
+    assert!(!repo.path().join(".git/hooks/pre-commit").exists());
+}
+
+#[test]
 fn install_writes_a_fail_open_sh_hook_with_forward_slash_paths_and_a_human_decision() {
     let repo = git_repo("hook-install");
     let (code, text) = run(&req(&repo, true, true));

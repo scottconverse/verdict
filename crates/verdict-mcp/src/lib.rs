@@ -249,8 +249,13 @@ fn claim(root: &Path, args: &Map<String, Value>) -> Result<ToolOutcome, LedgerEr
         Some(&session),
         Record::Claim {
             source,
-            text: text.trim().to_string(),
-            names: names.clone(),
+            // The ledger is append-only, so a secret written here could never be taken out
+            // again. The hook path redacts; so does this one.
+            text: verdict_adapters::redact::redact(text.trim()),
+            names: names
+                .iter()
+                .map(|n| verdict_adapters::redact::redact(n))
+                .collect(),
             prompt_ordinal,
         },
     )?;
@@ -281,7 +286,7 @@ fn done_when(root: &Path, args: &Map<String, Value>) -> Result<ToolOutcome, Ledg
         Some(&session),
         Record::Claim {
             source: ClaimSource::DoneWhen,
-            text: text.trim().to_string(),
+            text: verdict_adapters::redact::redact(text.trim()),
             names,
             prompt_ordinal: None,
         },

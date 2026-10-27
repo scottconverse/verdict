@@ -1986,7 +1986,9 @@ dependencies = [
  "axum",
  "blake3",
  "serde",
+ "serde_json",
  "tokio",
+ "verdict-adapters",
  "verdict-core",
 ]
 
@@ -1997,6 +1999,7 @@ dependencies = [
  "rmcp",
  "serde_json",
  "tokio",
+ "verdict-adapters",
  "verdict-checkers",
  "verdict-core",
 ]

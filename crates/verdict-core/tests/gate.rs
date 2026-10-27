@@ -14,6 +14,17 @@ struct Repo {
 
 fn repo() -> Repo {
     let repo = git_repo("gate");
+    // A project supplies its own blast classification; the built-in default has none.
+    std::fs::write(
+        repo.path().join("verdict.json"),
+        r#"{"version":1,"blast":{
+            "high_if_touches":["**/routes/**","**/auth/**","**/migrations/**"],
+            "release_if_touches":["changelog.md"]
+        }}"#,
+    )
+    .unwrap();
+    git(repo.path(), &["add", "verdict.json"]);
+    git(repo.path(), &["commit", "-q", "-m", "policy"]);
     let home = Tmp::new("gatehome");
     let (_l, sid) = repo_ledger(repo.path(), home.path());
     Repo { repo, home, sid }

@@ -11,6 +11,8 @@
 //!   assigned a string literal
 //! * `broken-import`: a relative import (JS/TS, Python, Rust `mod`) that resolved at the baseline
 //!   and does not now
+//! * `route-call`: a call (fetch, generated client, server-function or Tauri call, ...) whose
+//!   target was served at the baseline and is served by nothing now
 //!
 //! `unwrap` on user input is not in the catalog: the design does not list it.
 
@@ -208,6 +210,7 @@ impl Checker for Regressions {
         }
 
         drafts.extend(self.broken_imports(ctx)?);
+        drafts.extend(self.broken_route_calls(ctx)?);
         Ok(finish(self.name(), drafts))
     }
 }
@@ -302,6 +305,103 @@ impl Regressions {
         }
         Ok(out)
     }
+}
+
+impl Regressions {
+    /// Calls whose target was served at the baseline and is served by nothing now. Needs a git
+    /// baseline (the baseline's own endpoint facts come from the changed files' old text plus the
+    /// current tree) and a complete read of the tree.
+    fn broken_route_calls(&self, ctx: &CheckContext) -> Result<Vec<Draft>, Unavailable> {
+        let base = match ctx.baseline_paths() {
+            Ok(b) => b.clone(),
+            Err(u) => {
+                ctx.note(format!(
+                    "unverified: calls whose route disappeared were not checked ({})",
+                    u.reason
+                ));
+                return Ok(Vec::new());
+            }
+        };
+        let now =
+            verdict_extract::extract_tree(&ctx.root, &verdict_extract::ScanOptions::default());
+        if !now.is_complete() {
+            ctx.note(
+                "unverified: calls whose route disappeared were not checked, because the tree \
+                 could not be read completely"
+                    .to_string(),
+            );
+            return Ok(Vec::new());
+        }
+        let now_keys: BTreeSet<verdict_extract::EndpointKey> =
+            now.endpoints().map(|e| e.key.clone()).collect();
+        // What the baseline served: everything served now, plus what the changed (or deleted)
+        // files used to serve. A target that existed at the baseline and exists nowhere now is
+        // the regression this looks for.
+        let changes = ctx.changes()?;
+        let extractors = verdict_extract::registry();
+        let mut base_keys = now_keys.clone();
+        for f in &changes.files {
+            if matches!(f.status, Status::Added) || f.binary || !base.contains(&f.path) {
+                continue;
+            }
+            let Some(old) = ctx.baseline_text(&f.path) else {
+                continue;
+            };
+            let Some(lang) = verdict_extract::syntax::lang_of(&f.path) else {
+                continue;
+            };
+            let facts = verdict_extract::extract_source(&f.path, &old, lang, &extractors);
+            base_keys.extend(facts.endpoints.into_iter().map(|e| e.key));
+        }
+        let mut out = Vec::new();
+        for file in &now.files {
+            let in_baseline = base.contains(&file.path);
+            for call in &file.calls {
+                if call.dynamic || !in_baseline {
+                    continue;
+                }
+                let served_now = now_keys.iter().any(|k| endpoint_fits(&call.target, k));
+                if served_now {
+                    continue;
+                }
+                let served_then = base_keys.iter().any(|k| endpoint_fits(&call.target, k));
+                if !served_then {
+                    continue;
+                }
+                out.push(Draft {
+                    rule: "route-call",
+                    severity: Severity::Blocker,
+                    title: format!(
+                        "call {} {} ({}:{}) reached a route at the baseline and reaches nothing now",
+                        call.target.method.as_deref().unwrap_or("*"),
+                        call.target.name,
+                        file.path,
+                        call.loc.line
+                    ),
+                    claim_seq: None,
+                    evidence: vec![ctx.line_pointer(&file.path, call.loc.line as u64)],
+                    tier: Tier::Static,
+                    fix_hint: Some(
+                        "restore the route or point the call at the one that serves it now".into(),
+                    ),
+                    path: file.path.clone(),
+                    line: call.loc.line as u64,
+                });
+            }
+        }
+        Ok(out)
+    }
+}
+
+/// Does a call's target reach this endpoint? A call with no method (a server function, a command)
+/// matches on kind and name; an HTTP call also has to agree on the method.
+fn endpoint_fits(call: &verdict_extract::EndpointKey, ep: &verdict_extract::EndpointKey) -> bool {
+    call.kind == ep.kind
+        && call.name == ep.name
+        && match (&call.method, &ep.method) {
+            (Some(a), Some(b)) => a.eq_ignore_ascii_case(b),
+            _ => true,
+        }
 }
 
 /// Paths a relative import on this line could mean, relative to the project root. Empty when the
