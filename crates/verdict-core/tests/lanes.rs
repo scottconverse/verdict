@@ -5,8 +5,23 @@ use verdict_core::lane::*;
 use verdict_core::verdict::{compute_live, live_input};
 use verdict_core::*;
 
+/// An explicit project policy, the way a real project supplies its blast globs. The built-in
+/// default has none (see the last test), so the lane tests configure what counts as high and
+/// release rather than relying on any application's paths.
 fn policy() -> Policy {
-    Policy::builtin().unwrap()
+    let files = [(
+        "verdict.json",
+        r#"{"version":1,"blast":{
+                "high_if_touches":["**/auth/**","**/migrations/**","**/routes/**","package.json"],
+                "release_if_touches":["changelog.md","**/installer/**"]
+            }}"#,
+    )];
+    let dir = p2b_common::Tmp::new("lane-policy");
+    for (name, body) in files {
+        std::fs::write(dir.path().join(name), body).unwrap();
+    }
+    let home = p2b_common::Tmp::new("lane-home");
+    Policy::load(dir.path(), Some(home.path())).unwrap()
 }
 
 fn paths(p: &[&str]) -> Vec<String> {
@@ -132,6 +147,59 @@ fn an_invalid_glob_is_reported_not_silently_trusted() {
 }
 
 #[test]
+fn the_builtin_default_has_no_project_paths_and_says_classification_is_missing() {
+    let p = Policy::builtin().unwrap();
+    // The default policy carries no application's commands, plan file, blast globs, verifier or
+    // project paths: a project supplies those explicitly.
+    for pointer in [
+        "/plans/0",
+        "/exec/commands/0",
+        "/blast/high_if_touches/0",
+        "/blast/release_if_touches/0",
+        "/vendors/verifier_order/0",
+    ] {
+        assert!(
+            p.value.pointer(pointer).is_none(),
+            "the built-in default still names {pointer}"
+        );
+    }
+    assert!(
+        p.value
+            .pointer("/exec/commands")
+            .unwrap()
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
+    assert!(
+        p.value
+            .pointer("/blast/high_if_touches")
+            .unwrap()
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
+
+    // Without configuration a code change is never low, and the missing classification is stated
+    // rather than silently assumed.
+    let c = classify_lane(&p, &paths(&["src/server/auth/login.ts"]));
+    assert_eq!(c.lane, Lane::Standard);
+    assert!(
+        c.reasons
+            .iter()
+            .any(|r| r.contains("no blast classification is configured")),
+        "{c:?}"
+    );
+    assert!(
+        c.warnings
+            .iter()
+            .any(|w| w.contains("no blast classification"))
+    );
+    // Documentation only is still low: that classification needs no project knowledge.
+    assert_eq!(classify_lane(&p, &paths(&["docs/a.md"])).lane, Lane::Low);
+}
+
+#[test]
 fn a_raise_lane_decision_raises_and_no_decision_lowers() {
     let t = Tmp::new("raise");
     let mut l = seeded(t.path());
@@ -200,9 +268,23 @@ fn the_lanes_checker_list_expands_star_and_minus() {
     );
 }
 
+/// The project policy the lane tests use, written into a repository the way a real project would
+/// supply its blast globs.
+const BLAST_POLICY: &str = r#"{"version":1,"blast":{
+  "high_if_touches":["**/auth/**","**/migrations/**","**/routes/**","package.json"],
+  "release_if_touches":["changelog.md","**/installer/**"]
+}}"#;
+
+fn configure_blast(root: &std::path::Path) {
+    std::fs::write(root.join("verdict.json"), BLAST_POLICY).unwrap();
+    git(root, &["add", "verdict.json"]);
+    git(root, &["commit", "-q", "-m", "policy"]);
+}
+
 #[test]
 fn live_lane_is_read_from_edit_tool_calls_and_a_real_git_diff() {
     let repo = git_repo("livelane");
+    configure_blast(repo.path());
     let home = Tmp::new("home");
     let (mut l, sid) = repo_ledger(repo.path(), home.path());
     // Nothing changed yet: low.
@@ -253,6 +335,7 @@ fn a_shell_command_is_not_an_edit_and_names_no_path() {
 #[test]
 fn a_changed_file_no_tool_call_mentions_is_found_by_git_unstaged_and_staged() {
     let repo = git_repo("gitfound");
+    configure_blast(repo.path());
     let home = Tmp::new("home");
     let (l, sid) = repo_ledger(repo.path(), home.path());
     std::fs::create_dir_all(repo.path().join("migrations")).unwrap();

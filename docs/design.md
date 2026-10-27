@@ -2,6 +2,8 @@
 
 Oct 26, 2026 · @Scott Converse
 
+Revised October 27, 2026: generic standalone scope; documentation only. Existing implementation gaps remain explicit backlog. Phase acceptance requirements are retained.
+
 ## Summary
 
 Verdict (working name) is one open-source tool that replaces dev-rigor-stack, proof-gate, sixdesk, gauntletgate, audit-team, coder-tdd-qa's release gate, prover and the two hook kits, and absorbs what malveon does well. It enforces a single rule structurally rather than in prose: **the agent writes claims, never verdicts.** Claims land in an append-only evidence ledger; verdicts come out of the ledger from things that are not the builder: deterministic code, a model from a different vendor, or the human.
@@ -12,7 +14,7 @@ The reason to build it: the current skills drifted apart because the discipline 
 
 ## Goals and non-goals
 
-The tool exists for one person directing several AI coding agents from several vendors, with human oversight and no terminal.
+The tool supports users directing multiple AI coding agents across projects, languages and vendors. Its core, CLI, MCP interface and GUI are independent of any particular agent, model, workstation or application. The GUI supports a complete no-terminal workflow after installation.
 
 **Goals**
 
@@ -28,7 +30,7 @@ The tool exists for one person directing several AI coding agents from several v
 
 - Proving business logic is correct. The tool proves wiring, execution results, and claim-versus-code agreement; a desk may raise a logic concern, but only as a hypothesis.
 - Replacing the agents' own test running. The exec runner invokes the project's defined commands; it invents none.
-- A hosted service, account, or telemetry. Everything runs on the user's machine and sends nothing.
+- A hosted Verdict service, mandatory account, or telemetry. Core storage and deterministic checks run locally and send nothing. Optional user-configured cloud desk providers receive only the explicitly authorized inputs; local desk providers are supported. No cloud provider is required for the deterministic core.
 - Locking an agent out. Hooks are a speed bump by design; an agent with a shell can always write a file. The ledger records that it did, which is what the verdict needs.
 
 ## Architecture at a glance
@@ -37,20 +39,17 @@ The tool exists for one person directing several AI coding agents from several v
 
 The ledger is the hub. Adapters feed it; checkers and desks read it and append findings; the policy engine computes a verdict from it; the human closes what only a human may close.
 
-## Target projects and their stacks
+## Product scope and supported project types
 
-The tool is built for these repositories first, read on October 26, 2026 (shallow clones; manifests, CI workflows, scripts and READMEs read; application code not audited). None of them uses Next.js, Supabase, Prisma or Drizzle, so malveon's sweet spot was never this portfolio's, and the first extractors are Python and TanStack, not Next.js.
+Verdict is a standalone, cross-platform verification tool for multiple agents and project types: libraries, command-line tools, services, web applications, desktop applications and multi-repository suites. Its policy, evidence ledger, checkers and reporting must work without any unrelated project, private skill library, named machine or prescribed model. No project-specific rules file is imported as Verdict policy.
 
-| Project | Stack | Tests and gates already there | What Verdict adds |
-| --- | --- | --- | --- |
-| [townlight](https://github.com/townlight) org: Core, Records (sunshine), Meetings, Code (ordinances), Zoning, Planning, Notice, Access shipped; Permit and Inspect in progress; 30 repos in all | Python 3.11/3.12, FastAPI, SQLAlchemy and asyncpg, Alembic, PostgreSQL 17 with pgvector and PostGIS, Celery and Redis; a shared `civiccore` wheel pinned by sha256 in every product's CI; React, Vite and TypeScript frontends (sunshine, meetings, ordinances) with openapi-typescript clients; a Tauri (Rust) desktop shell; signed Windows MSI | pytest, ruff, Playwright, vitest and axe per product; a hand-written `verify-release.sh` per product asserting version surfaces; `verify.yml`, `cleanroom.yml`, `release-preflight.yml`, `release-lockstep-gate` (release-truth files move together) and `verify-suite-state.py` (pins, versions, releases) in the umbrella | Wiring across FastAPI routes, SQLAlchemy writes and the generated TS client; Tauri `invoke` to `#[tauri::command]` wiring; a suite lane that reads the civiccore pins and product versions across repos; claims-vs-code on the release acceptance documents |
-| [civiccast-native](https://github.com/scottconverse/civiccast-native) | Python 3.12 with FastAPI, Starlette and Typer; uv and hatch; a React and TypeScript operator UI; 91 PowerShell scripts; one Rust tool (NDI sender) | 30 GitHub workflows: ci-test, ci-lint, ci-policy-gates (`scripts/policy/*.py`), deterministic-detectors (randomized suite, informational; mutation job removed by owner on October 22), a11y, security scan, VM cleanroom release, soak runs, loudness and PDF compliance | Wiring for FastAPI and Typer commands; exec runner invoking the Makefile and policy scripts with tiers; release coherence reading the cleanroom artifacts rather than rebuilding them |
-| [TownReporter](https://github.com/scottconverse/TownReporter) | TypeScript, TanStack Start, Router and Query, Vite SSR, Kysely over PGlite and pg, Radix UI, 151 SQL migrations; bundles the civic-scanner and report-local-news skills | Bespoke proof scripts in `package.json`: `check:auth` (loads /login in a browser and asserts the form), `check:panels`, `test:sources` ("sources reach the reader"), `proof:search`, `smoke`, lifecycle, flows and security-header e2e; `ci.yml` and `windows-install.yml` | Wiring for TanStack server functions and Kysely writes; those proof scripts registered in the policy as exec commands at the `browsed` tier, so a clean run can say "the login form rendered" with evidence instead of "tests passed" |
-| [siftwing](https://github.com/scottconverse/siftwing) | TypeScript on Node: CLI and MCP server (`@modelcontextprotocol/sdk`), playwright-core, zod and ajv; a Python SDK | `test`, `check`, `quality:retained` scripts; `test.yml`, `pages.yml` | Wiring for MCP tool registrations (a claim that tool X exists and calls Y); exec runner |
-| [textflowkit](https://github.com/scottconverse/textflowkit) | Python 3.10+, hatch, ruff, pytest; CLI, MCP server and FastAPI HTTP API; PyPI release | `ci.yml`, `publish-pypi.yml` | Wiring for FastAPI and MCP tools; release coherence against the PyPI version |
-| [dsh-halo-research](https://github.com/scottconverse/dsh-halo-research) (private) | DeepSeek Harness Web 0.2.1-rc.3 and Desktop on the Strix Halo Windows box; Ollama cloud default plus local LM Studio and Ollama; native plugins (model\_route), skills, MCP (XERJ); Mission Control; mostly PowerShell and dated evidence documents | No CI. Prior gate experiments in `stack/`: `gatecheck`, `Check-Done.ps1`, `Gate-Build.ps1`, `halo-verified-coder`, `halo-policy-deterministic` | A DSH adapter so Verdict runs as a DSH plugin plus MCP server, which is the planned port; the HALO local models become the cross-vendor verifier for cloud-built work |
+Project commands, plan locations, path classifications, release workflows, suite membership and provider preferences belong in explicit user/project configuration. Framework-specific extractors and host adapters are optional integrations with documented coverage. Missing coverage is reported as unverified, never inferred as clean.
 
-Two facts from the read shape the design more than the framework list. First, every repository is Windows-first in practice (signed MSIs, PowerShell launchers, `.cmd` installers) while CI runs on Ubuntu, so the exec runner must run PowerShell scripts natively on Windows and the tool must not assume WSL. Second, the projects already carry hand-written deterministic gates (version-surface assertions, lockstep checks, policy scripts, browser probes), so the release and firstrun checkers wrap those scripts and record their results with a tier, instead of reimplementing them; Verdict's own generic checks apply only where a repo has none.
+Preserve the existing coverage and its acceptance requirements: (1) FastAPI routes including APIRouter prefixes/include_router, SQLAlchemy/asyncpg data writes and Alembic migrations; (2) TypeScript fetch, openapi-typescript clients, TanStack Start server functions and Kysely writes; (3) Tauri invoke/command wiring; (4) Typer and Python/TypeScript MCP tools; (5) React controls. This is an initial implementation sequence, not a restriction on the product's users or future framework support. Each supported framework still requires red and green fixtures. Other stacks retain generic checks and clearly labeled unsupported wiring coverage.
+
+The exec runner uses the project's approved commands and declared native shell on Windows, Linux and macOS. It does not assume npm, a web server, a particular directory layout or WSL. Existing project-specific cleanroom, browser and release checks can be configured and their evidence recorded without becoming built-in dependencies.
+
+**Implementation status:** this revision changes the specification, not the implementation. The current built-in policy still contains application-specific npm commands, web-layout path assumptions and a machine-specific verifier name. Neutralizing those defaults, keeping explicit approval, and exposing missing configuration honestly are required backlog work; no code has been changed by this revision.
 
 ## Layer 1: agent adapters
 
@@ -62,7 +61,7 @@ Adapters are the only vendor-specific code in the tool, and each one does exactl
 | Record tool calls | PostToolUse on edit, write, shell, browser and run tools | Tool name, target file or command, output hash. Never the content of the output; the hash is enough to prove it happened. |
 | Hold "done" | Stop (and the pre-edit hook in enforce mode) | The agent's final message, then the gate result. In enforce mode a red gate sends the agent back with the finding list, at most twice, then releases and tells the human. |
 
-**Hosts in scope:** Claude Code, Codex, Cursor, Antigravity, and DeepSeek Harness (DSH) on the HALO workstation, where the adapter is a native DSH plugin and the MCP server is the primary path; DSH is also the planned home for the tool's own future port as plugins. Each adapter lives in its own package with its own payload fixtures taken from that host's documentation, and a parity test that asserts the ledger records it writes are identical across hosts for the same event. Starting point: claude-hook-kit's ran-before-done and codex-hook-kit, trimmed to the three jobs.
+**Hosts in scope:** Claude Code, Codex, Cursor, Antigravity and DeepSeek Harness (DSH) are supported adapter targets, not mandatory dependencies. DSH integration remains in scope as a native plugin plus MCP connection; it is an optional host, not the home or runtime of the standalone core. Each adapter has its own documented hook payload fixtures, parity checks and real-host verification status. The three-job contract is host-neutral; no external hook-kit installation is required. Other hosts can implement the same contract.
 
 **MCP server.** Exposes `verdict_check`, `verdict_scan`, `verdict_claim` (the agent records what a prompt asked for, one checkable line each, naming a URL, file or symbol), `verdict_done_when` (for a vague prompt, the agent states how the human will know it is done; "it works better" is refused because it cannot be wrong) and `verdict_decisions` (lists the human's open decisions; the agent can read them, never answer them). The server returns the same report the GUI shows, verdict line included.
 
@@ -119,17 +118,17 @@ Checkers are plugins with no model in them. Each reads the ledger and the workin
 | tests\_weakened | Test files deleted or commented out, assertions removed, assertions on constants; cleanup detection when the tested file went too | static | never; forces NEEDS YOU | malveon's closed check, rebuilt open |
 | claims\_vs\_code | Every claim from a final message, commit message or notes file that names something: looked up like a plan line; a contradiction blocks | static | contradiction blocks | malveon's agent's-words check, rebuilt open |
 | unfinished | TODO/FIXME, not-implemented bodies, sample data, debug logs, commented-out code, skipped tests, in lines added this session; a called stub blocks | static | called stub only | malveon, rebuilt open |
-| exec | The project's own build, lint, typecheck, test and proof commands, each registered in the policy with the tier it earns (a pytest run is \`ran\`; TownReporter's check:auth, which loads /login in a browser, is \`browsed\`); PowerShell scripts run natively on Windows; on failure, re-run on a temp copy of the baseline to say whether this session broke it | ran | failure blocks | malveon --exec plus the stack's baseline re-run idea |
-| mutation | deterministic-detector run on changed logic, only where policy says (Critical changed logic or test-sensitivity uncertainty); survivors recorded with seeds | ran | per policy | deterministic-detector |
-| firstrun | Where the repo has its own cleanroom workflow (townlight's cleanroom.yml and installer-cleanroom, civiccast's vm-cleanroom-release) the checker runs or reads it and records the artifacts; otherwise, in a container: fresh profile, every external dependency absent, then present, the documented first-run path walked on a server the tool started; either way the attestation links to screenshot and log hashes | browsed | dead-end on core feature blocks at release | gauntletgate walkthrough lane |
-| release | Runs the repo's own release-truth scripts first (townlight's verify-release.sh, verify-release-lockstep.py and verify-suite-state.py; civiccast's policy scripts) and records each with its tier; then the generic checks where a repo has none: HEAD vs latest tag vs release body vs assets, asset hashes, package name vs product name, lockfile vs manifest, in-tree markdown 404s, README commands exist. In suite mode it also checks that every member's pinned shared-library version (civiccore sha256) and product version agree with the umbrella's release record | asset, static | mismatch blocks at release | sixdesk Pack E and Pack C |
+| exec | The project's own approved build, lint, typecheck, test and proof commands, each registered with the tier its evidence earns: an actual test run is `ran`; an actual browser proof is `browsed`. Use the declared native shell; on failure re-run in an isolated baseline copy to distinguish a regression from an existing failure | ran; browsed only with browser evidence | failure blocks | built-in runner |
+| mutation | A configured mutation runner on changed logic, only where policy requires it (Critical changed logic or test-sensitivity uncertainty); survivors recorded with seeds. Record unavailable when required tooling is missing; never manufacture proof | ran | per policy | built-in checker interface; optional runner integration |
+| firstrun | Run or read the project's configured cleanroom workflow and record its artifacts; otherwise use a clean container: fresh profile, dependencies absent then present, documented first-run path walked on a server started by the tool where applicable. Attestation links to screenshot and log hashes; non-web projects use their documented entry point | browsed where applicable, ran for command evidence | dead-end on core feature blocks at release | built-in checker |
+| release | Run configured project release-truth checks first and record their evidence; apply generic checks where no equivalent exists: HEAD/tag/release/assets, hashes, package/product identity, lockfile/manifest, in-tree Markdown links and README commands. Optional suite configuration checks each member's shared dependency pins and product versions against its declared release record | asset, static | mismatch blocks at release | built-in checker |
 | packet | Renders the ledger for a session or release as a self-contained acceptance document: proven, failed, unproven, out of scope, each with evidence | n/a | n/a | prover |
 
 **Plugin contract.** A checker is a module exporting `name`, `tiers`, `applies(policy, lane)`, `run(ledger, tree, opts) → findings[]`, and `fixtures/` holding at least one project where the checker must go red and one where it must stay green. CI refuses a checker whose red fixture passes. Checkers never call each other; ordering is the core's job (wiring before claims\_vs\_code, exec before mutation).
 
 **Scan without a plan.** `verdict_scan` runs wiring, regressions and unfinished against the whole tree with no session or claims, exits 0, writes nothing. It is the first thing to run on a repo nobody has set up.
 
-**Framework coverage** is built in the order the target projects need it, each extractor a tree-sitter query set with its own red and green fixtures: (1) FastAPI routes with APIRouter prefixes and include\_router, SQLAlchemy and asyncpg writes, Alembic migrations; (2) TypeScript fetch calls, openapi-typescript generated clients, TanStack Start server functions and Kysely writes; (3) Tauri \`invoke\` calls to \`#\[tauri::command\]\` handlers; (4) Typer CLI commands and MCP tool registrations in both Python and TypeScript, treated as routes so a claim can name a command or tool; (5) React buttons and forms. Next.js, Supabase, Prisma and Drizzle are not on the list because no target project uses them. A stack the wiring checker does not read is reported as `unverified` for wiring, never as clean.
+**Framework coverage** follows the initial implementation sequence in Product scope and supported project types. Each extractor uses tree-sitter queries with its own red and green fixtures. Supported framework coverage is explicit and extensible; no framework is excluded because of the developer's current portfolio. A stack the wiring checker cannot read is reported as `unverified`, never clean.
 
 ## Layer 4: LLM desks
 
@@ -159,9 +158,9 @@ Desks are the only place a model is allowed, and they are workers over the ledge
 - Read the builder's final message, notes or commit messages except as claims already in the ledger. The refuter is told to refute, not confirm, and starts from the ledger alone.
 - Answer a human decision, switch the gate mode, or edit the policy.
 
-**Cross-vendor routing.** The policy names the builder's vendor per session (from the adapter record) and the core picks desk workers from a different vendor: Claude builds, Codex or a HALO local model verifies; Codex builds, Claude verifies. Above low blast radius this is a hard refusal: a verdict is not issued if builder and every desk share a vendor. Routing goes through the existing multi-model-routing skill's receipt mechanism so the ledger records which model actually answered.
+**Cross-vendor routing.** The session adapter records the builder's actual model and vendor. The core dispatches desks through a Verdict-owned provider interface to explicitly configured local or cloud providers from a different vendor. Above low blast radius the existing hard-refusal requirement remains; the only downgrade is the existing global warn-only policy, recorded with `single_vendor`. Provider identity is derived from the served model/vendor, not the host app, transport or workstation name. Every dispatch records requested/returned model, vendor, effective settings, outcome and available usage evidence. External routing skills or gateways may implement an optional adapter, but are not required or authoritative. Preserve the Phase 4 real Claude-builder/Codex-verifier acceptance case without hard-coding that pair as the only supported pairing.
 
-**Cost discipline.** Desks run only in the lanes policy assigns them (none in low; Engineer and QA in standard; Engineer, QA, Security and the refuter in high; all seven in release), and each desk is capped at five findings in the report body with the remainder counted. The coordinator model does no verification itself; its job is dispatch and merge, exactly as the stack's Workflow-tool rule required.
+**Cost discipline.** Desks run only in their assigned lanes (none in low; Engineer and QA in standard; Engineer, QA, Security and Refuter in high; all seven in release). Each desk is capped at five findings in the report body with the remainder counted. The product's coordinator dispatches and integrates; it cannot supply its own judgment as independent desk verification. The developer coordinating this repository still inspects worker diffs and executes required gates.
 
 ## Layer 5: policy engine, verdict and human surface
 
@@ -214,15 +213,10 @@ One file holds the whole discipline. A global default lives in the home folder; 
 ```json
 {
   "version": 1,
-  "plans": ["docs/PLAN.md"],
+  "plans": [],
   "exec": {
     "timeout": "3m",
-    "commands": [
-      { "run": "npm test",             "tier": "ran" },
-      { "run": "npm run typecheck",    "tier": "ran" },
-      { "run": "npm run check:auth",   "tier": "browsed", "needs": "server" },
-      { "run": "npm run test:sources", "tier": "browsed", "needs": "server" }
-    ]
+    "commands": []
   },
   "lanes": {
     "low":      { "checkers": ["wiring", "regressions", "claims_vs_code", "unfinished"], "desks": [] },
@@ -231,8 +225,8 @@ One file holds the whole discipline. A global default lives in the home folder; 
     "release":  { "checkers": ["*"], "desks": ["*"], "bar": "zero_above_nit" }
   },
   "blast": {
-    "high_if_touches": ["src/server/auth/**", "migrations/**", "src/routes/**", "package.json"],
-    "release_if_touches": ["CHANGELOG.md", "installer/**"]
+    "high_if_touches": [],
+    "release_if_touches": []
   },
   "mutation": {
     "require_when": ["critical_logic_changed", "test_sensitivity_uncertain"],
@@ -240,7 +234,7 @@ One file holds the whole discipline. A global default lives in the home folder; 
   },
   "vendors": {
     "cross_vendor_required_from_lane": "standard",
-    "verifier_order": ["codex", "dsh-halo-local", "claude"]
+    "verifier_order": []
   },
   "gate": { "mode": "shadow", "max_sendbacks": 2, "stop_timeout": "20s" },
   "decisions_owner": "human",
@@ -248,17 +242,9 @@ One file holds the whole discipline. A global default lives in the home folder; 
 }
 ```
 
-A suite umbrella (townlight/townlight) adds a `suite` block naming its member repositories and the files that pin them, so the release lane can check that pins, versions and release records agree across all of them:
+This is a neutral policy example and the required target for built-in defaults, not a claim about current code. Empty lists do not mean that missing checks passed: no configured exec command produces no execution proof; a required desk without a provider remains incomplete under the cross-vendor policy. Missing or unsupported blast-classification configuration must be exposed as unavailable and handled conservatively, not silently treated as low risk. User-approved project configuration supplies commands, plans, path rules and providers; detection may propose them but cannot approve them.
 
-```json
-{
-  "suite": {
-    "members": ["../core", "../sunshine", "../meetings", "../ordinances", "../zone", "../plan", "../notice", "../access"],
-    "pins": [".github/workflows/verify.yml", "scripts/verify-suite-state.py"],
-    "release_truth": ["README.md", "USER-MANUAL.md", "CHANGELOG.md", "docs/installer/*.md"]
-  }
-}
-```
+An optional suite policy explicitly lists member repositories, dependency-pin files and release-truth files. No application, member name, shared library or workflow filename is built in. Preserve suite-wide pin/version coherence checks for configured suites.
 
 The mutation block is the proportionality rule from dev-rigor-stack and dev-rigor-stack-lite, carried over word for word in intent so the sixdesk contradiction cannot recur: mutation runs only where the rule names a reason, never because a lane is called standard or a release is in progress. Host skill files, hook definitions and the desk rubrics are generated from this file by `vdt generate`, so a change here reaches every agent on the next session start.
 
@@ -334,8 +320,8 @@ One repository, a Rust Cargo workspace, Apache-2.0 throughout, no third-party ve
 
 | Decision | Applied as |
 | --- | --- |
-| Core language | Rust, stable toolchain, one Cargo workspace. One signed binary with no runtime to install, which a no-terminal install needs; rusqlite plus blake3 for the hash-chained ledger; tree-sitter's native bindings for the parsers; the official rmcp crate for MCP; axum for the local GUI, Tauri when a desktop installer is wanted; cargo-dist for signed installers on three OSes. The house language for new and refactored projects, so the tool and the code it checks share a toolchain. |
-| Wiring checker | Built in-house on tree-sitter. No malveon code is used or vendored, by decision, so the tool carries no beta license, no third-party binary and no obligation to another project's release cadence. The five verdict words are kept as vocabulary. Extractors are added one framework at a time, starting with the stacks the user's own projects use. |
+| Core language | Rust, stable toolchain, one Cargo workspace. One signed binary with no runtime to install, which a no-terminal install needs; rusqlite plus blake3 for the hash-chained ledger; tree-sitter's native bindings for the parsers; the official rmcp crate for MCP; axum for the local GUI, Tauri when a desktop installer is wanted; cargo-dist for signed installers on three OSes. Rust is Verdict's implementation language; checked projects need not use Rust or share its toolchain. |
+| Wiring checker | Built in-house on tree-sitter. No malveon code is used or vendored, by decision, so the tool carries no beta license, no third-party binary and no obligation to another project's release cadence. The five verdict words are kept as vocabulary. Extractors are added one framework at a time, starting with the documented supported-framework sequence. |
 | Policy location | Global default at `~/.verdict/policy.json`, project override at `<repo>/verdict.json`, run-time flag or GUI choice on top. |
 | Cross-vendor verification | Hard refusal above low lane, configurable only downward to warn-only in the global policy, never per project. |
 | Name | Product and repo: Verdict, at scottconverse/verdict (free as of October 26, 2026). Crate: verdict-gate; binary and command: vdt (both free on crates.io as of October 26, 2026). Distinct from the product name because `verdict` on crates.io is a formally verified X.509 validator (secure-foundations), on PyPI it is Haize Labs' LLM evaluation pipelines, and on npm a dormant rules engine. |
@@ -350,7 +336,7 @@ verdict/
                              wiring, baseline_diff, regressions, tests_weakened, claims_vs_code,
                              unfinished, exec, mutation, firstrun, release, packet
     verdict-desks/           rubric .md per desk, worker prompt builder, vendor router
-    verdict-adapters/        claude-code, codex, cursor, antigravity, halo-local (hook payload parsers)
+    verdict-adapters/        claude-code, codex, cursor, antigravity, dsh (optional host adapters)
     verdict-mcp/             the MCP server on rmcp (verdict_check, scan, claim, done_when, decisions)
     verdict-gui/             axum server + static HTML; Tauri shell for the desktop installer
     verdict-generate/        emits host SKILL.md files, hook JSON and desk prompts from policy
@@ -374,11 +360,11 @@ Five phases, built back to back with no pause between them. The phases are an or
 
 1. **Ledger and adapters.** Core ledger with hash chain; Claude Code and Codex adapters doing the three jobs; MCP server with check and claim; a plain-text report; a read-only page on localhost (the verdict, the report, the session log). Done when the ledger records a real session from each agent and the adapter parity test passes.
 2. **Deterministic checkers.** baseline\_diff, regressions, tests\_weakened, claims\_vs\_code, unfinished, exec with baseline re-run; verdict computation; pre-commit gate; red and green fixtures for each; the decisions queue on the localhost page (accept a finding as not real, approve a repo's commands, raise the lane, commit anyway with a typed reason). Done when every checker's red fixture fails CI when the checker is stubbed out.
-3. **Wiring and scan.** The tree-sitter extractor crate and the wiring checker, built in-house, for the frameworks the target projects use first; `verdict_scan`. The largest phase. Done when every supported framework has red and green fixtures, a plan line on each fixture yields the right one of the five words with a file:line pointer, every other stack reads unverified rather than clean, and the scan on a 1,000-file repo finishes in under 30 seconds.
-4. **Desks and cross-vendor routing.** Rubrics, worker dispatch through the routing skill, the refuter, the cross-vendor refusal, hypothesis handling; `vdt generate` replacing the hand-maintained SKILL.md files; Cursor and Antigravity adapters. Done when a session built by Claude is verified by Codex with every desk finding citing a ledger record, and the generated skills are byte-identical across two machines.
+3. **Wiring and scan.** The tree-sitter extractor crate and the wiring checker, built in-house, for the initially supported frameworks; `verdict_scan`. The largest phase. Done when every supported framework has red and green fixtures, a plan line on each fixture yields the right one of the five words with a file:line pointer, every other stack reads unverified rather than clean, and the scan on a 1,000-file repo finishes in under 30 seconds.
+4. **Desks and cross-vendor routing.** Rubrics, worker dispatch through the configurable provider interface, the refuter, the cross-vendor refusal, hypothesis handling; `vdt generate` replacing the hand-maintained SKILL.md files; Cursor and Antigravity adapters. Done when a session built by Claude is verified by Codex with every desk finding citing a ledger record, and the generated skills are byte-identical across two machines.
 5. **GUI, enforce mode, release lane.** The full GUI and editor panel; enforce mode with send-backs; firstrun in a container; release coherence; SARIF and packet export; the GUI installer. Done when the tool ships its own v1.0 through its own release lane with a `CLEAR TO SHIP` packet attached to the tag, installed from the README into a clean container with no terminal step after the installer.
 
-Verdict is used on real work from the first phase onward, in shadow mode; enforce is turned on per project whenever the human wants it. The existing skills stay installed until phase 4 replaces them.
+Verdict is used on real work from the first phase onward, in shadow mode; enforce is turned on per project whenever the human wants it. Existing user skills stay installed; generated Verdict integration files replace only explicitly selected, Verdict-owned files with the user's approval. Unrelated skills are never removed.
 
 ## Risks and open questions
 
@@ -390,7 +376,7 @@ The risks that could make this tool fail the way its predecessors drifted, each 
 | The agent routes around the hooks through its shell | Accepted as a non-goal; the ledger records the shell call, and `claims_vs_code` and `baseline_diff` still see the result. The verdict reads the tree, not the hooks. |
 | Desks drift back into "AI grading AI from memory" | Rubrics are files handed to the worker, not recalled; findings without citations never move the verdict; the refuter starts from the ledger alone. |
 | Cross-vendor refusal blocks work when only one vendor is available (quota, outage) | Policy allows warn-only in the global file, never per project; the ledger records the downgrade and the verdict carries a `single_vendor` flag. |
-| The in-house wiring extractor covers too few frameworks to be useful early | Phases 1 and 2 deliver the floor without it; coverage grows one framework at a time with fixtures; anything uncovered reads unverified, never clean. The order is now fixed by the target projects: FastAPI and SQLAlchemy, then TanStack and Kysely, then Tauri commands, then Typer and MCP tools. |
+| The in-house wiring extractor covers too few frameworks to be useful early | Phases 1 and 2 deliver the floor without it; coverage grows one framework at a time with fixtures; anything uncovered reads unverified, never clean. The initial coverage sequence remains: FastAPI and SQLAlchemy, then TanStack and Kysely, then Tauri commands, then Typer and MCP tools. |
 | The GUI becomes the bottleneck for a workflow that never touches a terminal | Every GUI action has an MCP read equivalent for the agent (never a write), and the report is the same text everywhere, so the GUI is a convenience over the ledger rather than the only door. |
 | Policy classification of blast radius is too coarse (a one-line auth change is high; a 500-line docs change is low) | Classification is by paths and kinds touched, with per-project overrides; the human can raise a lane, never lower it. Open: whether to learn path weights from past sessions. |
 | SQLite ledger on a synced folder (OneDrive, Dropbox) corrupts under concurrent sessions | Ledger is per machine and git-ignored; a write-ahead log and a lock file; the GUI warns when the project path is under a sync root. |
@@ -399,12 +385,12 @@ The risks that could make this tool fail the way its predecessors drifted, each 
 Open questions to settle before phase 1 starts:
 
 - [ ] Settled: product and repo Verdict, crate verdict-gate, binary vdt. Reserve the crate name on crates.io when the repo is created.
-- [ ] Settled: phase 1 shadow targets are TownReporter and townlight/sunshine; civiccast-native joins in phase 2 as the exec and release target because it has the most CI.
-- [ ] Settled October 26, 2026: the seven sixdesk rubric files exist in the sixdesk skill's references folder (about 1 to 2 KB each) and seed `crates/verdict-desks/`.
+- [ ] Acceptance projects are isolated representative repositories. Preserve real Claude Code and Codex sessions, parity evidence, red/green framework fixtures, the 1,000-file scan and release/first-run acceptance. No unrelated live project is required or modified.
+- [ ] Package all seven desk rubrics as versioned files in Verdict. Historical rubric sources may seed them with attribution, but an external skill installation is not a build/runtime prerequisite. Preserve every desk role and rubric acceptance requirement.
 
 ## Sources
 
-Everything this design borrows was read in full on October 26, 2026.
+Historical design provenance and licensing attribution only. These sources are not required installations, inherited instructions, or runtime dependencies. The original author recorded the following reading on October 26, 2026.
 
 - [scottconverse/dev-rigor-stack](https://github.com/scottconverse/dev-rigor-stack) at commit 876abcc: README, CHANGELOG, dev-rigor-stack, audit-team, gauntletgate (SKILL.md, gate-verdict.md, lanes/walkthrough.md), proof-gate
 - sixdesk and proof-gate SKILL.md files from the synced Claude skill library
@@ -413,4 +399,4 @@ Everything this design borrows was read in full on October 26, 2026.
 - [sixdesk vs dev-rigor-stack: lineage check](https://claude.ai/artifact/4eYiXRrpe3XPv7VwWUYnf4), the companion doc listing the contradictions this design resolves
 - Repositories referenced for existing components: claude-hook-kit, codex-hook-kit, prover, deterministic-detector, tampercheck, multi-model-routing-skill, dev-rigor-stack-lite (listed from the account; only dev-rigor-stack and the four grepped bundles were read)
 
-* Target project repositories, shallow-cloned October 26, 2026 and read at manifest, CI, script and README level: [townlight/townlight](https://github.com/townlight/townlight), [townlight/core](https://github.com/townlight/core), [townlight/sunshine](https://github.com/townlight/sunshine), [townlight/meetings](https://github.com/townlight/meetings), [townlight/ordinances](https://github.com/townlight/ordinances), [townlight/zone](https://github.com/townlight/zone), [townlight/plan](https://github.com/townlight/plan), [townlight/notice](https://github.com/townlight/notice), [townlight/access](https://github.com/townlight/access), [townlight/permit](https://github.com/townlight/permit), [townlight/inspect](https://github.com/townlight/inspect), [civiccast-native](https://github.com/scottconverse/civiccast-native), [TownReporter](https://github.com/scottconverse/TownReporter), [siftwing](https://github.com/scottconverse/siftwing), [textflowkit](https://github.com/scottconverse/textflowkit), [dsh-halo-research](https://github.com/scottconverse/dsh-halo-research) (private)
+Historical portfolio research informed initial framework coverage; it is not a product dependency or a required acceptance environment.

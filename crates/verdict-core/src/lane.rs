@@ -238,7 +238,8 @@ pub fn classify_lane(policy: &Policy, paths: &[String]) -> Classification {
     let release = compile_all("/blast/release_if_touches");
     let high = compile_all("/blast/high_if_touches");
     let mut lane = Lane::Low;
-    let mut reasons = Vec::new();
+    // Path reasons, then (below) the missing-classification note as the first line the human sees.
+    let mut path_reasons = Vec::new();
     for path in paths {
         let hit = |globs: &[(String, GlobMatcher)]| {
             globs
@@ -250,19 +251,33 @@ pub fn classify_lane(policy: &Policy, paths: &[String]) -> Classification {
             if lane < Lane::Release {
                 lane = Lane::Release;
             }
-            reasons.push(format!("{path} matches release_if_touches {g}"));
+            path_reasons.push(format!("{path} matches release_if_touches {g}"));
         } else if let Some(g) = hit(&high) {
             if lane < Lane::High {
                 lane = Lane::High;
             }
-            reasons.push(format!("{path} matches high_if_touches {g}"));
+            path_reasons.push(format!("{path} matches high_if_touches {g}"));
         } else if !is_documentation(path) {
             if lane < Lane::Standard {
                 lane = Lane::Standard;
             }
-            reasons.push(format!("{path} changes code or configuration"));
+            path_reasons.push(format!("{path} changes code or configuration"));
         }
     }
+    let mut reasons = Vec::new();
+    // Missing classification is never silently low: a project that has not said which paths are
+    // auth, data writes, migrations, public interfaces or release files cannot be raised above
+    // standard by the diff alone, and the report says so.
+    if release.is_empty() && high.is_empty() {
+        let w = "no blast classification is configured (blast.high_if_touches and \
+                 blast.release_if_touches are empty): auth, data writes, migrations, public \
+                 interfaces and release changes cannot be recognized, so the lane cannot rise \
+                 above standard from the diff. Add the project's globs to its verdict.json."
+            .to_string();
+        warnings.push(w.clone());
+        reasons.push(w);
+    }
+    reasons.extend(path_reasons);
     if reasons.is_empty() {
         reasons.push(if paths.is_empty() {
             "no changed files found".to_string()

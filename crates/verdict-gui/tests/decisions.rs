@@ -43,6 +43,15 @@ fn pointer() -> Vec<EvidencePointer> {
 fn fixture_with(findings: &[(&str, &str, Severity)]) -> Fixture {
     let dir = Tmp::new();
     let home = Tmp::new();
+    // The project supplies its own commands; the built-in default lists none.
+    std::fs::write(
+        dir.0.join("verdict.json"),
+        r#"{"version":1,"exec":{"commands":[
+            {"run":"npm test","tier":"ran"},
+            {"run":"npm run typecheck","tier":"ran"}
+        ]}}"#,
+    )
+    .unwrap();
     let mut l = Ledger::open(&dir.0).unwrap();
     let s = start_session(
         &mut l,
@@ -327,12 +336,19 @@ fn the_queue_lists_what_is_waiting_and_every_phase_two_control() {
     ] {
         assert!(b.contains(button), "missing control: {button}");
     }
-    // Hooks are still answered on the sessions page.
+    // Hooks are still answered on the sessions page, and each card is now a button as well as a
+    // link: the button records the decision and shows the block.
     assert!(b.contains("Install the claude_code hooks"));
-    // Every form carries the token and posts to /decide.
+    assert!(b.contains("Install these hooks"));
+    assert!(b.contains("sessions page</a>, under Hooks"));
+    // Every form carries the token. The hook cards post to the installer; every other control
+    // posts to /decide.
     let forms = b.matches("<form").count();
     assert!(forms >= 6, "{forms}");
-    assert_eq!(b.matches("action=\"/decide\"").count(), forms);
+    let decide_forms = b.matches("action=\"/decide\"").count();
+    let install_forms = b.matches("action=\"/install-hooks\"").count();
+    assert_eq!(decide_forms + install_forms, forms);
+    assert_eq!(install_forms, 2, "one button per host");
     assert_eq!(b.matches(&f.page.token).count(), forms);
 }
 

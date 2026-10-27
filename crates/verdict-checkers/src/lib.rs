@@ -4,7 +4,7 @@
 //! * [`Checker`] is the plugin contract: `name`, `tiers`, `applies(policy, lane)`,
 //!   `run(ctx) -> Result<Vec<Finding>, Unavailable>`. Checkers never call each other; ordering is
 //!   [`run_lane`]'s job.
-//! * [`registry`] lists the six checkers by name: `baseline_diff`, `regressions`,
+//! * [`registry`] lists the seven checkers by name: `wiring`, `baseline_diff`, `regressions`,
 //!   `tests_weakened`, `claims_vs_code`, `unfinished`, `exec`.
 //! * [`run_lane`] runs a lane's checkers against a session and writes the results to the ledger:
 //!   one `check` record per run (written as the core, the only writer the ledger lets write

@@ -336,9 +336,26 @@ fn session_html(
         match d.decision {
             DecisionKind::InstallHooks => {
                 waiting += 1;
+                // The card is a button: pressing it records the human's decision and shows the
+                // block to add. The link to the sessions page stays, for the block itself.
+                let host = d
+                    .key
+                    .split_once(':')
+                    .map(|(_, h)| h.to_string())
+                    .unwrap_or_default();
+                let host_link = esc(&host);
                 body.push_str(&card(
                     &esc(&d.question),
-                    "<p>Answer it on the <a href=\"/\">sessions page</a>, under Hooks.</p>",
+                    &format!(
+                        "<p>This records your decision and shows you the exact block to add. It \
+                         does not edit any of your files.</p>\
+                         <form method=\"post\" action=\"/install-hooks\">\
+                         <input type=\"hidden\" name=\"host\" value=\"{host_link}\">\
+                         <input type=\"hidden\" name=\"token\" value=\"{}\">\
+                         <button type=\"submit\">Install these hooks</button></form>\
+                         <p>Answer it on the <a href=\"/\">sessions page</a>, under Hooks.</p>",
+                        esc(token)
+                    ),
                 ));
             }
             DecisionKind::AcceptPromptTranslation => {

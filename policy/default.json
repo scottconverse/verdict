@@ -1,14 +1,9 @@
 {
   "version": 1,
-  "plans": ["docs/PLAN.md"],
+  "plans": [],
   "exec": {
     "timeout": "3m",
-    "commands": [
-      { "run": "npm test",             "tier": "ran" },
-      { "run": "npm run typecheck",    "tier": "ran" },
-      { "run": "npm run check:auth",   "tier": "browsed", "needs": "server" },
-      { "run": "npm run test:sources", "tier": "browsed", "needs": "server" }
-    ]
+    "commands": []
   },
   "lanes": {
     "low":      { "checkers": ["wiring", "regressions", "claims_vs_code", "unfinished"], "desks": [] },
@@ -17,8 +12,8 @@
     "release":  { "checkers": ["*"], "desks": ["*"], "bar": "zero_above_nit" }
   },
   "blast": {
-    "high_if_touches": ["src/server/auth/**", "migrations/**", "src/routes/**", "package.json"],
-    "release_if_touches": ["CHANGELOG.md", "installer/**"]
+    "high_if_touches": [],
+    "release_if_touches": []
   },
   "mutation": {
     "require_when": ["critical_logic_changed", "test_sensitivity_uncertain"],
@@ -26,7 +21,7 @@
   },
   "vendors": {
     "cross_vendor_required_from_lane": "standard",
-    "verifier_order": ["codex", "dsh-halo-local", "claude"]
+    "verifier_order": []
   },
   "gate": { "mode": "shadow", "max_sendbacks": 2, "stop_timeout": "20s" },
   "decisions_owner": "human",
