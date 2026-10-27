@@ -117,10 +117,13 @@ impl Ledger {
                     seq: None,
                     message: format!("protection trigger {name} has been removed"),
                 }),
-                Some(s) if s != expected => problems.push(Problem {
-                    seq: None,
-                    message: format!("protection trigger {name} has been altered"),
-                }),
+                // Ignore CR: a Windows checkout may have CRLF inside the trigger text.
+                Some(s) if s.replace('\r', "") != expected.replace('\r', "") => {
+                    problems.push(Problem {
+                        seq: None,
+                        message: format!("protection trigger {name} has been altered"),
+                    })
+                }
                 Some(_) => {}
             }
         }
