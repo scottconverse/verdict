@@ -1,22 +1,36 @@
 //! The plain-text report for one session, in the design's report shape.
 //!
-//! This build has no checkers and no verdict computation, so the report is honest about it:
-//! the verdict line says nothing was checked (never VERIFIED, never clean) and the report ends
-//! with NOT ESTABLISHED.
+//! The headline is the verdict. [`render_report`] shows the session's latest verdict record (the
+//! one `vdt verdict` or the gate wrote); [`render_report_with`] shows a verdict computed just now.
+//! A session with no verdict at all reads honestly: the verdict line says nothing was checked
+//! (never VERIFIED, never clean). Either way the report ends with NOT ESTABLISHED.
 
 use std::fmt::Write as _;
 
+use crate::lane::lane_name;
 use crate::ledger::{Ledger, LedgerError};
-use crate::model::{CheckOutcome, Record};
+use crate::model::{CheckOutcome, Lane, Record};
+use crate::report_head::{Head, three_state};
+use crate::verdict::{CheckState, Computed, FindingStatus, analyze, sections};
 
 fn indent_block(text: &str, pad: &str) -> String {
     text.lines().collect::<Vec<_>>().join(&format!("\n{pad}"))
 }
 
-/// Render the report for `session_id`, or for the most recent session when `None`.
+/// Render the report for `session_id`, or for the most recent session when `None`, with the
+/// session's latest stored verdict (or none, if no verdict was ever written).
 ///
 /// Returns [`LedgerError::Invalid`] when the ledger has no such session.
 pub fn render_report(ledger: &Ledger, session_id: Option<&str>) -> Result<String, LedgerError> {
+    render_report_with(ledger, session_id, None)
+}
+
+/// Like [`render_report`], but with a verdict computed just now (`Some`) instead of the stored one.
+pub fn render_report_with(
+    ledger: &Ledger,
+    session_id: Option<&str>,
+    computed: Option<&Computed>,
+) -> Result<String, LedgerError> {
     let all = ledger.records()?;
     let session = match session_id {
         Some(id) => all
@@ -75,15 +89,44 @@ pub fn render_report(ledger: &Ledger, session_id: Option<&str>) -> Result<String
         }
     }
 
+    let head: Option<Head> = match computed {
+        Some(c) if c.session == *id => Some(Head::from_computed(c)),
+        _ => Head::from_stored(ledger, id)?,
+    };
+    let analysis = match &head {
+        Some(_) => Some(analyze(ledger, id)?),
+        None => None,
+    };
+    let lane_for_sections = head.as_ref().and_then(|h| h.lane).unwrap_or(Lane::Standard);
+
     let mut o = String::new();
-    let _ = writeln!(
-        o,
-        "VERDICT: UNVERIFIED - nothing was checked  (lane: not classified, policy v{policy_version}, builder: {agent}/{model} [{vendor}], verifier: none)"
-    );
-    let _ = writeln!(
-        o,
-        "read from code: not run  |  your build and tests: not run  |  your real app: not run"
-    );
+    match (&head, &analysis) {
+        (Some(h), Some(a)) => {
+            let _ = writeln!(
+                o,
+                "VERDICT: {}  (lane: {}, policy v{}, builder: {agent}/{model} [{vendor}], verifier: none)",
+                h.headline_word(),
+                h.lane.map_or("not recorded", lane_name),
+                h.policy_version
+            );
+            let ts = three_state(a, lane_for_sections);
+            let _ = writeln!(
+                o,
+                "read from code: {}  |  your build and tests: {}  |  your real app: {}",
+                ts[0], ts[1], ts[2]
+            );
+        }
+        _ => {
+            let _ = writeln!(
+                o,
+                "VERDICT: UNVERIFIED - nothing was checked  (lane: not classified, policy v{policy_version}, builder: {agent}/{model} [{vendor}], verifier: none)"
+            );
+            let _ = writeln!(
+                o,
+                "read from code: not run  |  your build and tests: not run  |  your real app: not run"
+            );
+        }
+    }
     let ledger_line = if integrity.is_ok() {
         format!("intact, {} records", integrity.records)
     } else {
@@ -104,7 +147,27 @@ pub fn render_report(ledger: &Ledger, session_id: Option<&str>) -> Result<String
     );
 
     let _ = writeln!(o, "\nFIX FIRST");
-    if findings.is_empty() {
+    if let Some(a) = &analysis {
+        let sec = sections(a, lane_for_sections);
+        if sec.fix_first.is_empty() {
+            let _ = writeln!(o, "  (none proven wrong)");
+        }
+        for (i, f) in sec.fix_first.iter().enumerate() {
+            let _ = writeln!(
+                o,
+                "  {}. [{:?}] {} ({}{}; record {})",
+                i + 1,
+                f.severity,
+                f.title,
+                f.tier.as_str(),
+                f.evidence
+                    .first()
+                    .map(|e| format!(", {e}"))
+                    .unwrap_or_default(),
+                f.seq
+            );
+        }
+    } else if findings.is_empty() {
         let _ = writeln!(
             o,
             "  (nothing was checked, so nothing is proven wrong and nothing is proven right)"
@@ -114,7 +177,7 @@ pub fn render_report(ledger: &Ledger, session_id: Option<&str>) -> Result<String
             if let Record::Finding(f) = &s.record {
                 let _ = writeln!(
                     o,
-                    "  {}. [{:?}] {} ({}, record {}; verdict computation is not in this build, so not weighed)",
+                    "  {}. [{:?}] {} ({}, record {}; no verdict has been computed yet, so not weighed)",
                     i + 1,
                     f.severity,
                     f.title,
@@ -127,6 +190,34 @@ pub fn render_report(ledger: &Ledger, session_id: Option<&str>) -> Result<String
 
     let _ = writeln!(o, "\nYOURS TO SETTLE");
     let mut n = 0;
+    if let Some(a) = &analysis {
+        let sec = sections(a, lane_for_sections);
+        for f in &sec.settle {
+            n += 1;
+            let _ = writeln!(
+                o,
+                "  {n}. [{:?}] {} ({}{}; record {})",
+                f.severity,
+                f.title,
+                f.tier.as_str(),
+                f.evidence
+                    .first()
+                    .map(|e| format!(", {e}"))
+                    .unwrap_or_default(),
+                f.seq
+            );
+        }
+        for ov in a.overrides.iter().filter(|ov| ov.open) {
+            n += 1;
+            let _ = writeln!(
+                o,
+                "  {n}. commit-anyway override open (record {}, reason: {}): resolve {} or accept it as not real",
+                ov.seq,
+                ov.reason,
+                ov.finding_ids.join(", ")
+            );
+        }
+    }
     if !integrity.is_ok() {
         for p in &integrity.problems {
             n += 1;
@@ -179,6 +270,50 @@ pub fn render_report(ledger: &Ledger, session_id: Option<&str>) -> Result<String
         let _ = writeln!(o, "  (nothing recorded for you to settle)");
     }
 
+    if let Some(a) = &analysis {
+        let closed: Vec<_> = a.findings.iter().filter(|f| !f.is_open()).collect();
+        if !closed.is_empty() {
+            let _ = writeln!(o, "\nCLOSED FINDINGS");
+            for f in closed {
+                let how = match &f.status {
+                    FindingStatus::AcceptedNotReal { decision_seq } => {
+                        format!("accepted as not real by you (decision record {decision_seq})")
+                    }
+                    FindingStatus::Resolved { correction_seq } => {
+                        format!("resolved (correction record {correction_seq})")
+                    }
+                    FindingStatus::Open => String::new(),
+                };
+                let _ = writeln!(
+                    o,
+                    "  [{:?}] {} (record {}): {how}",
+                    f.finding.severity, f.finding.title, f.seq
+                );
+            }
+        }
+        if !a.overrides.is_empty() {
+            let _ = writeln!(
+                o,
+                "\nCOMMIT ANYWAY (the commit went through; the verdict is unchanged)"
+            );
+        }
+        for ov in &a.overrides {
+            let _ = writeln!(
+                o,
+                "  record {}: past {} for tree {}. Reason you typed: {}{}",
+                ov.seq,
+                ov.finding_ids.join(", "),
+                ov.tree.get(..12).unwrap_or(&ov.tree),
+                ov.reason,
+                if ov.open {
+                    " (still open)"
+                } else {
+                    " (closed: the finding was resolved or accepted as not real)"
+                }
+            );
+        }
+    }
+
     if !decisions.is_empty() {
         let _ = writeln!(o, "\nDECISIONS BY THE HUMAN");
         for s in &decisions {
@@ -189,12 +324,22 @@ pub fn render_report(ledger: &Ledger, session_id: Option<&str>) -> Result<String
                 ..
             } = &s.record
             {
+                let shown = if *decision == crate::model::DecisionKind::CommitAnyway {
+                    let c = crate::verdict::CommitAnywayChoice::decode(choice);
+                    format!(
+                        "tree {} past {} finding(s)",
+                        c.tree.get(..12).unwrap_or(&c.tree),
+                        c.finding_ids.len()
+                    )
+                } else {
+                    choice.clone()
+                };
                 let _ = writeln!(
                     o,
                     "  record {}: {} = {}{}",
                     s.seq,
                     decision.as_str(),
-                    choice,
+                    shown,
                     reason
                         .as_ref()
                         .map(|r| format!("  (reason: {r})"))
@@ -233,10 +378,15 @@ pub fn render_report(ledger: &Ledger, session_id: Option<&str>) -> Result<String
             };
             let _ = writeln!(
                 o,
-                "  {}. ({}) {}{names}  - not checked",
+                "  {}. ({}) {}{names}{}",
                 i + 1,
                 source.as_str(),
-                indent_block(text, "     ")
+                indent_block(text, "     "),
+                if head.is_some() {
+                    ""
+                } else {
+                    "  - not checked"
+                }
             );
         }
     }
@@ -276,10 +426,14 @@ pub fn render_report(ledger: &Ledger, session_id: Option<&str>) -> Result<String
         })
         .count();
     if checks.is_empty() {
-        let _ = writeln!(
-            o,
-            "  none ran. This build has no checkers yet; nothing above was compared with the code."
-        );
+        if head.is_some() {
+            let _ = writeln!(o, "  none ran; nothing above was compared with the code.");
+        } else {
+            let _ = writeln!(
+                o,
+                "  none ran. This build has no checkers yet; nothing above was compared with the code."
+            );
+        }
     } else {
         for s in &checks {
             if let Record::Check {
@@ -302,14 +456,43 @@ pub fn render_report(ledger: &Ledger, session_id: Option<&str>) -> Result<String
                 );
             }
         }
-        let _ = writeln!(
-            o,
-            "  {ran} of {} checks ran; verdict computation is not in this build, so none is weighed.",
-            checks.len()
-        );
+        if head.is_some() {
+            let _ = writeln!(o, "  {ran} of {} checks ran.", checks.len());
+        } else {
+            let _ = writeln!(
+                o,
+                "  {ran} of {} checks ran; no verdict has been computed, so none is weighed.",
+                checks.len()
+            );
+        }
+    }
+    if let (Some(h), Some(a)) = (&head, &analysis) {
+        for name in &h.required {
+            match a.checks.get(name) {
+                Some(CheckState::Ran { .. }) => {}
+                Some(CheckState::Skipped { .. }) => {}
+                Some(CheckState::Unavailable { reason, .. }) => {
+                    let _ = writeln!(o, "  required: {name} could not run: {reason}");
+                }
+                None => {
+                    let _ = writeln!(o, "  required: {name} did not run");
+                }
+            }
+        }
     }
 
     let _ = writeln!(o, "\nNOT ESTABLISHED");
+    if let Some(h) = &head {
+        for line in &h.not_established {
+            let _ = writeln!(o, "  - {line}");
+        }
+        let _ = writeln!(
+            o,
+            "  - whether any of the {} claim(s) is true beyond what the checks above show: claims are the agent's words, not evidence",
+            claims.len()
+        );
+        return Ok(o);
+    }
     let _ = writeln!(
         o,
         "  - whether the work does what the {} prompt(s) asked: no checker has run",

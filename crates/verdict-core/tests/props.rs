@@ -51,6 +51,7 @@ fn build(spec: &Spec) -> Record {
             counts_by_tier: Default::default(),
             not_established: vec![],
             policy_version: 1,
+            lane: None,
         },
         Spec::Check => Record::Check {
             name: "wiring".into(),

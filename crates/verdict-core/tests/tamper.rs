@@ -250,6 +250,7 @@ fn raw_sql_agent_verdicts_decisions_and_uncited_findings_fail_verify() {
                 counts_by_tier: Default::default(),
                 not_established: vec![],
                 policy_version: 1,
+                lane: None,
             },
         ),
         (

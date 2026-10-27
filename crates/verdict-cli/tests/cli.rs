@@ -101,10 +101,12 @@ fn commands_work_from_a_subfolder_and_exit_zero() {
     assert_eq!(o.status.code(), Some(0));
     let r = text(&o);
     assert!(r.starts_with("VERDICT: UNVERIFIED - nothing was checked"));
+    // NOT ESTABLISHED is the last section and says nothing was run.
+    let last = &r[r.rfind("NOT ESTABLISHED").unwrap()..];
+    assert!(!last.contains("\n\n"));
     assert!(
-        r.trim_end().ends_with(
-            "- whether your build and tests pass, or your real app works: nothing was run"
-        )
+        last.contains("whether your build and tests pass: nothing was run"),
+        "{last}"
     );
 
     let o = vdt(&sub, &["report", "--session", &id]);

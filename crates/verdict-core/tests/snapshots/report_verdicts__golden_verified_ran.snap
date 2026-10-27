@@ -1,0 +1,42 @@
+---
+source: crates/verdict-core/tests/report_verdicts.rs
+expression: "render(&l, Lane::Standard)"
+---
+VERDICT: VERIFIED (ran)  (lane: standard, policy v1, builder: claude/model-x [anthropic], verifier: none)
+read from code: done  |  your build and tests: ran, passed  |  your real app: not run
+session s-test000001, started 2026-10-26T12:00:00.000Z  |  ledger: intact, 13 records  |  baseline bbbbbbbbbbbb (not a git repository)
+
+FIX FIRST
+  (none proven wrong)
+
+YOURS TO SETTLE
+  (nothing recorded for you to settle)
+
+CLOSED FINDINGS
+  [Major] problem wiring:old (record 12): accepted as not real by you (decision record 13)
+
+DECISIONS BY THE HUMAN
+  record 13: accept_finding_not_real = wiring:old
+
+PROMPTS (1)
+  1. add a login page
+
+CLAIMS (1)
+  1. (final_message) login route exists in src/login.rs  [names: src/login.rs]
+
+TOOL CALLS (1)
+  1. edit src/login.rs  (output 000000000000, 5 ms)
+
+CHECKS
+  wiring: Ran, tier static (record 5)
+  baseline_diff: Ran, tier static (record 6)
+  regressions: Ran, tier static (record 7)
+  tests_weakened: Ran, tier static (record 8)
+  claims_vs_code: Ran, tier static (record 9)
+  unfinished: Ran, tier static (record 10)
+  exec: Ran, tier ran (record 11)
+  7 of 7 checks ran.
+
+NOT ESTABLISHED
+  - whether your real app works: no page was loaded
+  - whether any of the 1 claim(s) is true beyond what the checks above show: claims are the agent's words, not evidence

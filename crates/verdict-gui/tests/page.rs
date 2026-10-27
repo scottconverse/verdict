@@ -83,7 +83,7 @@ fn fixture() -> Fixture {
         },
     );
     drop(l);
-    let page = start_background(dir.0.clone(), 0).unwrap();
+    let page = verdict_gui::start_background_with(dir.0.clone(), 0, Some(home.0.clone())).unwrap();
     Fixture {
         dir,
         _home: home,
@@ -233,7 +233,8 @@ fn route_session_shows_the_same_report_as_vdt_report() {
     assert_eq!(r.status, 200);
     let expected = {
         let l = Ledger::open_existing(&f.dir.0).unwrap().unwrap();
-        render_report(&l, Some(&f.session)).unwrap()
+        verdict_core::verdict::report_for_project(&f.dir.0, &l, Some(&f.session), Some(&f._home.0))
+            .unwrap()
     };
     let shown = unescape(&r.body);
     for line in expected.lines().filter(|l| !l.trim().is_empty()) {

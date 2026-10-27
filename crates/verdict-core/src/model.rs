@@ -355,6 +355,9 @@ pub enum Record {
         not_established: Vec<String>,
         /// Policy version.
         policy_version: u32,
+        /// The lane the verdict was computed for (absent in verdicts written before Part 2b).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        lane: Option<Lane>,
     },
     /// An attempted write that was refused.
     RefusedWrite {
