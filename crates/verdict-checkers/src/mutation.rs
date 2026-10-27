@@ -57,7 +57,10 @@ impl Checker for Mutation {
                 && !crate::paths::is_test_path(&f.path)
                 && !matches!(f.status, crate::changes::Status::Deleted)
         });
-        if !logic_changed {
+        // A configured report is the project's own runner's output: reading it is evidence that a
+        // run happened, and a survivor in it proves logic was mutated. Only the command mode needs
+        // the changed-logic heuristic before it spends time running anything.
+        if !logic_changed && report.is_none() {
             ctx.note("mutation was not required: no logic file changed");
             return Ok(Vec::new());
         }
