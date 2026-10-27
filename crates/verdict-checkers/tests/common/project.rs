@@ -64,7 +64,7 @@ impl Project {
 
     pub fn approve(&mut self) {
         let s = self.session.clone();
-        approve_exec(&mut self.ledger, &s);
+        approve_exec(&mut self.ledger, &s, self.dir.path(), self.home.path());
     }
 
     pub fn context(&self, lane: Lane, timeout: Duration) -> CheckContext {

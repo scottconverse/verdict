@@ -316,6 +316,9 @@ fn every_human_action_writes_a_human_decision() {
     let r = repo();
     r.failed("wiring:a");
     let before = r.ledger().count().unwrap();
+    let approved_choice = verdict_core::exec_approval::approval_choice(
+        &Policy::load(r.repo.path(), Some(r.home.path())).unwrap(),
+    );
     let kinds = [
         (
             Action::AcceptFinding("wiring:a".into()),
@@ -325,7 +328,7 @@ fn every_human_action_writes_a_human_decision() {
         (
             Action::ApproveCommands,
             DecisionKind::RunProjectCommands,
-            "approved",
+            approved_choice.as_str(),
         ),
         (
             Action::RaiseLane(Lane::High),

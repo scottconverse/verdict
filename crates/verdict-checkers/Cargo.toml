@@ -20,5 +20,13 @@ serde_json = "1.0.154"
 verdict-core = { version = "0.0.0", path = "../verdict-core" }
 walkdir = "2"
 
+# exec stops the whole process tree a command started: a Job Object on Windows, a process group
+# (kill by group) on Unix.
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security", "Win32_System_JobObjects", "Win32_System_Threading"] }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
 [dev-dependencies]
 tempfile = "3"

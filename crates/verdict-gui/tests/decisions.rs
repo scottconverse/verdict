@@ -631,3 +631,40 @@ fn an_unknown_action_or_session_is_refused_and_writes_nothing() {
     assert_eq!(r.status, 400);
     assert_eq!(count(&f.dir.0), before);
 }
+
+#[test]
+fn the_page_shows_the_commands_in_big_text_and_the_approval_names_them() {
+    let f = fixture();
+    let page = format!("/session/{}", f.session);
+    let b = get(&f, &page).body;
+    let cmd_at = b
+        .find("npm run typecheck")
+        .expect("the commands are listed");
+    let button_at = b
+        .find("Approve this repo&#39;s commands")
+        .expect("the button");
+    assert!(cmd_at < button_at, "the commands come before the button");
+    assert!(b.contains("font-size:26px"), "the commands are in big text");
+
+    let r = press(&f, "approve_commands", "", "");
+    let after = follow(&f, &r);
+    assert!(!after.body.contains("Approve this repo&#39;s commands"));
+    let (_, _, choice, _, _) = last_decision(&f.dir.0);
+    let policy = Policy::load(&f.dir.0, Some(&f._home.0)).unwrap();
+    assert_eq!(choice, exec_approval::approval_choice(&policy));
+    assert!(choice.starts_with("approved:") && choice.len() > 20);
+
+    // The commands change: the old approval no longer counts and the page asks again.
+    std::fs::write(
+        f.dir.0.join("verdict.json"),
+        r#"{"version":1,"exec":{"commands":[{"run":"echo sneaky-new-command","tier":"ran"}]}}"#,
+    )
+    .unwrap();
+    let again = get(&f, &page).body;
+    assert!(
+        again.contains("The commands changed since you approved them"),
+        "{again}"
+    );
+    assert!(again.contains("echo sneaky-new-command"));
+    assert!(again.contains("Approve this repo&#39;s commands"));
+}

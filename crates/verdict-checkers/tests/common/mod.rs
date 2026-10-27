@@ -154,7 +154,7 @@ pub fn build(name: &str, kind: &str) -> Built {
                 .unwrap();
         }
         if v["approve_exec"].as_bool() == Some(true) {
-            approve_exec(&mut ledger, &session);
+            approve_exec(&mut ledger, &session, dir.path(), home.path());
         }
     }
     Built {
@@ -165,14 +165,26 @@ pub fn build(name: &str, kind: &str) -> Built {
     }
 }
 
-pub fn approve_exec(ledger: &mut Ledger, session: &str) {
+/// The human approves the commands the project's policy lists right now (the decision carries
+/// their hash, as the page's button writes it).
+pub fn approve_exec(ledger: &mut Ledger, session: &str, root: &Path, home: &Path) {
+    let policy = Policy::load(root, Some(home)).unwrap();
+    approve_exec_choice(
+        ledger,
+        session,
+        &verdict_core::exec_approval::approval_choice(&policy),
+    );
+}
+
+/// A human decision about running the commands, with any choice text.
+pub fn approve_exec_choice(ledger: &mut Ledger, session: &str, choice: &str) {
     ledger
         .append(
             Writer::Human,
             Some(session),
             Record::Decision {
                 decision: DecisionKind::RunProjectCommands,
-                choice: "approve".into(),
+                choice: choice.into(),
                 reason: None,
                 who: Writer::Human,
             },

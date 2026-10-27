@@ -7,6 +7,7 @@ use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
+use verdict_core::exec_approval::{ApprovalChoice, commands_hash, parse_choice};
 use verdict_core::{
     Baseline, ClaimSource, DecisionKind, EvidencePointer, Finding, Lane, Ledger, Policy, Record,
     Severity, Tier, Writer,
@@ -44,6 +45,38 @@ pub struct ClaimRef {
     pub names: Vec<String>,
 }
 
+/// Where the human's decision about running the project's commands stands.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExecApproval {
+    /// The human has not decided.
+    NotDecided,
+    /// The human said no.
+    Refused,
+    /// An approval with no record of which commands it covered (older ledgers). Covers nothing.
+    Unbound,
+    /// The human approved a different set of commands than the policy lists now.
+    Changed,
+    /// The human approved exactly the commands the policy lists now.
+    Current,
+}
+
+/// One command exec ran, kept as its own record in the ledger.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Receipt {
+    /// The command line.
+    pub command: String,
+    /// The tier it earns.
+    pub tier: Tier,
+    /// How it ended, in words (`exit 0`, `exit 3`, `timed out after 60s`).
+    pub ended: String,
+    /// Hash of both output streams in full.
+    pub output_hash: String,
+    /// The last bytes of output.
+    pub tail: String,
+    /// Anything wrong with the run beyond its exit code (output lost, processes left behind).
+    pub problem: Option<String>,
+}
+
 /// Everything a checker may read.
 pub struct CheckContext {
     /// The project root. Checkers never read above it.
@@ -60,8 +93,13 @@ pub struct CheckContext {
     pub claims: Vec<ClaimRef>,
     /// The session's prompts, verbatim.
     pub prompts: Vec<String>,
-    /// True when the human has approved running the project's commands.
+    /// True when the human has approved running exactly the commands the policy lists now.
     pub exec_approved: bool,
+    /// Where the human's decision stands (why `exec_approved` is what it is).
+    pub exec_approval: ExecApproval,
+    /// Sequence numbers of claims the human accepted with an `accept_prompt_translation`
+    /// decision. Only these claims, never the agent's own words, can stand for something asked for.
+    pub accepted_claims: BTreeSet<u64>,
     /// Longest any one command may run.
     pub timeout: Duration,
     changes: OnceCell<Result<Changes, String>>,
@@ -70,12 +108,9 @@ pub struct CheckContext {
     notes: RefCell<Vec<String>>,
     reached: Cell<Option<Tier>>,
     exec_tail: RefCell<Option<String>>,
+    unestablished: RefCell<Vec<String>>,
+    receipts: RefCell<Vec<Receipt>>,
 }
-
-/// Decisions that mean "no" for [`DecisionKind::RunProjectCommands`].
-const REFUSALS: &[&str] = &[
-    "deny", "denied", "no", "never", "decline", "declined", "false",
-];
 
 impl CheckContext {
     /// Read the session's facts out of the ledger.
@@ -91,17 +126,27 @@ impl CheckContext {
         let mut baseline: Option<Baseline> = None;
         let mut claims = Vec::new();
         let mut prompts = Vec::new();
-        let mut exec_approved = false;
+        let mut exec_choice: Option<ApprovalChoice> = None;
+        let mut accepted_claims = BTreeSet::new();
         for s in &records {
-            // Decisions are project-wide: the human approves a repo's commands once.
             if let Record::Decision {
-                decision: DecisionKind::RunProjectCommands,
+                decision,
                 choice,
                 who: Writer::Human,
                 ..
             } = &s.record
             {
-                exec_approved = !REFUSALS.contains(&choice.trim().to_ascii_lowercase().as_str());
+                match decision {
+                    // Decisions are project-wide: the latest answer about the repo's commands
+                    // stands, and an approval covers only the commands it names (by hash).
+                    DecisionKind::RunProjectCommands => exec_choice = Some(parse_choice(choice)),
+                    DecisionKind::AcceptPromptTranslation => {
+                        if let Ok(n) = choice.trim().parse::<u64>() {
+                            accepted_claims.insert(n);
+                        }
+                    }
+                    _ => {}
+                }
             }
             if s.session_id.as_deref() != Some(session) {
                 continue;
@@ -124,6 +169,15 @@ impl CheckContext {
             }
         }
         let baseline = baseline.ok_or_else(|| format!("no session {session} in this ledger"))?;
+        let exec_approval = match exec_choice {
+            None => ExecApproval::NotDecided,
+            Some(ApprovalChoice::Refused) => ExecApproval::Refused,
+            Some(ApprovalChoice::Unbound) => ExecApproval::Unbound,
+            Some(ApprovalChoice::Approved(h)) if h == commands_hash(&policy) => {
+                ExecApproval::Current
+            }
+            Some(ApprovalChoice::Approved(_)) => ExecApproval::Changed,
+        };
         Ok(CheckContext {
             root: root.to_path_buf(),
             session: session.to_string(),
@@ -132,7 +186,9 @@ impl CheckContext {
             baseline,
             claims,
             prompts,
-            exec_approved,
+            exec_approved: exec_approval == ExecApproval::Current,
+            exec_approval,
+            accepted_claims,
             timeout,
             changes: OnceCell::new(),
             tree: OnceCell::new(),
@@ -140,6 +196,8 @@ impl CheckContext {
             notes: RefCell::new(Vec::new()),
             reached: Cell::new(None),
             exec_tail: RefCell::new(None),
+            unestablished: RefCell::new(Vec::new()),
+            receipts: RefCell::new(Vec::new()),
         })
     }
 
@@ -394,6 +452,34 @@ impl CheckContext {
         self.notes.borrow_mut().clear();
         self.reached.set(None);
         *self.exec_tail.borrow_mut() = None;
+        self.unestablished.borrow_mut().clear();
+        self.receipts.borrow_mut().clear();
+    }
+
+    /// Say that a lookup could not be established (a search that was cut short, a file that could
+    /// not be read). The runner then records `check_unavailable` for the checker, never a clean
+    /// check, even when other findings were written.
+    pub fn unestablished(&self, reason: impl Into<String>) {
+        let r = reason.into();
+        let mut u = self.unestablished.borrow_mut();
+        if !u.contains(&r) {
+            u.push(r);
+        }
+    }
+
+    /// The reasons recorded by [`CheckContext::unestablished`].
+    pub fn unestablished_reasons(&self) -> Vec<String> {
+        self.unestablished.borrow().clone()
+    }
+
+    /// Keep a receipt for one command that ran; the runner writes each to the ledger.
+    pub fn add_receipt(&self, r: Receipt) {
+        self.receipts.borrow_mut().push(r);
+    }
+
+    /// The receipts recorded so far.
+    pub fn receipts(&self) -> Vec<Receipt> {
+        self.receipts.borrow().clone()
     }
 
     /// Read the tree and the diff now, so every checker in a run sees the same view (commands
