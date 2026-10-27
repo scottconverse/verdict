@@ -40,6 +40,42 @@ enum Command {
     },
     /// List the sessions in this project's ledger.
     Sessions,
+    /// Called by Claude Code and Codex hooks: `vdt hook <claude|codex> <event>`. Reads the host's
+    /// JSON payload on stdin, records it in shadow mode, prints nothing and always exits 0.
+    Hook {
+        /// The host and the event, for example `claude PostToolUse`.
+        #[arg(num_args = 0.., trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
+    /// Install or remove the hook registration for a host.
+    Hooks {
+        #[command(subcommand)]
+        action: HooksAction,
+    },
+}
+
+#[derive(Subcommand)]
+enum HooksAction {
+    /// Add the vdt hooks to a host's settings, merged with what is there.
+    Install(HooksArgs),
+    /// Remove only the vdt hooks from a host's settings.
+    Uninstall(HooksArgs),
+}
+
+#[derive(clap::Args)]
+struct HooksArgs {
+    /// The host: claude or codex.
+    host: String,
+    /// The project folder (Claude Code settings live in its .claude folder; the decision is
+    /// recorded in its ledger). Default: the current folder's project.
+    #[arg(long)]
+    project: Option<std::path::PathBuf>,
+    /// You, the human, are doing this. Without it vdt only prints what it would change.
+    #[arg(long = "i-am-the-human")]
+    i_am_the_human: bool,
+    /// Path to vdt to write into the hook commands (default: plain `vdt`, found on PATH).
+    #[arg(long)]
+    vdt_path: Option<String>,
 }
 
 #[derive(Subcommand)]
@@ -55,6 +91,13 @@ enum LedgerAction {
 }
 
 fn main() -> ExitCode {
+    // A hook must never fail the agent, so it is handled before argument parsing can reject
+    // anything: `vdt hook ...` always exits 0.
+    let argv: Vec<String> = std::env::args().skip(1).collect();
+    if argv.first().map(String::as_str) == Some("hook") {
+        verdict_adapters::run_hook_cli(&argv[1..]);
+        return ExitCode::SUCCESS;
+    }
     let cli = Cli::parse();
     let cwd = match std::env::current_dir() {
         Ok(d) => d,
@@ -75,6 +118,38 @@ fn main() -> ExitCode {
 }
 
 fn run(cli: Cli, cwd: &Path, out: &mut dyn Write) -> Result<u8, LedgerError> {
+    match &cli.command {
+        Command::Hook { args } => {
+            verdict_adapters::run_hook_cli(args);
+            return Ok(0);
+        }
+        Command::Hooks { action } => {
+            let (install, a) = match action {
+                HooksAction::Install(a) => (true, a),
+                HooksAction::Uninstall(a) => (false, a),
+            };
+            let Some(host) = verdict_adapters::Host::parse(&a.host) else {
+                eprintln!("vdt: unknown host {:?} (use claude or codex)", a.host);
+                return Ok(1);
+            };
+            let req = verdict_adapters::HooksRequest {
+                install,
+                host,
+                project: a.project.clone(),
+                codex_home: None,
+                i_am_the_human: a.i_am_the_human,
+                vdt_path: a.vdt_path.clone(),
+            };
+            return match verdict_adapters::hooks_command(&req, cwd, out) {
+                Ok(code) => Ok(code),
+                Err(e) => {
+                    eprintln!("vdt: {e}");
+                    Ok(1)
+                }
+            };
+        }
+        _ => {}
+    }
     let root = find_project_root(cwd);
     let Some(ledger) = Ledger::open_existing(&root)? else {
         match cli.command {
@@ -91,6 +166,7 @@ fn run(cli: Cli, cwd: &Path, out: &mut dyn Write) -> Result<u8, LedgerError> {
                 "no sessions recorded yet (no ledger in {})",
                 root.display()
             )?,
+            Command::Hook { .. } | Command::Hooks { .. } => {}
             Command::Ledger { .. } => writeln!(
                 out,
                 "no ledger in {} yet: nothing to verify",
@@ -142,5 +218,6 @@ fn run(cli: Cli, cwd: &Path, out: &mut dyn Write) -> Result<u8, LedgerError> {
             write!(out, "{text}")?;
             Ok(if ledger.verify()?.is_ok() { 0 } else { 2 })
         }
+        Command::Hook { .. } | Command::Hooks { .. } => Ok(0),
     }
 }
