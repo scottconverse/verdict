@@ -7,3 +7,18 @@ license.workspace = true
 repository.workspace = true
 authors.workspace = true
 publish = false
+
+[features]
+# Swap every checker for a stub that finds nothing. CI uses it to prove each red fixture fails
+# when its checker is stubbed out (see .github/workflows/fixtures-red-must-fail.yml).
+stub-checkers = []
+
+[dependencies]
+blake3 = "1.8.7"
+regex = "1"
+serde_json = "1.0.154"
+verdict-core = { version = "0.0.0", path = "../verdict-core" }
+walkdir = "2"
+
+[dev-dependencies]
+tempfile = "3"

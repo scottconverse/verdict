@@ -1,0 +1,2 @@
+src/legacy.js
+test/legacy.test.js

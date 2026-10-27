@@ -58,6 +58,19 @@ enum Command {
         #[arg(long)]
         project: Option<std::path::PathBuf>,
     },
+    /// Run deterministic checkers on the newest session (or start one) and print one line each.
+    Check {
+        /// Checker names, comma separated: baseline_diff, regressions, tests_weakened,
+        /// claims_vs_code, unfinished, exec. `*` means all; `-name` removes one.
+        #[arg(long)]
+        checkers: String,
+        /// Project folder (default: found from the current folder).
+        #[arg(long)]
+        project: Option<std::path::PathBuf>,
+        /// Lane to run under: low, standard, high or release.
+        #[arg(long, default_value = "standard")]
+        lane: String,
+    },
     /// Show the ledger in a browser on this machine only (127.0.0.1), read only.
     Serve {
         /// Port to listen on.
@@ -128,6 +141,21 @@ fn main() -> ExitCode {
                 Ok(()) => ExitCode::SUCCESS,
                 Err(e) => {
                     eprintln!("vdt: mcp server stopped: {e}");
+                    ExitCode::from(1)
+                }
+            };
+        }
+        Command::Check {
+            checkers,
+            project,
+            lane,
+        } => {
+            let root = find_project_root(project.as_deref().unwrap_or(&cwd));
+            return match verdict_checkers::cli_check(&root, checkers, lane, &mut std::io::stdout())
+            {
+                Ok(code) => ExitCode::from(code),
+                Err(e) => {
+                    eprintln!("vdt: {e}");
                     ExitCode::from(1)
                 }
             };
@@ -210,7 +238,7 @@ fn run(cli: Cli, cwd: &Path, out: &mut dyn Write) -> Result<u8, LedgerError> {
                 "no ledger in {} yet: nothing to verify",
                 root.display()
             )?,
-            Command::Mcp { .. } | Command::Serve { .. } => {} // handled in main
+            Command::Mcp { .. } | Command::Serve { .. } | Command::Check { .. } => {} // handled in main
         }
         return Ok(0);
     };
@@ -258,6 +286,6 @@ fn run(cli: Cli, cwd: &Path, out: &mut dyn Write) -> Result<u8, LedgerError> {
             Ok(if ledger.verify()?.is_ok() { 0 } else { 2 })
         }
         Command::Hook { .. } | Command::Hooks { .. } => Ok(0),
-        Command::Mcp { .. } | Command::Serve { .. } => Ok(0), // handled in main
+        Command::Mcp { .. } | Command::Serve { .. } | Command::Check { .. } => Ok(0), // handled in main
     }
 }

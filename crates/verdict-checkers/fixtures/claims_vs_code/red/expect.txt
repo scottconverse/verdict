@@ -1,0 +1,3 @@
+missing-file
+missing-symbol
+still-exists

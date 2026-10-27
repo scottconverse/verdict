@@ -1,0 +1,7 @@
+{
+  "prompts": ["Add tax to the total"],
+  "claims": [
+    { "source": "final_message", "text": "Added `src/billing.rs` with the compute_tax function" },
+    { "source": "commit_message", "text": "Removed src/old.rs now that the totals live in src/lib.rs" }
+  ]
+}

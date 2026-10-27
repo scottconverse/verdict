@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "exec": {
+    "timeout": "1m",
+    "commands": [
+      { "run": "git grep --no-index -q BROKEN -- state.txt && exit 1 || exit 0", "tier": "ran" }
+    ]
+  }
+}
