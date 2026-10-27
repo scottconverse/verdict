@@ -31,6 +31,26 @@ the project uses semantic versioning once it ships (v1.0 is Phase 5).
   or project paths) and `policy/schema.json`.
 - Workflows: `test` (Ubuntu, macOS, Windows), `fixtures-red-must-fail`, and a `dogfood-release`
   placeholder for Phase 5.
+- **Phase 4 — desks, providers and generation.** The seven desk rubrics ship inside the binary. A
+  Verdict-owned provider interface (one JSON request on stdin, one JSON answer on stdout) dispatches
+  a lane's desks; every finding must cite a ledger record or a current file:line, an unresolvable
+  citation becomes a hypothesis, and each desk leaves a receipt naming the provider, vendor,
+  requested and served model, outcome and usage. Above the cross-vendor lane a same-vendor provider
+  is refused unless the global policy downgrades it to warn-only (`single_vendor`); a project may
+  not set that downgrade itself. The report caps each desk at five findings and counts the rest.
+  `vdt desks` runs the desks on demand; the gate and `vdt verdict --run` reach them through the
+  same runner.
+- **Phase 4 — `vdt generate`.** Emits the seven skill files, the Claude Code and Codex hook
+  registrations, the effective policy and a manifest as a pure function of the policy. No
+  timestamp or path enters the output; a test proves two runs are byte-identical.
+- **Phase 4 — Cursor and Antigravity adapters.** Registrations in their documented file shapes
+  (Cursor's flat `version: 1` file, Antigravity's named `verdict` group), tolerant payload parsing,
+  a four-host parity test, and an honest real-host status in `docs/HOSTS.md`. Their payload field
+  names are not yet verified against a live host.
+- **Exports.** `vdt export --sarif` writes SARIF 2.1.0 with the proof tier and ledger record in
+  each result's properties; `vdt export --packet` writes the acceptance document (claims, findings,
+  hypotheses, decisions, overrides, what was not established, and the report as printed). Also a
+  `route-call` regression rule: a call served at the baseline and served by nothing now blocks.
 
 ### Changed
 
@@ -38,15 +58,22 @@ the project uses semantic versioning once it ships (v1.0 is Phase 5).
   paths, release paths, plan file or a machine-specific verifier. Project-approved configuration
   supplies them; a missing command earns no execution proof, and missing blast classification is
   stated in the report and never lowers a lane.
+- A check's tree state is stamped when the check starts, so an edit made while it runs makes the
+  check stale instead of trusted.
 
 ### Fixed
 
 - The checkers module documentation said six checkers; there are seven (wiring was missing).
 - The hook-install cards on the session report page were a link only; each now has a button that
-  records the human's decision, with the link kept.
+  installs the entries through the adapters and records the human's decision, with the link kept.
+- A retried hooks install no longer leaves or duplicates a backup.
+- MCP claim and done-when text is redacted before it reaches the append-only ledger.
 
 ### Not built yet
 
-- Phase 4: packaged desk rubrics, desk dispatch with citations, cross-vendor providers and refusal,
-  `vdt generate`, Cursor and Antigravity adapters.
-- Phase 5: enforce-mode send-backs, release lane, SARIF and packet export, GUI installer.
+- Phase 1/4 real-host status for Cursor and Antigravity: their payload field names are unverified
+  against a live host (`docs/HOSTS.md`).
+- Phase 4 acceptance across two physical machines: `vdt generate` is deterministic in tests, but
+  the cross-machine byte comparison has not been run (one machine available).
+- Phase 5: enforce-mode send-backs, firstrun in a clean container, the release checkers (`firstrun`,
+  `release`, `mutation`), the GUI installer, and the v1.0 release lane.

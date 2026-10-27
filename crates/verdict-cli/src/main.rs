@@ -125,6 +125,25 @@ enum Command {
         #[arg(long)]
         project: Option<std::path::PathBuf>,
     },
+    /// Export one session: `--sarif` for an editor or CI, `--packet` for a release's acceptance
+    /// document. Neither writes to the ledger.
+    Export {
+        /// SARIF 2.1.0 (GitHub code scanning, VS Code's SARIF viewer, most CI).
+        #[arg(long)]
+        sarif: bool,
+        /// The acceptance packet: claims, findings, decisions, overrides, what was not established.
+        #[arg(long)]
+        packet: bool,
+        /// Session id (default: the latest).
+        #[arg(long)]
+        session: Option<String>,
+        /// Write to this file instead of standard output.
+        #[arg(long)]
+        out: Option<std::path::PathBuf>,
+        /// Project folder (default: found from the current folder).
+        #[arg(long)]
+        project: Option<std::path::PathBuf>,
+    },
     /// Show the ledger in a browser on this machine only (127.0.0.1). Pressing a button on the
     /// page records one of your decisions; nothing else on it writes.
     Serve {
@@ -270,6 +289,68 @@ fn main() -> ExitCode {
                 }
             };
         }
+        Command::Export {
+            sarif,
+            packet,
+            session,
+            out,
+            project,
+        } => {
+            if *sarif == *packet {
+                eprintln!("vdt: choose exactly one of --sarif or --packet");
+                return ExitCode::from(1);
+            }
+            let root = find_project_root(project.as_deref().unwrap_or(&cwd));
+            let ledger = match Ledger::open_existing(&root) {
+                Ok(Some(l)) => l,
+                Ok(None) => {
+                    eprintln!("vdt: there is no ledger in {} yet", root.display());
+                    return ExitCode::from(1);
+                }
+                Err(e) => {
+                    eprintln!("vdt: {e}");
+                    return ExitCode::from(1);
+                }
+            };
+            let session = match verdict_core::part1c::resolve_session(&ledger, session.as_deref()) {
+                Ok(Some(s)) => s,
+                Ok(None) => {
+                    eprintln!("vdt: this project's ledger has no sessions yet");
+                    return ExitCode::from(1);
+                }
+                Err(e) => {
+                    eprintln!("vdt: {e}");
+                    return ExitCode::from(1);
+                }
+            };
+            let text = if *sarif {
+                verdict_core::export::sarif(&ledger, Some(&session))
+            } else {
+                verdict_core::export::packet(&root, &ledger, &session)
+            };
+            return match text {
+                Ok(t) => match out {
+                    Some(path) => match std::fs::write(path, &t) {
+                        Ok(()) => {
+                            println!("wrote {}", path.display());
+                            ExitCode::SUCCESS
+                        }
+                        Err(e) => {
+                            eprintln!("vdt: cannot write {}: {e}", path.display());
+                            ExitCode::from(1)
+                        }
+                    },
+                    None => {
+                        print!("{t}");
+                        ExitCode::SUCCESS
+                    }
+                },
+                Err(e) => {
+                    eprintln!("vdt: {e}");
+                    ExitCode::from(1)
+                }
+            };
+        }
         Command::Serve { port, project } => {
             let root = find_project_root(project.as_deref().unwrap_or(&cwd));
             return match verdict_gui::serve(root, *port) {
@@ -361,6 +442,7 @@ fn run(cli: Cli, cwd: &Path, out: &mut dyn Write) -> Result<u8, LedgerError> {
             | Command::Check { .. }
             | Command::Desks { .. }
             | Command::Generate { .. }
+            | Command::Export { .. }
             | Command::Verdict { .. }
             | Command::Gate { .. }
             | Command::CommitAnyway(_) => {} // handled in main
@@ -417,6 +499,7 @@ fn run(cli: Cli, cwd: &Path, out: &mut dyn Write) -> Result<u8, LedgerError> {
         | Command::Check { .. }
         | Command::Desks { .. }
         | Command::Generate { .. }
+        | Command::Export { .. }
         | Command::Verdict { .. }
         | Command::Gate { .. }
         | Command::CommitAnyway(_) => Ok(0), // handled in main

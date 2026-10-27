@@ -320,11 +320,7 @@ fn cursor_ours(entry: &Value) -> bool {
 }
 
 fn cursor_merge(root: &mut Value, vdt: &str) -> Result<Change, String> {
-    if let Some(hooks) = root
-        .get("hooks")
-        .and_then(Value::as_object)
-        .cloned()
-    {
+    if let Some(hooks) = root.get("hooks").and_then(Value::as_object).cloned() {
         let mut exact = true;
         for ev in EventKind::ALL {
             let key = Host::Cursor.event_name(ev);

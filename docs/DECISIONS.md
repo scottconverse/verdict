@@ -138,3 +138,58 @@ adapter's to set. Undo: `verdict-mcp` `claim`/`done_when` session lookup.
   suspended start (custom `CreateProcessW` with `CREATE_SUSPENDED`, job assignment, then
   `ResumeThread`), which std's `Command` does not expose. Recorded as a remaining platform risk,
   not claimed fixed. Undo: none.
+
+## 14. The five-finding cap: at dispatch or at the report?
+
+**Ruling: all findings are written to the ledger; the report shows five per desk and counts the
+rest on one line.**
+
+The cap is about what a person can read in a report body, not about how much a desk may record.
+Dropping findings at dispatch would hide evidence from every later reader; the ledger keeps all of
+them and `vdt report` says `(+N more from the <desk> desk, in the ledger)`. Undo:
+`report.rs::cap_desks`.
+
+## 15. Do desk findings block?
+
+**Ruling: keep the existing rule: a desk finding does not block by severity at the standard or high
+lane; at release, any open finding above minor does.**
+
+A desk's judgment is a lead, not a deterministic contradiction. It forces NEEDS YOU, and the
+Refuter's finding still fails a release. This is the same rule part 2b shipped, now exercised by
+real desk findings. Undo: `verdict.rs::is_blocking`.
+
+## 16. What is a provider, and does a routing skill have to exist?
+
+**Ruling: a provider is a command speaking one JSON request/answer protocol. Any gateway, skill or
+model wrapper can be one; none is required.**
+
+This removes the mandatory external routing-skill dependency the brief calls out. The receipt names
+the configured vendor and model and the model the answer says served it; the cross-vendor rule reads
+the vendor, never the host app or machine. Undo: `verdict-desks/src/lib.rs`, `CommandProvider`.
+
+## 17. Where may `single_vendor` be set?
+
+**Ruling: in the global policy only. A project that sets it is refused, and the refusal is
+recorded.**
+
+The design says the downgrade can be changed "in the global policy, never per project". A project
+that tries is refused before any desk runs, with one `check_unavailable` per required desk, so the
+verdict cannot read clean. Undo: `verdict-desks::run`, the `PolicySource::Project` check.
+
+## 18. What happens when desks are refused or fail?
+
+**Ruling: each required desk gets a `check_unavailable` record; a provider's failure is a
+`failed_to_run` receipt; no finding is invented.**
+
+A refusal above the cross-vendor lane leaves no verdict that can read clean. A desk whose answer is
+not the protocol is a failed receipt with the provider's own error. Undo: `verdict-desks::run`.
+
+## 19. Why does a real Claude Code session record `model: unknown`?
+
+**Ruling: record `unknown`, because the host does not send the model.**
+
+A live Claude Code 2.1.296 SessionStart payload carries only `session_id`, `transcript_path`, `cwd`,
+`hook_event_name` and `source`; none of the five events carries `model`. The vendor is recorded as
+`anthropic` from the host. Inventing a model from the CLI's name would make the ledger lie about
+what ran. Undo: none.
+

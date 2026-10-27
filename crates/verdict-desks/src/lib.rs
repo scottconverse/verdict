@@ -523,12 +523,23 @@ pub fn run(
         if let verdict_core::policy::PolicySource::Project(path) = src
             && std::fs::read_to_string(path).is_ok_and(|t| t.contains("\"single_vendor\""))
         {
-            return Ok(Outcome::Refused {
-                reason: "single_vendor may only be set in the global policy, never in a project's \
-                         verdict.json"
-                    .to_string(),
-                desks: desks.clone(),
-            });
+            let reason =
+                "single_vendor may only be set in the global policy, never in a project's \
+                          verdict.json"
+                    .to_string();
+            for desk in &desks {
+                ledger
+                    .append(
+                        Writer::Desk,
+                        Some(session),
+                        Record::CheckUnavailable {
+                            component: format!("desk:{desk}"),
+                            reason: reason.clone(),
+                        },
+                    )
+                    .map_err(|e| e.to_string())?;
+            }
+            return Ok(Outcome::Refused { reason, desks });
         }
     }
     let warn_only = policy

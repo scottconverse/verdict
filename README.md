@@ -1,8 +1,9 @@
 # Verdict
 
-**Status: Phases 1–3 are built and merged. Phase 4 (LLM desks, cross-vendor routing, `vdt generate`,
-Cursor and Antigravity adapters) is in progress. Phase 5 (full GUI, enforce mode, release lane,
-installer) is not built.** The sections below say exactly what runs today.
+**Status: Phases 1–4 are built. Phase 5 (full GUI, enforce-mode send-backs, firstrun in a clean
+container, release lane, GUI installer) is not built.** The sections below say exactly what runs
+today, and [docs/HOSTS.md](docs/HOSTS.md) says which host adapters have been proven against a live
+host.
 
 Verdict is one open-source tool that verifies work done by AI coding agents.
 
@@ -18,15 +19,19 @@ not the builder: deterministic checkers, a model from a different vendor, or the
 | Piece | State |
 | --- | --- |
 | Evidence ledger (SQLite, blake3 hash chain, append-only, JSONL export) | built |
-| Claude Code and Codex hook adapters (`vdt hook`, `vdt hooks install`) | built; real-host recording is verified in the phase notes |
+| Claude Code and Codex hook adapters (`vdt hook`, `vdt hooks install`) | built; live sessions recorded on this machine |
+| Cursor and Antigravity hook adapters (`vdt hook cursor|antigravity`, `vdt hooks install`) | built; documented file shapes, payload field names not yet verified against a live host ([docs/HOSTS.md](docs/HOSTS.md)) |
 | MCP server (`vdt mcp`): `verdict_check`, `verdict_scan`, `verdict_claim`, `verdict_done_when`, `verdict_decisions` | built |
 | Deterministic checkers: wiring, baseline_diff, regressions, tests_weakened, claims_vs_code, unfinished, exec | built, each with red and green fixtures |
 | Tree-sitter extractors: FastAPI, SQLAlchemy/asyncpg, Alembic, Typer, Python and TypeScript MCP tools, TypeScript fetch/openapi-ts/TanStack/Kysely, Tauri, React | built |
 | `vdt scan` (whole tree, no plan, writes nothing) | built |
 | Verdict computation, lanes, pre-commit gate, commit anyway, decisions queue | built |
-| Localhost page (`vdt serve`, port 4717) | built: sessions, reports, record log, decisions, mode, pause |
-| LLM desks, cross-vendor providers, `vdt generate` | Phase 4, in progress |
-| Enforce-mode send-backs, release lane, SARIF/packet export, installer | Phase 5, not built |
+| Localhost page (`vdt serve`, port 4717) | built: sessions, reports, record log, decisions, mode, pause, per-host install |
+| LLM desks: seven packaged rubrics, provider dispatch, citations, hypotheses, five-finding cap | built |
+| Cross-vendor routing, refusal, global warn-only (`single_vendor`) and per-desk receipts | built |
+| `vdt generate` (skills + hook registrations from the policy, byte-identical) | built |
+| `vdt export --sarif` and `--packet` | built |
+| Enforce-mode send-backs, release/firstrun checkers, GUI installer | Phase 5, not built |
 
 ## Names
 
@@ -46,6 +51,9 @@ vdt mcp [--project DIR]         the MCP server on stdio
 vdt check --checkers a,b        run named deterministic checkers
 vdt scan [--project DIR]        whole-tree scan, writes nothing
 vdt verdict [--session ID] [--run]
+vdt desks [--session ID] [--lane L]   run the lane's LLM desks, one receipt each
+vdt generate [--out DIR]        emit skills and hook registrations from the policy
+vdt export --sarif|--packet [--out FILE]
 vdt gate pre-commit|install|uninstall
 vdt commit-anyway
 vdt serve [--port N]
@@ -60,6 +68,30 @@ no configured command means no `ran` evidence, and missing blast classification 
 report and can never lower a lane.
 
 `policy/schema.json` is the JSON Schema for both files.
+
+## Desks and providers
+
+The seven desks (engineer, docs, qa, ux, security, legal, refuter) ship as rubric files inside the
+binary. A desk is dispatched only through a provider the policy names:
+
+```json
+"vendors": {
+  "cross_vendor_required_from_lane": "standard",
+  "single_vendor": "refuse",
+  "providers": [
+    { "name": "verifier", "vendor": "openai", "command": "my-verifier",
+      "args": [], "model": "gpt-6.1-sol", "timeout_secs": 300 }
+  ]
+}
+```
+
+A provider reads one JSON request (`{protocol, model, prompt}`) on stdin and writes one JSON
+answer (`{findings: [...], hypotheses: [...], usage: {...}}`) on stdout. Any model, gateway or
+routing tool can be a provider; none is required. Above the cross-vendor lane a desk is dispatched
+only to a provider whose vendor differs from the builder's; with none available the run is refused
+and recorded, unless the **global** policy sets `vendors.single_vendor: "warn"`, in which case the
+receipt says `single_vendor`. Every finding must cite a ledger record (`{"record": N}`) or a
+current `file:line`; a citation that does not resolve makes the answer a hypothesis.
 
 ## Design
 
