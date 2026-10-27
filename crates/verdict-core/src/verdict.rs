@@ -23,7 +23,7 @@ use std::path::Path;
 
 use crate::lane::{
     ALL_LANES, Classification, classify_lane, effective_lane, is_checker, lane_checkers,
-    normalize_paths, touched_paths,
+    normalize_paths, touched_paths_checked,
 };
 use crate::ledger::{Ledger, LedgerError};
 use crate::model::{
@@ -49,10 +49,17 @@ pub struct VerdictInput {
     pub policy_version: u32,
     /// Why the lane is what it is, for the report.
     pub lane_reasons: Vec<String>,
+    /// The state of the code now ([`crate::baseline::tree_state`]). A check counts only if it ran
+    /// on exactly this state; `None` (not known) means no check counts as current.
+    pub current_tree: Option<String>,
+    /// Set when the session's diff could not be read (why). The lane was then set to the highest
+    /// one, and the verdict cannot be clean.
+    pub diff_unavailable: Option<String>,
 }
 
 impl VerdictInput {
-    /// Build the input from a policy and the lane the diff implies.
+    /// Build the input from a policy and the lane the diff implies. The code state is left unknown
+    /// (set [`VerdictInput::current_tree`]); [`live_input`] fills it in from the disk.
     pub fn from_policy(policy: &Policy, implied: Classification) -> VerdictInput {
         let mut lane_checkers_map = BTreeMap::new();
         for lane in ALL_LANES {
@@ -63,9 +70,14 @@ impl VerdictInput {
             lane_checkers: lane_checkers_map,
             policy_version: policy.version,
             lane_reasons: implied.reasons,
+            current_tree: None,
+            diff_unavailable: None,
         }
     }
 }
+
+/// How a check that ran on code that has since changed reads.
+pub const STALE_CHECK: &str = "not established: the code changed after this check ran";
 
 /// Whether a finding still counts.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -124,6 +136,8 @@ pub enum CheckState {
         tier: Tier,
         /// Record.
         seq: u64,
+        /// The code state it ran on (`None` in records written before that was kept).
+        tree: Option<String>,
     },
     /// Policy said not to run it.
     Skipped {
@@ -146,6 +160,8 @@ pub enum CheckState {
 pub struct CommitAnywayView {
     /// Decision record.
     pub seq: u64,
+    /// The session it was recorded in (`None`: project-wide).
+    pub session: Option<String>,
     /// The staged tree it covers.
     pub tree: String,
     /// The findings it went past.
@@ -193,6 +209,234 @@ impl CommitAnywayChoice {
     }
 }
 
+/// The identity of a finding's evidence: blake3 over its evidence pointers (paths, lines and
+/// content hashes). Two findings with the same id and the same evidence identity are the same
+/// occurrence of the same problem.
+pub fn evidence_identity(f: &Finding) -> String {
+    let json = serde_json::to_string(&f.evidence).unwrap_or_default();
+    blake3::hash(json.as_bytes()).to_hex().to_string()
+}
+
+/// The `choice` of an accept-as-not-real decision: exactly which occurrence of a finding it closes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AcceptChoice {
+    /// The finding id.
+    pub finding_id: String,
+    /// The finding's record number, when the decision names it.
+    pub seq: Option<u64>,
+    /// The finding's [`evidence_identity`], when the decision names it.
+    pub evidence: Option<String>,
+}
+
+impl AcceptChoice {
+    /// The choice that closes the finding recorded at `seq`.
+    pub fn for_finding(seq: u64, f: &Finding) -> AcceptChoice {
+        AcceptChoice {
+            finding_id: f.id.clone(),
+            seq: Some(seq),
+            evidence: Some(evidence_identity(f)),
+        }
+    }
+
+    /// The text stored as the decision's `choice` (JSON).
+    pub fn encode(&self) -> String {
+        serde_json::json!({"finding": self.finding_id, "seq": self.seq, "evidence": self.evidence})
+            .to_string()
+    }
+
+    /// Read it back. A choice that is not this shape is an older decision that named only the id.
+    pub fn decode(choice: &str) -> AcceptChoice {
+        if let Ok(v) = serde_json::from_str::<Value>(choice)
+            && let Some(id) = v.get("finding").and_then(Value::as_str)
+        {
+            return AcceptChoice {
+                finding_id: id.to_string(),
+                seq: v.get("seq").and_then(Value::as_u64),
+                evidence: v
+                    .get("evidence")
+                    .and_then(Value::as_str)
+                    .map(str::to_string),
+            };
+        }
+        AcceptChoice {
+            finding_id: choice.to_string(),
+            seq: None,
+            evidence: None,
+        }
+    }
+
+    /// True when it names an exact occurrence (record number or evidence), not only an id.
+    pub fn is_exact(&self) -> bool {
+        self.seq.is_some() || self.evidence.is_some()
+    }
+
+    /// Whether this decision (recorded at `decision_seq`) closes the finding recorded at `seq`.
+    ///
+    /// * It names that record: yes.
+    /// * It names the same id with the same evidence (the same problem reported again): yes.
+    /// * Same id, different evidence: no, that is a new occurrence and it is open.
+    /// * An older decision that named only the id closes the occurrence that existed when the
+    ///   human decided, never one recorded later.
+    pub fn closes(&self, seq: u64, f: &Finding, decision_seq: u64) -> bool {
+        if f.id != self.finding_id {
+            return false;
+        }
+        if self.seq == Some(seq) {
+            return true;
+        }
+        match &self.evidence {
+            Some(e) => *e == evidence_identity(f),
+            None => self.seq.is_none() && seq < decision_seq,
+        }
+    }
+}
+
+/// A human accept-as-not-real decision.
+pub(crate) struct Accept {
+    decision_seq: u64,
+    session: Option<String>,
+    choice: AcceptChoice,
+}
+
+impl Accept {
+    /// Whether this decision closes the finding recorded at `seq` in `session`. An exact decision
+    /// applies wherever its occurrence is; an older id-only one applies in its own session, or
+    /// everywhere when it was recorded for no session.
+    pub(crate) fn applies(&self, seq: u64, f: &Finding, session: Option<&str>) -> bool {
+        (self.choice.is_exact() || self.session.is_none() || self.session.as_deref() == session)
+            && self.choice.closes(seq, f, self.decision_seq)
+    }
+}
+
+/// The finding recorded at `seq`, anywhere in the project, with its status in its own session.
+/// `None` when that record is not a finding, or a later record replaced it under the same id.
+pub fn finding_view_at(all: &[crate::ledger::Stored], seq: u64) -> Option<FindingView> {
+    let rec = all.iter().find(|s| s.seq == seq)?;
+    if !matches!(rec.record, Record::Finding(_)) {
+        return None;
+    }
+    let accepts = accepts_of(all);
+    finding_views(all, rec.session_id.as_deref(), &accepts)
+        .into_iter()
+        .find(|v| v.seq == seq)
+}
+
+pub(crate) fn accepts_of(all: &[crate::ledger::Stored]) -> Vec<Accept> {
+    all.iter()
+        .filter_map(|s| match &s.record {
+            Record::Decision {
+                decision: DecisionKind::AcceptFindingNotReal,
+                choice,
+                who: Writer::Human,
+                ..
+            } => Some(Accept {
+                decision_seq: s.seq,
+                session: s.session_id.clone(),
+                choice: AcceptChoice::decode(choice),
+            }),
+            _ => None,
+        })
+        .collect()
+}
+
+/// The findings of one session (the latest record per id, oldest first) with their status.
+///
+/// A decision that names an exact occurrence applies wherever that occurrence is; an older
+/// id-only decision applies in its own session, or everywhere when it was recorded for no session.
+fn finding_views(
+    all: &[crate::ledger::Stored],
+    session: Option<&str>,
+    accepts: &[Accept],
+) -> Vec<FindingView> {
+    let mut latest: BTreeMap<String, (u64, Finding)> = BTreeMap::new();
+    let mut order: Vec<String> = Vec::new();
+    let mut corrected: BTreeMap<u64, u64> = BTreeMap::new();
+    for s in all.iter().filter(|s| s.session_id.as_deref() == session) {
+        match &s.record {
+            Record::Finding(f) => {
+                if !latest.contains_key(&f.id) {
+                    order.push(f.id.clone());
+                }
+                latest.insert(f.id.clone(), (s.seq, f.clone()));
+            }
+            // A finding is resolved by the checker that wrote it, or by the core, never by a desk,
+            // an agent or an adapter. (The human closes a finding with a decision instead.)
+            Record::Correction {
+                target_seq,
+                replacement: None,
+                ..
+            } if matches!(s.writer, Writer::Core | Writer::Checker) => {
+                corrected.entry(*target_seq).or_insert(s.seq);
+            }
+            _ => {}
+        }
+    }
+    order
+        .iter()
+        .filter_map(|id| latest.get(id))
+        .map(|(seq, f)| {
+            let accepted = accepts.iter().find(|a| a.applies(*seq, f, session));
+            let status = if let Some(c) = corrected.get(seq) {
+                FindingStatus::Resolved { correction_seq: *c }
+            } else if let Some(a) = accepted {
+                FindingStatus::AcceptedNotReal {
+                    decision_seq: a.decision_seq,
+                }
+            } else {
+                FindingStatus::Open
+            };
+            FindingView {
+                seq: *seq,
+                finding: f.clone(),
+                status,
+            }
+        })
+        .collect()
+}
+
+/// Whether the finding id a commit-anyway override went past is still open anywhere in the
+/// project. Its latest occurrence decides: open unless it was resolved, accepted as not real, or
+/// its checker ran again later (in any session) without reporting it.
+fn override_finding_open(
+    all: &[crate::ledger::Stored],
+    accepts: &[Accept],
+    id: &str,
+    cache: &mut BTreeMap<Option<String>, Vec<FindingView>>,
+) -> bool {
+    let Some(last) = all
+        .iter()
+        .rev()
+        .find(|s| matches!(&s.record, Record::Finding(f) if f.id == id))
+    else {
+        return false;
+    };
+    let views = cache
+        .entry(last.session_id.clone())
+        .or_insert_with(|| finding_views(all, last.session_id.as_deref(), accepts));
+    let Some(view) = views.iter().find(|v| v.finding.id == id) else {
+        return false;
+    };
+    if !view.is_open() {
+        return false;
+    }
+    if let Some(checker) = view.checker() {
+        let is_check_of = |s: &crate::ledger::Stored, ran_only: bool| {
+            matches!(&s.record, Record::Check { name, outcome, .. }
+                if name == checker && (!ran_only || *outcome == CheckOutcome::Ran))
+        };
+        // The run that reported it writes its check record right after its findings.
+        let reporting = all
+            .iter()
+            .find(|s| s.seq > view.seq && s.session_id == last.session_id && is_check_of(s, false));
+        if let Some(r) = reporting
+            && all.iter().any(|s| s.seq > r.seq && is_check_of(s, true))
+        {
+            return false;
+        }
+    }
+    true
+}
+
 /// Everything about a session that does not depend on the policy.
 #[derive(Debug, Clone)]
 pub struct Analysis {
@@ -220,27 +464,18 @@ fn in_scope(session: &str, s: &crate::ledger::Stored) -> bool {
 /// Read a session's records into an [`Analysis`].
 pub fn analyze(ledger: &Ledger, session: &str) -> Result<Analysis, LedgerError> {
     let all = ledger.records()?;
-    // Decisions also count when recorded for no session (project-wide).
-    let applies = |s: &crate::ledger::Stored| in_scope(session, s) || s.session_id.is_none();
 
-    let mut latest: BTreeMap<String, (u64, Finding)> = BTreeMap::new();
-    let mut order: Vec<String> = Vec::new();
     let mut hypotheses = Vec::new();
     let mut checks: BTreeMap<String, CheckState> = BTreeMap::new();
     let mut plumbing = Vec::new();
     let mut counts: BTreeMap<Tier, u64> = BTreeMap::new();
-    let mut accepted: BTreeMap<String, u64> = BTreeMap::new();
-    let mut corrected: BTreeMap<u64, u64> = BTreeMap::new();
-    let mut raw_overrides: Vec<(u64, CommitAnywayChoice, String)> = Vec::new();
+    // Commit-anyway overrides from every session: an override stays open project-wide.
+    let mut raw_overrides: Vec<(u64, Option<String>, CommitAnywayChoice, String)> = Vec::new();
 
     for s in &all {
         match &s.record {
             Record::Finding(f) if in_scope(session, s) => {
                 *counts.entry(f.tier).or_default() += 1;
-                if !latest.contains_key(&f.id) {
-                    order.push(f.id.clone());
-                }
-                latest.insert(f.id.clone(), (s.seq, f.clone()));
             }
             Record::Hypothesis(f) if in_scope(session, s) => {
                 hypotheses.push((s.seq, f.clone()));
@@ -250,6 +485,7 @@ pub fn analyze(ledger: &Ledger, session: &str) -> Result<Analysis, LedgerError> 
                 tier,
                 outcome,
                 detail,
+                tree_state,
                 ..
             } if in_scope(session, s) => {
                 *counts.entry(*tier).or_default() += 1;
@@ -257,6 +493,7 @@ pub fn analyze(ledger: &Ledger, session: &str) -> Result<Analysis, LedgerError> 
                     CheckOutcome::Ran => CheckState::Ran {
                         tier: *tier,
                         seq: s.seq,
+                        tree: tree_state.clone(),
                     },
                     CheckOutcome::SkippedByPolicy => CheckState::Skipped {
                         detail: detail.clone().unwrap_or_default(),
@@ -278,76 +515,55 @@ pub fn analyze(ledger: &Ledger, session: &str) -> Result<Analysis, LedgerError> 
                             seq: s.seq,
                         },
                     );
-                } else if !component.starts_with("verdict_") {
+                } else if !component.starts_with("verdict_")
+                    && component != crate::lane::LANE_COMPONENT
+                {
+                    // (Lane classification is judged live, from `VerdictInput::diff_unavailable`.)
+                    // Each component is listed once: its latest record.
+                    plumbing.retain(|(_, c, _): &(u64, String, String)| c != component);
                     plumbing.push((s.seq, component.clone(), reason.clone()));
                 }
-            }
-            Record::Decision {
-                decision: DecisionKind::AcceptFindingNotReal,
-                choice,
-                who: Writer::Human,
-                ..
-            } if applies(s) => {
-                accepted.entry(choice.clone()).or_insert(s.seq);
             }
             Record::Decision {
                 decision: DecisionKind::CommitAnyway,
                 choice,
                 reason,
                 who: Writer::Human,
-            } if applies(s) => {
+            } => {
                 raw_overrides.push((
                     s.seq,
+                    s.session_id.clone(),
                     CommitAnywayChoice::decode(choice),
                     reason.clone().unwrap_or_default(),
                 ));
-            }
-            // A finding is resolved by the checker that wrote it, or by the core, never by a desk,
-            // an agent or an adapter. (The human closes a finding with a decision instead.)
-            Record::Correction {
-                target_seq,
-                replacement: None,
-                ..
-            } if in_scope(session, s) && matches!(s.writer, Writer::Core | Writer::Checker) => {
-                corrected.entry(*target_seq).or_insert(s.seq);
             }
             _ => {}
         }
     }
 
-    let findings: Vec<FindingView> = order
-        .iter()
-        .filter_map(|id| latest.get(id))
-        .map(|(seq, f)| {
-            let status = if let Some(c) = corrected.get(seq) {
-                FindingStatus::Resolved { correction_seq: *c }
-            } else if let Some(d) = accepted.get(&f.id) {
-                FindingStatus::AcceptedNotReal { decision_seq: *d }
-            } else {
-                FindingStatus::Open
-            };
-            FindingView {
-                seq: *seq,
-                finding: f.clone(),
-                status,
-            }
-        })
-        .collect();
+    let accepts = accepts_of(&all);
+    let findings = finding_views(&all, Some(session), &accepts);
 
+    let mut cache: BTreeMap<Option<String>, Vec<FindingView>> = BTreeMap::new();
+    cache.insert(Some(session.to_string()), findings.clone());
     let overrides = raw_overrides
         .into_iter()
-        .map(|(seq, choice, reason)| {
+        .filter_map(|(seq, sid, choice, reason)| {
             let open = choice
                 .finding_ids
                 .iter()
-                .any(|id| findings.iter().any(|f| &f.finding.id == id && f.is_open()));
-            CommitAnywayView {
+                .any(|id| override_finding_open(&all, &accepts, id, &mut cache));
+            // This session's own (and project-wide) overrides always show; another session's
+            // only while it is open.
+            let here = sid.is_none() || sid.as_deref() == Some(session);
+            (here || open).then_some(CommitAnywayView {
                 seq,
+                session: sid,
                 tree: choice.tree,
                 finding_ids: choice.finding_ids,
                 reason,
                 open,
-            }
+            })
         })
         .collect();
 
@@ -528,11 +744,30 @@ pub fn compute(
     session: &str,
     input: &VerdictInput,
 ) -> Result<Computed, LedgerError> {
-    let a = analyze(ledger, session)?;
+    let mut a = analyze(ledger, session)?;
     let lane = effective_lane(ledger, session, input.implied_lane)?;
     let required: Vec<String> = input.lane_checkers.get(&lane).cloned().unwrap_or_default();
     let sec = sections(&a, lane);
     let integrity = ledger.verify()?;
+
+    // A check counts only for the code it ran on. One that ran on code that has changed since, or
+    // that does not say what code it ran on, proves nothing about the code now; from here on it is
+    // treated as not run (and the verdict can be no better than PARTIAL).
+    let current = input.current_tree.as_deref();
+    let stale: Vec<String> = a
+        .checks
+        .iter()
+        .filter_map(|(name, c)| match c {
+            CheckState::Ran { tier, tree, .. }
+                if (proof_rank(*tier).is_some() || required.contains(name))
+                    && (current.is_none() || tree.as_deref() != current) =>
+            {
+                Some(name.clone())
+            }
+            _ => None,
+        })
+        .collect();
+    a.checks.retain(|name, _| !stale.contains(name));
 
     // Which required checkers are not satisfied, and why.
     let mut missing: Vec<(String, String, bool)> = Vec::new(); // name, why, unavailable
@@ -542,6 +777,7 @@ pub fn compute(
             Some(CheckState::Unavailable { reason, .. }) => {
                 missing.push((name.clone(), format!("could not run: {reason}"), true))
             }
+            None if stale.contains(name) => missing.push((name.clone(), STALE_CHECK.into(), true)),
             None => missing.push((name.clone(), "did not run".into(), false)),
         }
     }
@@ -572,6 +808,12 @@ pub fn compute(
             "{component} could not run, so this session may be missing records: {reason} (record {seq})"
         ));
     }
+    if let Some(why) = &input.diff_unavailable {
+        settle.push(format!(
+            "lane classification could not run: {why}. The lane was set to {} so nothing is under-checked; look at what changed yourself",
+            crate::lane::lane_name(input.implied_lane)
+        ));
+    }
     let translations: Vec<String> = open_decisions(ledger, Some(session))?
         .into_iter()
         .filter(|d| d.decision == DecisionKind::AcceptPromptTranslation)
@@ -590,8 +832,9 @@ pub fn compute(
     let override_open = a.overrides.iter().any(|o| o.open);
     for o in a.overrides.iter().filter(|o| o.open) {
         settle.push(format!(
-            "commit-anyway override open (record {}, reason: {}): resolve {} or accept it as not real",
+            "commit-anyway override open (record {}{}, reason: {}): resolve {} or accept it as not real",
             o.seq,
+            override_origin(o, session),
             o.reason,
             o.finding_ids.join(", ")
         ));
@@ -640,11 +883,26 @@ pub fn compute(
     if !integrity.is_ok() && matches!(word, VerdictWord::Verified | VerdictWord::ClearToShip) {
         word = VerdictWord::NeedsYou;
     }
+    // A check that ran on other code caps the verdict at PARTIAL.
+    if !stale.is_empty()
+        && matches!(
+            word,
+            VerdictWord::Verified | VerdictWord::ClearToShip | VerdictWord::NeedsYou
+        )
+    {
+        word = VerdictWord::Partial;
+    }
 
     // What was not established.
     let mut ne: Vec<String> = Vec::new();
     for (name, why, _) in &missing {
         ne.push(format!("{name}: {why}"));
+    }
+    for name in stale.iter().filter(|n| !required.contains(n)) {
+        ne.push(format!("{name}: {STALE_CHECK}"));
+    }
+    if let Some(why) = &input.diff_unavailable {
+        ne.push(format!("lane classification: could not run: {why}"));
     }
     for (name, c) in &a.checks {
         match c {
@@ -671,7 +929,7 @@ pub fn compute(
             a.hypotheses.len()
         ));
     }
-    if highest.is_none() {
+    if highest.is_none() && stale.is_empty() {
         ne.push("whether the work does what the prompts asked: no checker has run".into());
     }
     if !a
@@ -718,6 +976,14 @@ pub fn compute(
     })
 }
 
+/// `", from session <id>"` for an override recorded in another session, else nothing.
+pub(crate) fn override_origin(o: &CommitAnywayView, session: &str) -> String {
+    match o.session.as_deref() {
+        Some(s) if s != session => format!(", from session {s}"),
+        _ => String::new(),
+    }
+}
+
 /// Write the verdict record (writer `core`). Returns its sequence number.
 pub fn record_verdict(ledger: &mut Ledger, c: &Computed) -> Result<u64, LedgerError> {
     let a = ledger.append(
@@ -759,11 +1025,25 @@ pub fn live_input(
     home: Option<&Path>,
 ) -> Result<Live, LedgerError> {
     let (policy, policy_warning) = load_policy(root, home)?;
-    let paths = normalize_paths(&policy, root, &touched_paths(root, ledger, session)?);
-    let class = classify_lane(&policy, &paths);
+    let touched = touched_paths_checked(root, ledger, session)?;
+    let paths = normalize_paths(&policy, root, &touched.paths);
+    let mut class = classify_lane(&policy, &paths);
+    if let Some(why) = &touched.unreadable {
+        // An unreadable diff never lowers the lane: classify at the highest lane there is.
+        class.lane = Lane::Release;
+        class.reasons.insert(
+            0,
+            format!(
+                "the session's diff could not be read ({why}), so the lane is the highest: release"
+            ),
+        );
+    }
     let warnings = class.warnings.clone();
+    let mut input = VerdictInput::from_policy(&policy, class);
+    input.current_tree = crate::baseline::tree_state(root);
+    input.diff_unavailable = touched.unreadable;
     Ok(Live {
-        input: VerdictInput::from_policy(&policy, class),
+        input,
         policy,
         policy_warning,
         paths,

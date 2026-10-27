@@ -61,6 +61,7 @@ fn build(spec: &Spec) -> Record {
             finished_at: "b".into(),
             outcome: CheckOutcome::Ran,
             detail: None,
+            tree_state: None,
         },
         Spec::Unavailable(t) => Record::CheckUnavailable {
             component: "adapter".into(),

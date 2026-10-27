@@ -4,7 +4,8 @@
 //! Every action here writes a decision record as writer `human` (the ledger refuses a decision from
 //! anyone else) and validates first, so a bad request writes nothing:
 //!
-//! * accept a finding as not real (closes that one finding),
+//! * accept a finding as not real (closes that exact occurrence),
+//! * accept a prompt-translation claim as what the human asked for,
 //! * approve the repo's commands,
 //! * raise the lane (never lower it),
 //! * switch between shadow and enforce,
@@ -18,13 +19,19 @@ use std::path::Path;
 use crate::lane::{lane_name, parse_lane, staged_tree};
 use crate::ledger::{Ledger, LedgerError};
 use crate::model::{DecisionKind, Lane, Record, Writer};
-use crate::verdict::{CommitAnywayChoice, analyze, compute_live, is_blocking};
+use crate::part1c::open_decisions;
+use crate::verdict::{
+    AcceptChoice, CommitAnywayChoice, analyze, compute_live, finding_view_at, is_blocking,
+};
 
 /// What the human asked for.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Action {
-    /// Accept the finding with this id as not real.
+    /// Accept a finding as not real: its record number (closes that exact occurrence, in any
+    /// session) or its id (the open occurrence in this session).
     AcceptFinding(String),
+    /// Accept the prompt-translation claim recorded at this number as what the human asked for.
+    AcceptPromptTranslation(u64),
     /// Approve running this repo's own commands (the exec checker).
     ApproveCommands,
     /// Raise the lane to this one.
@@ -225,13 +232,42 @@ pub fn apply(
 ) -> Result<u64, String> {
     let io = |e: LedgerError| e.to_string();
     let (decision, choice, reason): (DecisionKind, String, Option<String>) = match action {
-        Action::AcceptFinding(id) => {
-            let id = id.trim();
-            let a = analyze(ledger, session).map_err(io)?;
-            if !a.findings.iter().any(|f| f.finding.id == id && f.is_open()) {
-                return Err(format!("there is no open finding {id:?} in this session"));
+        Action::AcceptFinding(which) => {
+            // The decision names the exact occurrence (record number and evidence), so a later
+            // finding with the same id and different evidence is open again.
+            let which = which.trim().trim_start_matches('#');
+            let view = match which.parse::<u64>() {
+                // A record number names one finding anywhere in the project (an override from
+                // another session can be blocked by it).
+                Ok(seq) => {
+                    let all = ledger.records().map_err(io)?;
+                    finding_view_at(&all, seq).filter(|v| v.is_open())
+                }
+                Err(_) => analyze(ledger, session)
+                    .map_err(io)?
+                    .findings
+                    .into_iter()
+                    .find(|f| f.finding.id == which && f.is_open()),
+            };
+            let Some(view) = view else {
+                return Err(format!("there is no open finding {which:?}"));
+            };
+            (
+                DecisionKind::AcceptFindingNotReal,
+                AcceptChoice::for_finding(view.seq, &view.finding).encode(),
+                None,
+            )
+        }
+        Action::AcceptPromptTranslation(seq) => {
+            let open = open_decisions(ledger, None).map_err(io)?;
+            if !open.iter().any(|d| {
+                d.decision == DecisionKind::AcceptPromptTranslation && d.record_seq == Some(*seq)
+            }) {
+                return Err(format!(
+                    "claim #{seq} is not an open prompt-translation question"
+                ));
             }
-            (DecisionKind::AcceptFindingNotReal, id.to_string(), None)
+            (DecisionKind::AcceptPromptTranslation, seq.to_string(), None)
         }
         Action::ApproveCommands => {
             // The approval covers exactly the commands the policy lists right now.

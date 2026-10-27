@@ -340,6 +340,11 @@ pub struct OpenDecision {
     pub default_if_unanswered: String,
     /// The ledger record it is about, if any.
     pub record_seq: Option<u64>,
+    /// For a prompt translation: the claim's own words, so the human reads exactly what they
+    /// would accept.
+    pub claim_text: Option<String>,
+    /// For a prompt translation: the files or links the claim names that the prompt did not.
+    pub added_names: Vec<String>,
 }
 
 /// Hosts whose hooks the human may install, as recorded in the decision's `choice`.
@@ -355,6 +360,7 @@ pub fn open_decisions(
     session: Option<&str>,
 ) -> Result<Vec<OpenDecision>, LedgerError> {
     let all = ledger.records()?;
+    let accepts = crate::verdict::accepts_of(&all);
     let answered = |kind: DecisionKind, choice: &str| {
         all.iter().any(|s| {
             matches!(&s.record, Record::Decision { decision, choice: c, who: Writer::Human, .. }
@@ -370,6 +376,8 @@ pub fn open_decisions(
                 question: format!("Install the {host} hooks in this project?"),
                 default_if_unanswered: "not installed; recorded".into(),
                 record_seq: None,
+                claim_text: None,
+                added_names: Vec::new(),
             });
         }
     }
@@ -432,16 +440,26 @@ pub fn open_decisions(
                         ),
                         default_if_unanswered: "the prompt stays NEEDS YOU".into(),
                         record_seq: Some(s.seq),
+                        claim_text: Some(text.clone()),
+                        added_names: foreign.iter().map(|n| n.to_string()).collect(),
                     });
                 }
             }
-            Record::Finding(f) if !answered(DecisionKind::AcceptFindingNotReal, &f.id) => {
+            // A decision closes the exact occurrence it names; the same id with different
+            // evidence is a new occurrence and asks again.
+            Record::Finding(f)
+                if !accepts
+                    .iter()
+                    .any(|a| a.applies(s.seq, f, s.session_id.as_deref())) =>
+            {
                 out.push(OpenDecision {
                     key: format!("accept_finding_not_real:{}", f.id),
                     decision: DecisionKind::AcceptFindingNotReal,
                     question: format!("Accept finding \"{}\" as not real?", f.title),
                     default_if_unanswered: "the finding stays open".into(),
                     record_seq: Some(s.seq),
+                    claim_text: None,
+                    added_names: Vec::new(),
                 });
             }
             _ => {}

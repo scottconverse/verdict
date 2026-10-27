@@ -86,6 +86,8 @@ fn fixture_with(findings: &[(&str, &str, Severity)]) -> Fixture {
                 finished_at: "2026-10-26T12:00:01.000Z".into(),
                 outcome: CheckOutcome::Ran,
                 detail: None,
+                // The checks saw the folder as it is, so they count.
+                tree_state: verdict_core::baseline::tree_state(&dir.0),
             },
         )
         .unwrap();
@@ -373,13 +375,13 @@ fn accepting_a_finding_as_not_real_closes_it_and_recomputes_the_verdict() {
     );
     let d = last_decision(&f.dir.0);
     assert_eq!(
-        (d.0, d.1, d.2.as_str()),
-        (
-            Writer::Human,
-            DecisionKind::AcceptFindingNotReal,
-            "wiring:a"
-        )
+        (d.0, d.1),
+        (Writer::Human, DecisionKind::AcceptFindingNotReal)
     );
+    // The decision names the exact occurrence (record number and evidence), not just the id.
+    let choice = verdict_core::verdict::AcceptChoice::decode(&d.2);
+    assert_eq!(choice.finding_id, "wiring:a");
+    assert!(choice.is_exact(), "{}", d.2);
     assert_eq!(d.4.as_deref(), Some(f.session.as_str()));
 
     let r = press(&f, "accept_finding", "regressions:b", "");
@@ -565,8 +567,9 @@ fn no_action_works_without_the_token_or_from_another_origin() {
     let f = fixture();
     let before = count(&f.dir.0);
     let own_origin = origin(&f);
-    let actions: [(&str, &str, &str); 6] = [
+    let actions: [(&str, &str, &str); 7] = [
         ("accept_finding", "wiring:src/login.ts:12", ""),
+        ("accept_translation", "1", ""),
         ("approve_commands", "", ""),
         ("raise_lane", "high", ""),
         ("set_mode", "enforce", ""),
@@ -667,4 +670,160 @@ fn the_page_shows_the_commands_in_big_text_and_the_approval_names_them() {
     );
     assert!(again.contains("echo sneaky-new-command"));
     assert!(again.contains("Approve this repo&#39;s commands"));
+}
+
+// ------------------------------------------------------------------------- fix 2b
+
+/// Add a prompt and a prompt-translation claim that names a file the prompt did not.
+fn add_translation(f: &Fixture) -> u64 {
+    let mut l = Ledger::open(&f.dir.0).unwrap();
+    l.append(
+        Writer::Adapter,
+        Some(&f.session),
+        Record::Prompt {
+            ordinal: 1,
+            text: "fix the login button".into(),
+            agent: "claude".into(),
+            model: "model-x".into(),
+        },
+    )
+    .unwrap();
+    l.append(
+        Writer::Agent,
+        Some(&f.session),
+        Record::Claim {
+            source: ClaimSource::PromptTranslation,
+            text: "Change src/billing.rs so the login button charges the card".into(),
+            names: vec!["src/billing.rs".into()],
+            prompt_ordinal: Some(1),
+        },
+    )
+    .unwrap()
+    .seq
+}
+
+#[test]
+fn a_prompt_translation_has_a_button_that_records_the_human_accepting_that_claim() {
+    let f = fixture_with(&[]);
+    let claim = add_translation(&f);
+    let b = get(&f, &format!("/session/{}", f.session)).body;
+    assert!(b.contains("A claim names something your prompt did not"));
+    // The claim and the names it added are shown, in the big styles, above the button.
+    let quote = b
+        .find("<blockquote class=\"claim\">Change src/billing.rs so the login button charges the card</blockquote>")
+        .expect("the claim text");
+    let names = b
+        .find("<ul class=\"names\"><li><code>src/billing.rs</code></li></ul>")
+        .expect("the added names");
+    let button = b
+        .find("Accept this claim as what I asked for")
+        .expect("the button");
+    assert!(quote < names && names < button);
+    assert!(b.contains("name=\"action\" value=\"accept_translation\""));
+    assert!(b.contains(&format!("name=\"value\" value=\"{claim}\"")));
+    assert!(
+        b.contains("VERDICT: NEEDS YOU"),
+        "the open question holds the verdict"
+    );
+
+    let r = press(&f, "accept_translation", &claim.to_string(), "");
+    let page = follow(&f, &r);
+    assert!(page.body.contains("Your decision is recorded"));
+    assert!(!page.body.contains("Accept this claim as what I asked for"));
+    let d = last_decision(&f.dir.0);
+    assert_eq!(
+        (d.0, d.1, d.2.as_str(), d.4.as_deref()),
+        (
+            Writer::Human,
+            DecisionKind::AcceptPromptTranslation,
+            claim.to_string().as_str(),
+            Some(f.session.as_str())
+        )
+    );
+    // Answered: a second press, a record that is not a translation, or junk writes nothing.
+    let before = count(&f.dir.0);
+    assert_eq!(
+        press(&f, "accept_translation", &claim.to_string(), "").status,
+        400
+    );
+    assert_eq!(press(&f, "accept_translation", "1", "").status, 400);
+    assert_eq!(press(&f, "accept_translation", "abc", "").status, 400);
+    assert_eq!(count(&f.dir.0), before);
+}
+
+#[test]
+fn the_accept_button_names_the_exact_finding_record() {
+    let f = fixture();
+    let seq = records(&f.dir.0)
+        .into_iter()
+        .find(|s| matches!(s.record, Record::Finding(_)))
+        .unwrap()
+        .seq;
+    let b = get(&f, &format!("/session/{}", f.session)).body;
+    assert!(b.contains(&format!(
+        "name=\"action\" value=\"accept_finding\"><input type=\"hidden\" name=\"value\" value=\"{seq}\">"
+    )));
+    let r = press(&f, "accept_finding", &seq.to_string(), "");
+    follow(&f, &r);
+    let d = last_decision(&f.dir.0);
+    let c = verdict_core::verdict::AcceptChoice::decode(&d.2);
+    assert_eq!(c.seq, Some(seq));
+}
+
+#[test]
+fn an_open_override_from_another_session_shows_its_finding_with_a_button() {
+    let f = fixture();
+    let mut l = Ledger::open(&f.dir.0).unwrap();
+    let finding = l
+        .records()
+        .unwrap()
+        .into_iter()
+        .find(|s| matches!(s.record, Record::Finding(_)))
+        .unwrap()
+        .seq;
+    l.append(
+        Writer::Human,
+        Some(&f.session),
+        Record::Decision {
+            decision: DecisionKind::CommitAnyway,
+            choice: CommitAnywayChoice {
+                tree: "tree1".into(),
+                finding_ids: vec!["wiring:src/login.ts:12".into()],
+            }
+            .encode(),
+            reason: Some("hotfix".into()),
+            who: Writer::Human,
+        },
+    )
+    .unwrap();
+    let later = start_session(
+        &mut l,
+        &f.dir.0,
+        &SessionParams {
+            agent: "claude".into(),
+            model: "model-x".into(),
+            vendor: "anthropic".into(),
+            home: Some(f._home.0.clone()),
+        },
+    )
+    .unwrap();
+    drop(l);
+    let b = get(&f, &format!("/session/{}", later.id)).body;
+    assert!(b.contains("Still open from session"), "{b}");
+    assert!(b.contains(&format!("name=\"value\" value=\"{finding}\"")));
+    // Pressing it from the later session closes the finding where it lives.
+    let body = format!(
+        "token={}&session={}&action=accept_finding&value={finding}&reason=",
+        f.page.token, later.id
+    );
+    let r = http(
+        &f.page,
+        "POST",
+        "/decide",
+        &[("Origin", &origin(&f)), ("Sec-Fetch-Site", "same-origin")],
+        Some(&body),
+    );
+    assert_eq!(r.status, 303, "{}", r.body);
+    let b = get(&f, &format!("/session/{}", later.id)).body;
+    assert!(!b.contains("Still open from session"));
 }

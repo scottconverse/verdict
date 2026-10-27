@@ -354,7 +354,14 @@ fn every_human_action_writes_a_human_decision() {
                 ..
             } => {
                 assert_eq!(decision, kind);
-                assert_eq!(c, choice);
+                if kind == DecisionKind::AcceptFindingNotReal {
+                    // The decision names the exact occurrence, not just the id.
+                    let d = verdict_core::verdict::AcceptChoice::decode(&c);
+                    assert_eq!(d.finding_id, choice);
+                    assert!(d.is_exact(), "{c}");
+                } else {
+                    assert_eq!(c, choice);
+                }
                 assert_eq!(who, Writer::Human);
             }
             other => panic!("{other:?}"),

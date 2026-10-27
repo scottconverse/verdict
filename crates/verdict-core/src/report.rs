@@ -64,11 +64,23 @@ pub fn render_report_with(
         .filter(|s| s.session_id.as_deref() == Some(id.as_str()))
         .collect();
     let integrity = ledger.verify()?;
+    // Each component that could not run is listed once: its latest record in the session.
+    let latest_unavailable: Vec<&crate::ledger::Stored> = {
+        let mut by_component: std::collections::BTreeMap<&str, &crate::ledger::Stored> =
+            std::collections::BTreeMap::new();
+        for s in &mine {
+            if let Record::CheckUnavailable { component, .. } = &s.record {
+                by_component.insert(component.as_str(), *s);
+            }
+        }
+        let mut v: Vec<_> = by_component.into_values().collect();
+        v.sort_by_key(|s| s.seq);
+        v
+    };
 
     let mut prompts = Vec::new();
     let mut claims = Vec::new();
     let mut tools = Vec::new();
-    let mut unavailable = Vec::new();
     let mut refused = Vec::new();
     let mut findings = Vec::new();
     let mut hypotheses = Vec::new();
@@ -79,7 +91,6 @@ pub fn render_report_with(
             Record::Prompt { .. } => prompts.push(*s),
             Record::Claim { .. } => claims.push(*s),
             Record::ToolCall { .. } => tools.push(*s),
-            Record::CheckUnavailable { .. } => unavailable.push(*s),
             Record::RefusedWrite { .. } => refused.push(*s),
             Record::Finding(_) => findings.push(*s),
             Record::Hypothesis(_) => hypotheses.push(*s),
@@ -211,8 +222,9 @@ pub fn render_report_with(
             n += 1;
             let _ = writeln!(
                 o,
-                "  {n}. commit-anyway override open (record {}, reason: {}): resolve {} or accept it as not real",
+                "  {n}. commit-anyway override open (record {}{}, reason: {}): resolve {} or accept it as not real",
                 ov.seq,
+                crate::verdict::override_origin(ov, id),
                 ov.reason,
                 ov.finding_ids.join(", ")
             );
@@ -224,7 +236,7 @@ pub fn render_report_with(
             let _ = writeln!(o, "  {n}. ledger integrity: {}", p.message);
         }
     }
-    for s in &unavailable {
+    for s in &latest_unavailable {
         if let Record::CheckUnavailable { component, reason } = &s.record {
             n += 1;
             let _ = writeln!(
@@ -300,8 +312,9 @@ pub fn render_report_with(
         for ov in &a.overrides {
             let _ = writeln!(
                 o,
-                "  record {}: past {} for tree {}. Reason you typed: {}{}",
+                "  record {}{}: past {} for tree {}. Reason you typed: {}{}",
                 ov.seq,
+                crate::verdict::override_origin(ov, id),
                 ov.finding_ids.join(", "),
                 ov.tree.get(..12).unwrap_or(&ov.tree),
                 ov.reason,
@@ -507,7 +520,7 @@ pub fn render_report_with(
         o,
         "  - whether your build and tests pass, or your real app works: nothing was run"
     );
-    for s in &unavailable {
+    for s in &latest_unavailable {
         if let Record::CheckUnavailable { component, .. } = &s.record {
             let _ = writeln!(o, "  - {component}: could not run (record {})", s.seq);
         }

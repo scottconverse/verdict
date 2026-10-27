@@ -354,15 +354,65 @@ fn is_edit_tool(tool: &str) -> bool {
     )
 }
 
+/// The component name a `check_unavailable` record uses when the session's diff could not be read
+/// for lane classification.
+pub const LANE_COMPONENT: &str = "lane_classification";
+
+/// What [`touched_paths_checked`] found.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Touched {
+    /// The changed paths it could read.
+    pub paths: Vec<String>,
+    /// Set (why) when git could not produce the session's diff: a missing baseline commit or a
+    /// git error. The paths are then incomplete and the lane must not be trusted to be low.
+    pub unreadable: Option<String>,
+}
+
 /// Every path the session changed: files named by edit tool calls, plus (in a git repository) the
 /// diff of the working tree against the session's baseline commit, the untracked files and the
-/// staged index. Not normalized; pass the result through [`normalize_paths`].
+/// staged index. Not normalized; pass the result through [`normalize_paths`]. A diff git could not
+/// produce adds nothing here; use [`touched_paths_checked`] to learn about it.
 pub fn touched_paths(
     root: &Path,
     ledger: &Ledger,
     session: &str,
 ) -> Result<Vec<String>, LedgerError> {
+    Ok(touched_paths_checked(root, ledger, session)?.paths)
+}
+
+/// Run git and return its output, or why it failed (its own words, first line).
+fn git_or_why(root: &Path, args: &[&str]) -> Result<Vec<u8>, String> {
+    let out = Command::new("git")
+        .arg("-C")
+        .arg(root)
+        .args(args)
+        .env("GIT_OPTIONAL_LOCKS", "0")
+        .output()
+        .map_err(|e| format!("git could not be started: {e}"))?;
+    if out.status.success() {
+        return Ok(out.stdout);
+    }
+    let err = String::from_utf8_lossy(&out.stderr);
+    let first = err.lines().find(|l| !l.trim().is_empty()).unwrap_or("");
+    Err(format!(
+        "`git {}` failed: {}",
+        args.first().copied().unwrap_or(""),
+        if first.is_empty() {
+            format!("exit status {}", out.status)
+        } else {
+            first.trim().to_string()
+        }
+    ))
+}
+
+/// Like [`touched_paths`], and also says when the session's diff could not be read.
+pub fn touched_paths_checked(
+    root: &Path,
+    ledger: &Ledger,
+    session: &str,
+) -> Result<Touched, LedgerError> {
     let mut out: BTreeSet<String> = BTreeSet::new();
+    let mut unreadable: Option<String> = None;
     let mut base: Option<String> = None;
     for s in ledger.records_for_session(session)? {
         match &s.record {
@@ -381,27 +431,74 @@ pub fn touched_paths(
         }
     }
     if root.join(".git").exists() || git_out(root, &["rev-parse", "--git-dir"]).is_some() {
-        let base = base.unwrap_or_else(|| "HEAD".to_string());
-        if let Some(b) = git_out(
+        let mut why: Vec<String> = Vec::new();
+        // The diff against the baseline commit. A repository that had no commit when the session
+        // started (and still has none) has nothing to diff against: every file in it is untracked
+        // or staged, and both are listed below.
+        let base = match base {
+            Some(b) => {
+                let spec = format!("{b}^{{commit}}");
+                match git_or_why(root, &["rev-parse", "--verify", "-q", &spec]) {
+                    Ok(_) => Some(b),
+                    Err(_) => {
+                        why.push(format!(
+                            "the session's baseline commit {} is not in this repository",
+                            b.get(..12).unwrap_or(&b)
+                        ));
+                        None
+                    }
+                }
+            }
+            None => git_out(root, &["rev-parse", "--verify", "-q", "HEAD^{commit}"])
+                .map(|_| "HEAD".to_string()),
+        };
+        if let Some(base) = base {
+            match git_or_why(
+                root,
+                &[
+                    "diff",
+                    "--name-only",
+                    "--no-renames",
+                    "--relative",
+                    "-z",
+                    &base,
+                    "--",
+                ],
+            ) {
+                Ok(b) => out.extend(nul_list(b)),
+                Err(e) => why.push(e),
+            }
+        }
+        match git_or_why(root, &["ls-files", "--others", "--exclude-standard", "-z"]) {
+            Ok(b) => out.extend(nul_list(b)),
+            Err(e) => why.push(e),
+        }
+        match git_or_why(
             root,
             &[
                 "diff",
+                "--cached",
                 "--name-only",
                 "--no-renames",
                 "--relative",
                 "-z",
-                &base,
-                "--",
             ],
         ) {
-            out.extend(nul_list(b));
+            Ok(b) => out.extend(nul_list(b)),
+            // Staged paths need a HEAD to diff against; with no commit yet, list the index.
+            Err(e) => match git_or_why(root, &["ls-files", "-z"]) {
+                Ok(b) => out.extend(nul_list(b)),
+                Err(_) => why.push(e),
+            },
         }
-        if let Some(b) = git_out(root, &["ls-files", "--others", "--exclude-standard", "-z"]) {
-            out.extend(nul_list(b));
+        if !why.is_empty() {
+            unreadable = Some(why.join("; "));
         }
-        out.extend(staged_paths(root));
     }
-    Ok(out.into_iter().collect())
+    Ok(Touched {
+        paths: out.into_iter().collect(),
+        unreadable,
+    })
 }
 
 #[cfg(test)]

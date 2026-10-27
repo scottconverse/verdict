@@ -180,3 +180,60 @@ fn a_quote_in_the_vdt_path_cannot_break_out_of_the_script() {
     let s = hook_script("C:\\it's here\\vdt.exe");
     assert!(s.contains("VDT='C:/it'\\''s here/vdt.exe'"), "{s}");
 }
+
+/// Make a file symlink, or say why the OS will not let this test make one.
+fn try_symlink(target: &std::path::Path, link: &std::path::Path) -> Result<(), String> {
+    #[cfg(unix)]
+    let r = std::os::unix::fs::symlink(target, link);
+    #[cfg(windows)]
+    let r = std::os::windows::fs::symlink_file(target, link);
+    r.map_err(|e| e.to_string())
+}
+
+#[test]
+fn a_symlinked_hook_is_never_written_through_and_uninstall_puts_the_link_back() {
+    let repo = git_repo("hook-link");
+    let shared = Tmp::new("hook-link-shared");
+    let target = shared.path().join("shared-pre-commit");
+    let theirs = "#!/bin/sh\necho shared hook\nexit 0\n";
+    std::fs::write(&target, theirs).unwrap();
+    let hooks = hooks_dir(repo.path()).unwrap();
+    std::fs::create_dir_all(&hooks).unwrap();
+    let hook = hooks.join("pre-commit");
+    if let Err(why) = try_symlink(&target, &hook) {
+        println!(
+            "SKIPPED: this OS would not let the test make a symlink ({why}); on Windows that needs developer mode"
+        );
+        return;
+    }
+
+    let (code, text) = run(&req(&repo, true, true));
+    assert_eq!(code, 0, "{text}");
+    // The shared file is exactly as it was.
+    assert_eq!(std::fs::read_to_string(&target).unwrap(), theirs);
+    // Our hook is a real file now, not the link, and it chains to the shared hook.
+    assert!(
+        !std::fs::symlink_metadata(&hook)
+            .unwrap()
+            .file_type()
+            .is_symlink()
+    );
+    let ours = std::fs::read_to_string(&hook).unwrap();
+    assert!(ours.contains(MARKER) && ours.contains(CHAINED), "{ours}");
+    assert_eq!(
+        std::fs::read_to_string(hooks.join(CHAINED)).unwrap(),
+        theirs,
+        "the chained hook reaches the shared one"
+    );
+    assert!(text.contains("link"), "{text}");
+
+    // Uninstall: the link comes back, pointing where it did, and the shared file is untouched.
+    let (code, text) = run(&req(&repo, false, true));
+    assert_eq!(code, 0, "{text}");
+    let meta = std::fs::symlink_metadata(&hook).unwrap();
+    assert!(meta.file_type().is_symlink(), "the hook is a link again");
+    assert_eq!(std::fs::read_link(&hook).unwrap(), target);
+    assert_eq!(std::fs::read_to_string(&target).unwrap(), theirs);
+    assert!(std::fs::symlink_metadata(hooks.join(CHAINED)).is_err());
+    assert!(std::fs::symlink_metadata(hooks.join(LINK_RECORD)).is_err());
+}
