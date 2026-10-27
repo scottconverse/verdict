@@ -222,7 +222,10 @@ pub fn expected(name: &str) -> Vec<String> {
 
 /// The rule inside a finding id (`checker.rule.hash`).
 pub fn rule_of(id: &str) -> &str {
-    id.split('.').nth(1).unwrap_or("")
+    // `<checker>:<rule>.<hash>`
+    id.split_once(':')
+        .and_then(|(_, rest)| rest.split('.').next())
+        .unwrap_or("")
 }
 
 /// The red fixture must produce a finding for every expected rule, each with evidence.

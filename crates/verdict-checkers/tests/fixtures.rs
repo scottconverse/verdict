@@ -149,7 +149,7 @@ fn every_red_finding_has_a_checkable_pointer() {
         assert!(!findings.is_empty());
         for f in &findings {
             assert!(!f.evidence.is_empty(), "{}", f.id);
-            assert!(f.id.starts_with(&format!("{name}.")), "{}", f.id);
+            assert!(f.id.starts_with(&format!("{name}:")), "{}", f.id);
             // A file:line pointer must be current right after the run.
             for p in &f.evidence {
                 if let verdict_core::EvidencePointer::FileLine { .. } = p {

@@ -368,7 +368,8 @@ pub fn finish(checker: &str, mut drafts: Vec<Draft>) -> Vec<Finding> {
         h.update(&d.line.to_le_bytes());
         h.update(d.title.as_bytes());
         let hex = h.finalize().to_hex().to_string();
-        let id = format!("{checker}.{}.{}", d.rule, &hex[..8]);
+        // `<checker>:` prefix: the core reads the checker from it (verdict_core::verdict::checker_of).
+        let id = format!("{checker}:{}.{}", d.rule, &hex[..8]);
         if !seen.insert(id.clone()) {
             continue;
         }
