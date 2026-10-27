@@ -192,6 +192,10 @@ const UNREAD_SERVERS: &[&str] = &[
     "@hapi/", "restify", "polka",
 ];
 
+/// Data libraries whose writes an extractor in this build reads (SQLAlchemy, asyncpg, Kysely).
+/// A project that imports one has its writes read, even when it has none yet.
+const READ_DATA_LIBS: &[&str] = &["sqlalchemy", "asyncpg", "kysely"];
+
 /// Folder prefixes that mark a path as on the machine, not in the project.
 const ABSOLUTE_PREFIXES: &[&str] = &[
     "/home/", "/Users/", "/tmp/", "/etc/", "/usr/", "/var/", "/opt/", "/mnt/", "/root/", "/bin/",
@@ -309,6 +313,9 @@ pub(crate) struct Index<'a> {
     imported: BTreeSet<String>,
     edges: BTreeMap<String, BTreeSet<String>>,
     writes_in: BTreeMap<String, Vec<&'a DataWrite>>,
+    /// The first file that imports a data library whose writes an extractor reads, and that
+    /// library. With one, a handler that reaches no write is half built, not unknown.
+    data_lib: Option<(String, String)>,
 }
 
 impl<'a> Index<'a> {
@@ -368,6 +375,18 @@ impl<'a> Index<'a> {
                 writes_in.entry(key(e).to_string()).or_default().push(w);
             }
         }
+        let data_lib = facts.files.iter().find_map(|f| {
+            f.imports.iter().find_map(|i| {
+                READ_DATA_LIBS
+                    .iter()
+                    .find(|l| {
+                        i.module == **l
+                            || i.module.starts_with(&format!("{l}."))
+                            || i.module.starts_with(&format!("{l}/"))
+                    })
+                    .map(|l| (f.path.clone(), l.to_string()))
+            })
+        });
         let imported: BTreeSet<String> = facts
             .files
             .iter()
@@ -453,6 +472,7 @@ impl<'a> Index<'a> {
             imported,
             edges,
             writes_in,
+            data_lib,
         }
     }
 
@@ -463,6 +483,27 @@ impl<'a> Index<'a> {
 
     fn word_re(ident: &str) -> Option<Regex> {
         Regex::new(&format!(r"\b{}\b", regex::escape(ident))).ok()
+    }
+
+    /// Where a table by this name is made or written: a migration that creates or alters it
+    /// first, then a data write to it. Names compare without case.
+    fn table_source(&self, name: &str) -> Option<(&'static str, String, u32)> {
+        self.facts
+            .files
+            .iter()
+            .flat_map(|f| f.migrations.iter())
+            .find(|m| m.tables.iter().any(|t| t.eq_ignore_ascii_case(name)))
+            .map(|m| ("in the migration", m.loc.file.clone(), m.loc.line))
+            .or_else(|| {
+                self.facts
+                    .writes()
+                    .find(|w| {
+                        w.table
+                            .as_deref()
+                            .is_some_and(|t| t.eq_ignore_ascii_case(name))
+                    })
+                    .map(|w| ("written", w.loc.file.clone(), w.loc.line))
+            })
     }
 
     /// Up to `limit` places where the identifier appears as a whole word in a source file.
@@ -657,14 +698,21 @@ impl<'a> Index<'a> {
                 .replace("Upsert ", "upsert ")
                 .replace("Execute ", "write "),
             )),
-            None if self.facts.writes().next().is_some() => Err(Outcome::new(
-                Word::HalfBuilt,
-                format!(
-                    "the claim says it saves or stores{}, but {h} never reaches a data write the extractors read",
-                    table.map(|t| format!(" to {t}")).unwrap_or_default()
-                ),
-                Vec::new(),
-            )),
+            None if self.facts.writes().next().is_some() || self.data_lib.is_some() => {
+                Err(Outcome::new(
+                    Word::HalfBuilt,
+                    format!(
+                        "the claim says it saves or stores{}, but {h} never reaches a data write the extractors read{}",
+                        table.map(|t| format!(" to {t}")).unwrap_or_default(),
+                        match (&self.data_lib, self.facts.writes().next()) {
+                            (Some((f, l)), None) =>
+                                format!(" ({f} uses {l}, whose writes they read)"),
+                            _ => String::new(),
+                        }
+                    ),
+                    Vec::new(),
+                ))
+            }
             None => Err(Outcome::new(
                 Word::Skipped,
                 format!(
@@ -1016,7 +1064,8 @@ impl<'a> Index<'a> {
             || self
                 .facts
                 .endpoints()
-                .any(|e| e.key.name == ident || e.handler.as_deref().map(key) == Some(k))
+                .any(|e| names_endpoint(e, ident) || e.handler.as_deref().map(key) == Some(k))
+            || self.table_source(ident).is_some()
             || self.facts.calls().any(|c| c.target.name == ident)
             || self
                 .facts
@@ -1035,7 +1084,7 @@ impl<'a> Index<'a> {
         let named: Vec<&Endpoint> = self
             .facts
             .endpoints()
-            .filter(|e| e.key.kind != EndpointKind::Http && e.key.name == ident)
+            .filter(|e| e.key.kind != EndpointKind::Http && names_endpoint(e, ident))
             .collect();
         if !named.is_empty() {
             return best(named.iter().map(|e| self.eval_endpoint(e, text)).collect());
@@ -1076,6 +1125,14 @@ impl<'a> Index<'a> {
             .find_map(|u| self.control_problem(u))
         {
             return Some(o);
+        }
+        // A table a migration creates or a data write touches.
+        if let Some((what, file, line)) = self.table_source(ident) {
+            return Some(Outcome::new(
+                Word::Connected,
+                format!("table {ident} is {what} ({})", loc_s(&file, line)),
+                vec![(file, line)],
+            ));
         }
         let found = self.mentions(k, 1);
         if let Some((p, l)) = found.first() {
@@ -1249,7 +1306,9 @@ impl<'a> Index<'a> {
         }
         let mut found: Vec<Outcome> = Vec::new();
         for ep in &ff.endpoints {
-            found.push(self.eval_endpoint(ep, text));
+            // What the claim says (saves, stores) applies only to the routes it names.
+            let said = if claim_names(ep, text) { text } else { "" };
+            found.push(self.eval_endpoint(ep, said));
         }
         for c in &ff.calls {
             if let Some(o) = self.broken_call(c) {
@@ -1411,6 +1470,34 @@ fn method_before(text: &str, name: &str) -> Option<String> {
     ))
     .ok()?;
     re.captures(text).map(|c| c[1].to_string())
+}
+
+/// True when the endpoint goes by this name. A CLI group name (`export`) names the commands
+/// under it (`export report`).
+fn names_endpoint(e: &Endpoint, ident: &str) -> bool {
+    e.key.name == ident
+        || (e.key.kind == EndpointKind::CliCommand
+            && e.key.name.starts_with(ident)
+            && e.key.name[ident.len()..].starts_with(' '))
+}
+
+/// True when the claim text names this endpoint: by its handler, by its name, or (for a
+/// route) by its path with no other method in front of it.
+fn claim_names(e: &Endpoint, text: &str) -> bool {
+    let word = |w: &str| Index::word_re(w).is_some_and(|re| re.is_match(text));
+    if e.handler.as_deref().is_some_and(|h| word(key(h))) {
+        return true;
+    }
+    if e.key.kind != EndpointKind::Http {
+        return word(&e.key.name);
+    }
+    if !text.contains(e.key.name.as_str()) {
+        return false;
+    }
+    methods_match(
+        e.key.method.as_deref(),
+        method_before(text, &e.key.name).as_deref(),
+    )
 }
 
 /// Files in the tree a claimed file name points at (exact first), and whether it names a folder.
@@ -1749,5 +1836,53 @@ mod tests {
             Some("POST")
         );
         assert_eq!(method_before("the /api/notes route", "/api/notes"), None);
+    }
+
+    fn ep(kind: EndpointKind, method: Option<&str>, name: &str, handler: &str) -> Endpoint {
+        Endpoint {
+            key: verdict_extract::EndpointKey {
+                kind,
+                method: method.map(str::to_string),
+                name: name.to_string(),
+            },
+            handler: Some(handler.to_string()),
+            router: None,
+            loc: verdict_extract::Loc {
+                file: "a.py".to_string(),
+                line: 1,
+            },
+            framework: verdict_extract::Framework::FastApi,
+        }
+    }
+
+    #[test]
+    fn a_cli_group_name_names_the_commands_under_it() {
+        let report = ep(EndpointKind::CliCommand, None, "export report", "report");
+        assert!(names_endpoint(&report, "export"));
+        assert!(names_endpoint(&report, "export report"));
+        assert!(!names_endpoint(&report, "exp"));
+        let route = ep(EndpointKind::Http, Some("GET"), "export report", "x");
+        assert!(!names_endpoint(&route, "export"));
+    }
+
+    #[test]
+    fn a_claim_names_only_the_routes_it_points_at() {
+        let text = "POST `/api/notes` is handled by `create_note`, which saves the note.";
+        let get = ep(EndpointKind::Http, Some("GET"), "/api/notes", "list_notes");
+        let post = ep(
+            EndpointKind::Http,
+            Some("POST"),
+            "/api/notes",
+            "create_note",
+        );
+        assert!(!claim_names(&get, text));
+        assert!(claim_names(&post, text));
+        // By handler name alone, as a whole word.
+        let other = ep(EndpointKind::Http, Some("GET"), "/x", "create_note");
+        assert!(claim_names(&other, text));
+        let part = ep(EndpointKind::Http, Some("GET"), "/x", "create");
+        assert!(!claim_names(&part, text));
+        // A path with no method in front names every method.
+        assert!(claim_names(&get, "the /api/notes route stores notes"));
     }
 }
