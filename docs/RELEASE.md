@@ -6,11 +6,24 @@ The human owns the tag; `vdt` never creates one.
 ## Candidate
 
 - Version: **1.0.0**
-- Revision: the commit this file ships in (`git rev-parse HEAD` on `main` after the merge).
+- Revision: the commit this file ships in on branch `rc/1.0.0` (tested at `1a8523e`; the final
+  revision is the last commit on that branch).
 - Proposed tag: **v1.0.0**
-- Merge target: `main` (fast-forward from the implementation branch).
+- Merge target: `main` (fast-forward from `rc/1.0.0`).
 - Public assets: four archives, one per supported target, each with a `.sha256`, plus
   `RELEASE.md`, `RELEASE-NOTES.md` and the installers inside the archives.
+
+## Evidence already gathered before the tag
+
+- Local gates on the candidate: fmt, clippy `-D warnings`, the full workspace suite, the required
+  failing red-fixture run (ten red tests FAILED), and the Linux-target clippy.
+- CI on `rc/1.0.0` at `1a8523e`: `test` green on Ubuntu, macOS and Windows;
+  `fixtures-red-must-fail` green; `clean-install-and-parity` green, including the README install in
+  a clean Ubuntu container and the byte-identical comparison of `vdt generate` output from Ubuntu
+  and Windows.
+- Verdict's own release-lane run: `release/PACKET-BEFORE-TAG.txt` (honest FAILED: the tag does not
+  exist yet, the repo commands are not approved, and no desk provider is configured) and
+  `release/findings.sarif`.
 
 ## Before the tag (all runnable now)
 

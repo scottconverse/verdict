@@ -96,6 +96,7 @@ NOT ESTABLISHED
 - lane: crates/verdict-desks/src/lib.rs matches high_if_touches crates/**
 - lane: crates/verdict-desks/tests/desks.rs matches high_if_touches crates/**
 - lane: crates/verdict-generate/Cargo.toml matches high_if_touches crates/**
+- lane: crates/verdict-generate/src/lib.rs matches high_if_touches crates/**
 - lane: crates/verdict-gui/Cargo.toml matches high_if_touches crates/**
 - lane: crates/verdict-gui/src/decisions.rs matches high_if_touches crates/**
 - lane: crates/verdict-gui/src/lib.rs matches high_if_touches crates/**
