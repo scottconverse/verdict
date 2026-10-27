@@ -1,0 +1,34 @@
+---
+source: crates/verdict-core/tests/report_golden.rs
+expression: text
+---
+VERDICT: UNVERIFIED - nothing was checked  (lane: not classified, policy v1, builder: claude/model-x [anthropic], verifier: none)
+read from code: not run  |  your build and tests: not run  |  your real app: not run
+session s-test000001, started 2026-10-26T12:00:00.000Z  |  ledger: intact, 8 records  |  baseline bbbbbbbbbbbb (not a git repository)
+
+FIX FIRST
+  (nothing was checked, so nothing is proven wrong and nothing is proven right)
+
+YOURS TO SETTLE
+  1. check unavailable: core: timed out after 20s on Stop (record 6)
+  2. refused write: agent tried to write a decision (commit_anyway): commit anyway is human-only (GUI or vdt), never an agent, MCP call or hook (record 7)
+  3. hypothesis (no evidence pointer, counts for nothing): finding h1 (record 8)
+
+PROMPTS (1)
+  1. add a login page
+
+CLAIMS (1)
+  1. (final_message) login route exists  [names: src/lib.rs]  - not checked
+
+TOOL CALLS (2)
+  1. Edit src/login.rs  (output 0123456789ab, 12 ms)
+  2. Bash cargo test  (output 0123456789ab, 12 ms)
+
+CHECKS
+  none ran. This build has no checkers yet; nothing above was compared with the code.
+
+NOT ESTABLISHED
+  - whether the work does what the 1 prompt(s) asked: no checker has run
+  - whether any of the 1 claim(s) is true: claims are the agent's words, not evidence
+  - whether your build and tests pass, or your real app works: nothing was run
+  - core: could not run (record 6)
