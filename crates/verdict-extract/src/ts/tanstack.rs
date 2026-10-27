@@ -164,9 +164,10 @@ impl Extractor for TanStackStart {
         for_each_node(s.tree.root_node(), |n| match n.kind() {
             "variable_declarator" => {
                 // const saveNote = createServerFn({ method: "POST" }).handler(...)
-                let (Some(name), Some(v)) =
-                    (n.child_by_field_name("name"), n.child_by_field_name("value"))
-                else {
+                let (Some(name), Some(v)) = (
+                    n.child_by_field_name("name"),
+                    n.child_by_field_name("value"),
+                ) else {
                     return;
                 };
                 if name.kind() != "identifier" {

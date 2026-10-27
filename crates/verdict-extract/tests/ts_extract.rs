@@ -52,13 +52,37 @@ export async function load(id: string) {
     assert_eq!(
         call_names(&f),
         [
-            (EndpointKind::Http, Some("GET".into()), "/api/notes/{}".into(), true),
-            (EndpointKind::Http, Some("POST".into()), "/api/notes".into(), false),
-            (EndpointKind::Http, Some("GET".into()), "/api/users".into(), false),
-            (EndpointKind::Http, Some("DELETE".into()), "/api/users/{}".into(), true),
+            (
+                EndpointKind::Http,
+                Some("GET".into()),
+                "/api/notes/{}".into(),
+                true
+            ),
+            (
+                EndpointKind::Http,
+                Some("POST".into()),
+                "/api/notes".into(),
+                false
+            ),
+            (
+                EndpointKind::Http,
+                Some("GET".into()),
+                "/api/users".into(),
+                false
+            ),
+            (
+                EndpointKind::Http,
+                Some("DELETE".into()),
+                "/api/users/{}".into(),
+                true
+            ),
         ]
     );
-    assert!(f.calls.iter().all(|c| c.enclosing.as_deref() == Some("load")));
+    assert!(
+        f.calls
+            .iter()
+            .all(|c| c.enclosing.as_deref() == Some("load"))
+    );
     assert!(f.frameworks.contains(&Framework::Fetch));
 }
 
@@ -75,7 +99,12 @@ export function show(id: string) { return client.GET("/users/{id}", { params: { 
     );
     assert_eq!(
         call_names(&f),
-        [(EndpointKind::Http, Some("GET".into()), "/users/{}".into(), false)]
+        [(
+            EndpointKind::Http,
+            Some("GET".into()),
+            "/users/{}".into(),
+            false
+        )]
     );
     let routes: Vec<(Option<String>, String)> = f
         .endpoints
@@ -211,11 +240,8 @@ export async function changes(db: Kysely<DB>) {
 }
 "#,
     );
-    let w: Vec<(WriteOp, Option<String>)> = f
-        .writes
-        .iter()
-        .map(|w| (w.op, w.table.clone()))
-        .collect();
+    let w: Vec<(WriteOp, Option<String>)> =
+        f.writes.iter().map(|w| (w.op, w.table.clone())).collect();
     assert_eq!(
         w,
         [
@@ -225,7 +251,11 @@ export async function changes(db: Kysely<DB>) {
             (WriteOp::Upsert, Some("tag".into())),
         ]
     );
-    assert!(f.writes.iter().all(|w| w.enclosing.as_deref() == Some("changes")));
+    assert!(
+        f.writes
+            .iter()
+            .all(|w| w.enclosing.as_deref() == Some("changes"))
+    );
 }
 
 #[test]
@@ -296,27 +326,43 @@ export function App() {
 }
 "#,
     );
-    let ui: Vec<(UiKind, Option<String>, Option<String>)> = f
-        .ui
-        .iter()
-        .map(|u| (u.kind, u.label.clone(), u.handler.clone()))
-        .collect();
+    let ui: Vec<(UiKind, Option<String>, Option<String>)> =
+        f.ui.iter()
+            .map(|u| (u.kind, u.label.clone(), u.handler.clone()))
+            .collect();
     assert_eq!(
         ui,
         [
-            (UiKind::Button, Some("Save note".into()), Some("save".into())),
+            (
+                UiKind::Button,
+                Some("Save note".into()),
+                Some("save".into())
+            ),
             (UiKind::Button, Some("Delete".into()), Some("remove".into())),
             (UiKind::Button, Some("Do nothing".into()), None),
             (UiKind::Form, Some("Send".into()), Some("onSave".into())),
-            (UiKind::Button, Some("Send".into()), Some("(form submit)".into())),
+            (
+                UiKind::Button,
+                Some("Send".into()),
+                Some("(form submit)".into())
+            ),
             (UiKind::Form, None, Some("/api/upload".into())),
-            (UiKind::Link, Some("All notes".into()), Some("/notes".into())),
+            (
+                UiKind::Link,
+                Some("All notes".into()),
+                Some("/notes".into())
+            ),
         ]
     );
     assert!(f.ui.iter().all(|u| u.component.as_deref() == Some("App")));
     assert_eq!(
         call_names(&f),
-        [(EndpointKind::Http, Some("POST".into()), "/api/upload".into(), false)]
+        [(
+            EndpointKind::Http,
+            Some("POST".into()),
+            "/api/upload".into(),
+            false
+        )]
     );
 }
 

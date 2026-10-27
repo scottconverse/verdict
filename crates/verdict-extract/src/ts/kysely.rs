@@ -39,12 +39,7 @@ impl Extractor for Kysely {
                 .first()
                 .and_then(|a| str_lit(*a, src))
                 .filter(|(_, dynamic)| !dynamic)
-                .map(|(t, _)| {
-                    t.split_whitespace()
-                        .next()
-                        .unwrap_or_default()
-                        .to_string()
-                });
+                .map(|(t, _)| t.split_whitespace().next().unwrap_or_default().to_string());
             let loc = out.loc(line(n));
             out.writes.push(DataWrite {
                 op,

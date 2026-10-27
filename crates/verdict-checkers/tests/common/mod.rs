@@ -16,13 +16,50 @@ use verdict_core::{
 
 pub mod project;
 
-pub const NAMES: [&str; 6] = verdict_checkers::CHECKER_NAMES;
+pub const NAMES: [&str; 7] = verdict_checkers::CHECKER_NAMES;
 
-pub fn fixture_dir(name: &str, kind: &str) -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("fixtures")
-        .join(name)
-        .join(kind)
+fn fixtures_root() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures")
+}
+
+/// The folder of a fixture. A fixture is a checker name (`regressions`: one red/green pair) or a
+/// checker and a case (`wiring/fetch`: one pair per case).
+pub fn fixture_dir(fixture: &str, kind: &str) -> PathBuf {
+    let mut p = fixtures_root();
+    for part in fixture.split('/') {
+        p = p.join(part);
+    }
+    p.join(kind)
+}
+
+/// The checker a fixture tests: the part before the `/`.
+pub fn checker_of(fixture: &str) -> &str {
+    fixture.split('/').next().unwrap_or(fixture)
+}
+
+/// Every fixture of a checker: the checker's own pair when `fixtures/<checker>/red` exists,
+/// otherwise every `fixtures/<checker>/<case>/` that holds a pair, sorted. New case folders are
+/// picked up with no change here.
+pub fn fixtures_of(checker: &str) -> Vec<String> {
+    let dir = fixtures_root().join(checker);
+    if dir.join("red").is_dir() || dir.join("green").is_dir() {
+        return vec![checker.to_string()];
+    }
+    let mut cases: Vec<String> = std::fs::read_dir(&dir)
+        .map(|rd| {
+            rd.filter_map(Result::ok)
+                .filter(|e| e.path().join("red").is_dir() || e.path().join("green").is_dir())
+                .map(|e| format!("{checker}/{}", e.file_name().to_string_lossy()))
+                .collect()
+        })
+        .unwrap_or_default();
+    cases.sort();
+    cases
+}
+
+/// Every fixture of every checker.
+pub fn all_fixtures() -> Vec<String> {
+    NAMES.iter().flat_map(|n| fixtures_of(n)).collect()
 }
 
 pub fn git(dir: &Path, args: &[&str]) {
@@ -86,6 +123,7 @@ fn claim_source(s: &str) -> ClaimSource {
         "commit_message" => ClaimSource::CommitMessage,
         "notes_file" => ClaimSource::NotesFile,
         "plan_line" => ClaimSource::PlanLine,
+        "prompt_translation" => ClaimSource::PromptTranslation,
         "done_when" => ClaimSource::DoneWhen,
         other => panic!("unknown claim source {other}"),
     }
@@ -210,9 +248,9 @@ pub fn run_checker(
 }
 
 /// The rule names the red fixture must produce (one per line of `expect.txt`).
-pub fn expected(name: &str) -> Vec<String> {
-    std::fs::read_to_string(fixture_dir(name, "red").join("expect.txt"))
-        .unwrap_or_else(|_| panic!("fixtures/{name}/red/expect.txt is missing"))
+pub fn expected(fixture: &str) -> Vec<String> {
+    std::fs::read_to_string(fixture_dir(fixture, "red").join("expect.txt"))
+        .unwrap_or_else(|_| panic!("fixtures/{fixture}/red/expect.txt is missing"))
         .lines()
         .map(str::trim)
         .filter(|l| !l.is_empty())
@@ -229,10 +267,24 @@ pub fn rule_of(id: &str) -> &str {
 }
 
 /// The red fixture must produce a finding for every expected rule, each with evidence.
+/// An `expect.txt` of exactly this line means the red fixture must make the checker report
+/// `check_unavailable` (never clean): wiring's SKIPPED.
+pub const EXPECT_UNAVAILABLE: &str = "check_unavailable";
+
 pub fn check_red(registry: &[Box<dyn Checker>], name: &str) -> Result<Vec<Finding>, String> {
     let b = build(name, "red");
-    let findings = run_checker(registry, name, &b)
-        .map_err(|u| format!("{name} red fixture: checker unavailable: {}", u.reason))?;
+    let result = run_checker(registry, checker_of(name), &b);
+    if expected(name) == [EXPECT_UNAVAILABLE] {
+        return match result {
+            Err(_) => Ok(Vec::new()),
+            Ok(f) => Err(format!(
+                "{name} red fixture: expected check_unavailable, got a clean run with {} finding(s)",
+                f.len()
+            )),
+        };
+    }
+    let findings =
+        result.map_err(|u| format!("{name} red fixture: checker unavailable: {}", u.reason))?;
     if findings.is_empty() {
         return Err(format!("{name} red fixture produced no findings"));
     }
@@ -255,7 +307,7 @@ pub fn check_red(registry: &[Box<dyn Checker>], name: &str) -> Result<Vec<Findin
 /// The green fixture must run and produce nothing.
 pub fn check_green(registry: &[Box<dyn Checker>], name: &str) -> Result<(), String> {
     let b = build(name, "green");
-    let findings = run_checker(registry, name, &b)
+    let findings = run_checker(registry, checker_of(name), &b)
         .map_err(|u| format!("{name} green fixture: checker unavailable: {}", u.reason))?;
     if findings.is_empty() {
         Ok(())

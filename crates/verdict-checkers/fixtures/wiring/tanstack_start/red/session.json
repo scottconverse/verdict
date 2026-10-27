@@ -1,0 +1,6 @@
+{
+  "prompts": ["Add a server function that lists the notes"],
+  "claims": [
+    { "source": "final_message", "text": "Added the `listNotes` server function" }
+  ]
+}

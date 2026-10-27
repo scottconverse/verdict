@@ -1,0 +1,6 @@
+{
+  "prompts": ["Add an archive button"],
+  "claims": [
+    { "source": "final_message", "text": "Added the archive button to `src/App.tsx`" }
+  ]
+}

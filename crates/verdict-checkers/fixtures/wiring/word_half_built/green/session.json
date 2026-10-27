@@ -1,0 +1,6 @@
+{
+  "prompts": ["Read the config file"],
+  "claims": [
+    { "source": "final_message", "text": "Added `parse_config` to `src/config.rs`" }
+  ]
+}

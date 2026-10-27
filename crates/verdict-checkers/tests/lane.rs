@@ -96,23 +96,23 @@ fn unknown_checkers_become_check_unavailable_not_errors() {
         &mut b.ledger,
         &root,
         &b.session,
-        &names(&["wiring", "regressions"]),
+        &names(&["mutation", "regressions"]),
         &opts(Lane::Standard),
         Some(&home),
     )
     .unwrap();
-    let wiring = out.iter().find(|s| s.name == "wiring").unwrap();
-    assert_eq!(wiring.outcome, CheckOutcome::FailedToRun);
+    let missing = out.iter().find(|s| s.name == "mutation").unwrap();
+    assert_eq!(missing.outcome, CheckOutcome::FailedToRun);
     let un = records_of(&b.ledger, &b.session, RecordKind::CheckUnavailable);
     assert_eq!(un.len(), 1);
     let Record::CheckUnavailable { component, reason } = &un[0].record else {
         panic!()
     };
-    assert_eq!(component, "wiring");
-    assert!(reason.contains("no checker named wiring"));
+    assert_eq!(component, "mutation");
+    assert!(reason.contains("no checker named mutation"));
     // And the failed check is not a clean one.
     let Record::Check { outcome, tier, .. } =
-        &b.ledger.get(wiring.check_seq).unwrap().unwrap().record
+        &b.ledger.get(missing.check_seq).unwrap().unwrap().record
     else {
         panic!()
     };
@@ -191,8 +191,8 @@ fn lane_lists_expand_star_and_minus_from_the_policy() {
     let high = lane_checkers(&policy, Lane::High);
     assert!(high.contains(&"regressions".to_string()));
     // high is ["*", "-firstrun", "-release"]: neither is installed, nothing else is removed.
-    assert_eq!(high.len(), 6);
-    // standard names wiring, which this build does not have: it stays in the list.
+    assert_eq!(high.len(), verdict_checkers::CHECKER_NAMES.len());
+    // standard names wiring, which this build has.
     assert!(lane_checkers(&policy, Lane::Standard).contains(&"wiring".to_string()));
 }
 

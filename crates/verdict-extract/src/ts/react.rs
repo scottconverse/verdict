@@ -45,10 +45,7 @@ impl<'t> Attrs<'t> {
     }
 
     fn get(&self, name: &str) -> Option<Option<Node<'t>>> {
-        self.pairs
-            .iter()
-            .find(|(n, _)| n == name)
-            .map(|(_, v)| *v)
+        self.pairs.iter().find(|(n, _)| n == name).map(|(_, v)| *v)
     }
 }
 
@@ -154,6 +151,9 @@ fn inside_form(n: Node, src: &str) -> bool {
     false
 }
 
+/// A form's `action` as a call: (method, url, built at run time).
+type FormAction = (String, String, bool);
+
 impl Extractor for React {
     fn name(&self) -> &'static str {
         "react"
@@ -165,7 +165,7 @@ impl Extractor for React {
 
     fn extract(&self, s: &Source, out: &mut FileFacts) {
         let src = s.text;
-        let mut found: Vec<(UiAction, Option<(String, String, bool)>)> = Vec::new();
+        let mut found: Vec<(UiAction, Option<FormAction>)> = Vec::new();
         for_each_node(s.tree.root_node(), |n| {
             let (open, el) = match n.kind() {
                 "jsx_element" => match n.child_by_field_name("open_tag") {

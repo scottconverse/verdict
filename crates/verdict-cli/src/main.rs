@@ -94,6 +94,14 @@ enum Command {
     },
     /// Commit past a FAILED pre-commit gate, with a reason you type (human only).
     CommitAnyway(p2b::CommitAnywayArgs),
+    /// Read the whole project for broken calls, routes nothing calls, controls with no handler,
+    /// called stubs, unfinished work and regressions. No session, no claims; writes nothing and
+    /// always exits 0.
+    Scan {
+        /// Project folder (default: found from the current folder).
+        #[arg(long)]
+        project: Option<std::path::PathBuf>,
+    },
     /// Show the ledger in a browser on this machine only (127.0.0.1). Pressing a button on the
     /// page records one of your decisions; nothing else on it writes.
     Serve {
@@ -184,6 +192,12 @@ fn main() -> ExitCode {
                 }
             };
         }
+        Command::Scan { project } => {
+            let root = find_project_root(project.as_deref().unwrap_or(&cwd));
+            let report = verdict_checkers::scan::scan(&root, None).render();
+            print!("{report}");
+            return ExitCode::SUCCESS;
+        }
         Command::Serve { port, project } => {
             let root = find_project_root(project.as_deref().unwrap_or(&cwd));
             return match verdict_gui::serve(root, *port) {
@@ -271,6 +285,7 @@ fn run(cli: Cli, cwd: &Path, out: &mut dyn Write) -> Result<u8, LedgerError> {
             )?,
             Command::Mcp { .. }
             | Command::Serve { .. }
+            | Command::Scan { .. }
             | Command::Check { .. }
             | Command::Verdict { .. }
             | Command::Gate { .. }
@@ -324,6 +339,7 @@ fn run(cli: Cli, cwd: &Path, out: &mut dyn Write) -> Result<u8, LedgerError> {
         Command::Hook { .. } | Command::Hooks { .. } => Ok(0),
         Command::Mcp { .. }
         | Command::Serve { .. }
+        | Command::Scan { .. }
         | Command::Check { .. }
         | Command::Verdict { .. }
         | Command::Gate { .. }

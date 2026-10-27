@@ -3,9 +3,7 @@
 
 use super::{HTTP_VERBS, TS_LANGS, args, callee, enclosing, is_fn, key_name, kids, prop, str_lit};
 use crate::http::normalize_path;
-use crate::model::{
-    Call, Endpoint, EndpointKey, EndpointKind, FileFacts, Framework, Lang,
-};
+use crate::model::{Call, Endpoint, EndpointKey, EndpointKind, FileFacts, Framework, Lang};
 use crate::syntax::{for_each_node, line, text};
 use crate::{Extractor, Source};
 use tree_sitter::Node;

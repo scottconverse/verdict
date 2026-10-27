@@ -23,7 +23,8 @@ use tree_sitter::Node;
 pub(crate) const TS_LANGS: &[Lang] = &[Lang::TypeScript, Lang::Tsx, Lang::JavaScript, Lang::Jsx];
 
 /// HTTP verbs as written in route handler objects and openapi-typescript clients.
-pub(crate) const HTTP_VERBS: &[&str] = &["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"];
+pub(crate) const HTTP_VERBS: &[&str] =
+    &["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"];
 
 /// Every TypeScript/JavaScript extractor.
 pub fn extractors() -> Vec<Box<dyn Extractor>> {
@@ -80,7 +81,8 @@ pub(crate) fn prop<'t>(obj: Node<'t>, key: &str, src: &str) -> Option<Node<'t>> 
     }
     for p in kids(obj) {
         if p.kind() == "pair"
-            && let (Some(k), Some(v)) = (p.child_by_field_name("key"), p.child_by_field_name("value"))
+            && let (Some(k), Some(v)) =
+                (p.child_by_field_name("key"), p.child_by_field_name("value"))
             && key_name(k, src) == key
         {
             return Some(v);
@@ -313,8 +315,11 @@ mod tests {
             Some("K.m")
         );
         assert_eq!(
-            enclosing_of_call("const s = createServerFn().handler(async () => { g(); });", "g")
-                .as_deref(),
+            enclosing_of_call(
+                "const s = createServerFn().handler(async () => { g(); });",
+                "g"
+            )
+            .as_deref(),
             Some("s")
         );
         assert_eq!(

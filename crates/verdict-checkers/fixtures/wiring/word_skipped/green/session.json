@@ -1,0 +1,6 @@
+{
+  "prompts": ["Add an upload handler"],
+  "claims": [
+    { "source": "final_message", "text": "Added `handle_upload` in `src/upload.rs`" }
+  ]
+}

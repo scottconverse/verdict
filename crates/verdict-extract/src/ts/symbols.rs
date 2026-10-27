@@ -104,9 +104,9 @@ impl Extractor for TsSymbols {
             }
             k if is_fn(n) || k == "arrow_function" => {
                 if let Some(name) = fn_binding_name(n, src) {
-                    let field = n
-                        .parent()
-                        .is_some_and(|p| matches!(p.kind(), "public_field_definition" | "field_definition"));
+                    let field = n.parent().is_some_and(|p| {
+                        matches!(p.kind(), "public_field_definition" | "field_definition")
+                    });
                     let kind = if field {
                         DefKind::Method
                     } else if name.starts_with("tool:") || name.contains(' ') {
@@ -126,16 +126,18 @@ impl Extractor for TsSymbols {
                 if !top {
                     return;
                 }
-                if let (Some(name), Some(v)) =
-                    (n.child_by_field_name("name"), n.child_by_field_name("value"))
-                    && name.kind() == "identifier"
+                if let (Some(name), Some(v)) = (
+                    n.child_by_field_name("name"),
+                    n.child_by_field_name("value"),
+                ) && name.kind() == "identifier"
                     && !is_fn(v)
                 {
                     // `const s = createServerFn().handler(fn)` is the function `s`, not a constant.
                     let name = text(name, src).to_string();
                     let mut bound_fn = false;
                     for_each_node(v, |d| {
-                        if !bound_fn && is_fn(d) && fn_binding_name(d, src).as_ref() == Some(&name) {
+                        if !bound_fn && is_fn(d) && fn_binding_name(d, src).as_ref() == Some(&name)
+                        {
                             bound_fn = true;
                         }
                     });

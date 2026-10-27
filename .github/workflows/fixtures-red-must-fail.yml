@@ -2,13 +2,13 @@ name: fixtures-red-must-fail
 
 # Every checker's red fixture must fail when the checker is stubbed out. The `stub-checkers`
 # feature swaps each checker for one that finds nothing; the red fixtures must then all fail, or
-# a fixture is not testing its checker. Runs only when the checkers crate or this workflow change.
-# Not a required check.
+# a fixture is not testing its checker. Runs only when the checkers crate, the extractors the
+# wiring checker reads with, or this workflow change. Not a required check.
 on:
   push:
-    paths: ["crates/verdict-checkers/**", ".github/workflows/fixtures-red-must-fail.yml"]
+    paths: ["crates/verdict-checkers/**", "crates/verdict-extract/**", ".github/workflows/fixtures-red-must-fail.yml"]
   pull_request:
-    paths: ["crates/verdict-checkers/**", ".github/workflows/fixtures-red-must-fail.yml"]
+    paths: ["crates/verdict-checkers/**", "crates/verdict-extract/**", ".github/workflows/fixtures-red-must-fail.yml"]
   workflow_dispatch:
 
 permissions:
@@ -33,10 +33,26 @@ jobs:
             echo "FAIL: the red fixtures still passed with every checker stubbed out"
             exit 1
           fi
-          for c in baseline_diff regressions tests_weakened claims_vs_code unfinished exec; do
+          for c in baseline_diff regressions tests_weakened claims_vs_code unfinished exec wiring; do
             if ! grep -q "test red::$c ... FAILED" stub.log; then
               echo "FAIL: the red fixture for $c did not fail when $c was stubbed out"
               exit 1
             fi
           done
-          echo "ok: all six red fixtures failed when their checker was stubbed out"
+          # wiring has one red fixture per case folder; every case must fail on its own. New case
+          # folders are picked up here with no change.
+          cases=0
+          for d in crates/verdict-checkers/fixtures/wiring/*/; do
+            case_name=$(basename "$d")
+            [ -d "$d/red" ] || continue
+            cases=$((cases + 1))
+            if ! grep -q "wiring-case $case_name red: FAILED" stub.log; then
+              echo "FAIL: the wiring red case $case_name did not fail when wiring was stubbed out"
+              exit 1
+            fi
+          done
+          if [ "$cases" -eq 0 ]; then
+            echo "FAIL: no wiring red case was found"
+            exit 1
+          fi
+          echo "ok: all seven checkers' red fixtures, and all $cases wiring red cases, failed when their checker was stubbed out"

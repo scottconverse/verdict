@@ -189,10 +189,10 @@ impl Extractor for RustSymbols {
                 // In `a::b`, only the last segment is the command name.
                 let mut iter = names.iter().peekable();
                 while let Some((node, name)) = iter.next() {
-                    let next_is_path = iter
-                        .peek()
-                        .is_some_and(|(nx, _)| node.end_byte() + 2 == nx.start_byte()
-                            && src.get(node.end_byte()..nx.start_byte()) == Some("::"));
+                    let next_is_path = iter.peek().is_some_and(|(nx, _)| {
+                        node.end_byte() + 2 == nx.start_byte()
+                            && src.get(node.end_byte()..nx.start_byte()) == Some("::")
+                    });
                     if !next_is_path {
                         add_ref(out, *node, name, src);
                     }

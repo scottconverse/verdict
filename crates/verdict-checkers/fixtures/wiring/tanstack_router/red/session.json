@@ -1,0 +1,6 @@
+{
+  "prompts": ["Add a page that lists every note"],
+  "claims": [
+    { "source": "final_message", "text": "Added the `/notes` page that lists every note" }
+  ]
+}

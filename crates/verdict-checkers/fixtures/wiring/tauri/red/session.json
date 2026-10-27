@@ -1,0 +1,6 @@
+{
+  "prompts": ["Hook the notes screen up to the Rust side"],
+  "claims": [
+    { "source": "final_message", "text": "The notes screen now calls `invoke(\"save_notes\")`" }
+  ]
+}
