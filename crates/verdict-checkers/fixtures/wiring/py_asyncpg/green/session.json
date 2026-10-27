@@ -1,0 +1,9 @@
+{
+  "prompts": ["Record an event when the button is pressed"],
+  "claims": [
+    {
+      "source": "final_message",
+      "text": "POST `/api/events` is handled by `create_event` in `app/events.py`, which writes the event row with `insert_event`."
+    }
+  ]
+}
