@@ -254,7 +254,10 @@ fn mcp_round_trip_against_the_real_binary() {
     for bad in ["VERDICT: VERIFIED", "CLEAR TO SHIP", "all clear"] {
         assert!(!text.contains(bad), "verdict_scan said {bad:?}: {text}");
     }
-    let (ok, cli_scan) = vdt_stdout(&t.0, &["scan"]);
+    // Name the project by the same path the MCP server got: on macOS the temp folder has two
+    // names (/var and /private/var), and the current folder reads back as the second one.
+    let project = t.0.to_string_lossy().to_string();
+    let (ok, cli_scan) = vdt_stdout(&t.0, &["scan", "--project", &project]);
     assert!(ok);
     assert!(
         text.ends_with(&cli_scan),
