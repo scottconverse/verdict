@@ -518,7 +518,11 @@ fn baseline_copy(root: &Path, commit: &str) -> Result<BaselineCopy, String> {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_nanos())
         .unwrap_or(0);
-    let id = format!("{}-{nanos}", std::process::id());
+    // The clock alone can repeat (macOS counts in microseconds), so two copies made at the same
+    // moment in one process also get a different count.
+    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let n = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let id = format!("{}-{nanos}-{n}", std::process::id());
     let dir = std::env::temp_dir().join(format!("verdict-baseline-{id}"));
     let index = std::env::temp_dir().join(format!("verdict-baseline-{id}.idx"));
     std::fs::create_dir_all(&dir).map_err(|e| format!("cannot make a temp folder: {e}"))?;
@@ -964,6 +968,48 @@ impl Checker for Exec {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn two_baseline_copies_made_at_once_never_share_a_folder() {
+        let repo = tempfile::tempdir().unwrap();
+        let g = |args: &[&str]| {
+            let ok = Command::new("git")
+                .arg("-C")
+                .arg(repo.path())
+                .args([
+                    "-c",
+                    "user.name=t",
+                    "-c",
+                    "user.email=t@t",
+                    "-c",
+                    "commit.gpgsign=false",
+                ])
+                .args(args)
+                .output()
+                .unwrap()
+                .status
+                .success();
+            assert!(ok, "git {args:?}");
+        };
+        g(&["init", "-q"]);
+        std::fs::write(repo.path().join("a.txt"), "a\n").unwrap();
+        g(&["add", "a.txt"]);
+        g(&["commit", "-q", "-m", "a"]);
+        let copies: Vec<BaselineCopy> = (0..8)
+            .map(|_| baseline_copy(repo.path(), "HEAD").unwrap())
+            .collect();
+        for (i, a) in copies.iter().enumerate() {
+            for b in &copies[i + 1..] {
+                assert_ne!(a.dir, b.dir);
+                assert_ne!(a.index, b.index);
+            }
+        }
+        // Removing one copy leaves the others whole.
+        let mut copies = copies;
+        let first = copies.remove(0);
+        drop(first);
+        assert!(copies.iter().all(|c| c.cwd.join("a.txt").is_file()));
+    }
 
     #[test]
     fn durations_parse() {
