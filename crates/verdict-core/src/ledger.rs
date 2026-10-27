@@ -186,6 +186,13 @@ impl Ledger {
         let path = ledger_path(root);
         if let Some(dir) = path.parent() {
             std::fs::create_dir_all(dir)?;
+            // The design keeps `.verdict/` out of git. A `.gitignore` of `*` inside the folder
+            // does that without touching the project's own `.gitignore`. A file already there
+            // is the human's and is kept as it is. A failed write does not stop the ledger.
+            let ignore = dir.join(".gitignore");
+            if !ignore.exists() {
+                let _ = std::fs::write(&ignore, "*\n");
+            }
         }
         Self::open_path(&path)
     }

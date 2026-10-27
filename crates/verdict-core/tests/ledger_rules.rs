@@ -392,3 +392,31 @@ fn raw_sql_cannot_update_or_delete_or_forge_an_insert() {
 pub fn rusqlite_conn(db: &std::path::Path) -> rusqlite::Connection {
     rusqlite::Connection::open(db).unwrap()
 }
+
+#[test]
+fn the_ledger_folder_stays_out_of_git_and_a_humans_ignore_file_is_kept() {
+    let t = TempDir::new("gitignore");
+    let git = |args: &[&str]| {
+        std::process::Command::new("git")
+            .arg("-C")
+            .arg(t.path())
+            .args(args)
+            .output()
+            .unwrap()
+    };
+    assert!(git(&["init", "-q"]).status.success());
+    let _l = Ledger::open(t.path()).unwrap();
+    let status = git(&["status", "--porcelain", "--untracked-files=all"]);
+    let listed = String::from_utf8_lossy(&status.stdout).to_string();
+    assert!(!listed.contains(".verdict"), "git sees: {listed}");
+
+    // A second project where the human already wrote their own ignore file.
+    let u = TempDir::new("gitignore-kept");
+    std::fs::create_dir_all(u.path().join(".verdict")).unwrap();
+    std::fs::write(u.path().join(".verdict/.gitignore"), "ledger.db\n").unwrap();
+    let _m = Ledger::open(u.path()).unwrap();
+    assert_eq!(
+        std::fs::read_to_string(u.path().join(".verdict/.gitignore")).unwrap(),
+        "ledger.db\n"
+    );
+}
