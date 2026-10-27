@@ -120,9 +120,19 @@ pub fn serve(root: PathBuf, port: u16) -> std::io::Result<()> {
     let listener = bind(port)?;
     let addr = listener.local_addr()?;
     let token = new_token();
-    println!("Verdict page: http://127.0.0.1:{}/", addr.port());
-    println!("Project: {}", root.display());
-    println!("Every button on the page records one of your decisions. Press Ctrl+C to stop.");
+    // A closed stdout (the caller stopped reading) must not stop the page: `println!` would
+    // panic on a broken pipe, so write and ignore the error.
+    {
+        use std::io::Write as _;
+        let mut out = std::io::stdout();
+        let _ = writeln!(out, "Verdict page: http://127.0.0.1:{}/", addr.port());
+        let _ = writeln!(out, "Project: {}", root.display());
+        let _ = writeln!(
+            out,
+            "Every button on the page records one of your decisions. Press Ctrl+C to stop."
+        );
+        let _ = out.flush();
+    }
     run_blocking(listener, shared(root, token, addr.port(), None))
 }
 
