@@ -1,0 +1,11 @@
+{
+  "survivors": [
+    {
+      "file": "src/logic.py",
+      "line": 1,
+      "description": "replacing + with - left every test green"
+    }
+  ],
+  "killed": 2,
+  "total": 3
+}

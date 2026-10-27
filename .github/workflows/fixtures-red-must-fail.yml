@@ -33,7 +33,7 @@ jobs:
             echo "FAIL: the red fixtures still passed with every checker stubbed out"
             exit 1
           fi
-          for c in baseline_diff regressions tests_weakened claims_vs_code unfinished exec wiring; do
+          for c in baseline_diff regressions tests_weakened claims_vs_code unfinished exec mutation firstrun release wiring; do
             if ! grep -q "test red::$c ... FAILED" stub.log; then
               echo "FAIL: the red fixture for $c did not fail when $c was stubbed out"
               exit 1
@@ -55,4 +55,4 @@ jobs:
             echo "FAIL: no wiring red case was found"
             exit 1
           fi
-          echo "ok: all seven checkers' red fixtures, and all $cases wiring red cases, failed when their checker was stubbed out"
+          echo "ok: all ten checkers' red fixtures, and all $cases wiring red cases, failed when their checker was stubbed out"

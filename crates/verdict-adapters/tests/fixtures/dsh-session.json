@@ -1,0 +1,51 @@
+[
+  {
+    "event": "SessionStart",
+    "payload": {
+      "session_id": "dsh-1",
+      "cwd": "__CWD__",
+      "hook_event_name": "SessionStart",
+      "model": "deepseek-v4.1-flash:1017-cloud"
+    }
+  },
+  {
+    "event": "UserPromptSubmit",
+    "payload": {
+      "session_id": "dsh-1",
+      "cwd": "__CWD__",
+      "hook_event_name": "UserPromptSubmit",
+      "prompt": "add a login page"
+    }
+  },
+  {
+    "event": "PostToolUse",
+    "payload": {
+      "session_id": "dsh-1",
+      "cwd": "__CWD__",
+      "hook_event_name": "PostToolUse",
+      "tool_name": "Bash",
+      "tool_input": { "command": "cargo test" },
+      "tool_response": { "stdout": "test result: ok. 3 passed\n", "stderr": "" },
+      "duration_ms": 1200
+    }
+  },
+  {
+    "event": "PostToolUse",
+    "payload": {
+      "session_id": "dsh-1",
+      "cwd": "__CWD__",
+      "hook_event_name": "PostToolUse",
+      "tool_name": "Edit",
+      "tool_input": { "file_path": "src/login.rs" }
+    }
+  },
+  {
+    "event": "Stop",
+    "payload": {
+      "session_id": "dsh-1",
+      "cwd": "__CWD__",
+      "hook_event_name": "Stop",
+      "last_assistant_message": "Login page added; tests pass."
+    }
+  }
+]

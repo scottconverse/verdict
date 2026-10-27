@@ -12,7 +12,7 @@ publish = false
 blake3 = "1.8.7"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = { version = "1.0.154", features = ["preserve_order"] }
-verdict-core = { version = "0.0.0", path = "../verdict-core" }
+verdict-core = { version = "1.0.0", path = "../verdict-core" }
 
 [dev-dependencies]
 proptest = "1.12.0"

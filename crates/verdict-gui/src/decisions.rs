@@ -117,7 +117,9 @@ fn session_html(
 
     let mut body = format!(
         "<p><a href=\"/\">Back to the sessions list</a> &nbsp; \
-         <a href=\"/session/{id}/log\">Record log for this session</a></p>",
+         <a href=\"/session/{id}/log\">Record log for this session</a> &nbsp; \
+         <a href=\"/session/{id}/packet\">Download the acceptance packet</a> &nbsp; \
+         <a href=\"/session/{id}/sarif\">Download SARIF</a></p>",
         id = esc(id)
     );
 
@@ -478,6 +480,82 @@ fn session_html(
             "Commit anyway",
             "<p>This appears here when the verdict is FAILED and a commit is held.</p>",
         ));
+    }
+
+    // ---- claims, evidence and unplanned work (the report repeats the settled form)
+    body.push_str("<h2>Claims and evidence</h2>");
+    let claims: Vec<_> = l
+        .records_for_session(id)?
+        .into_iter()
+        .filter(|s| matches!(s.record, Record::Claim { .. }))
+        .collect();
+    if claims.is_empty() {
+        body.push_str("<p>No claims were recorded for this session.</p>");
+    } else {
+        body.push_str(
+            "<table><tr><th>No.</th><th>Source</th><th>Claim</th><th>What it names</th>\
+             <th>Findings about it</th></tr>",
+        );
+        for s in claims {
+            let Record::Claim {
+                source,
+                text,
+                names,
+                ..
+            } = &s.record
+            else {
+                continue;
+            };
+            let borne_on: Vec<String> = a
+                .findings
+                .iter()
+                .filter(|f| f.finding.claim_seq == Some(s.seq))
+                .map(|f| format!("{} ({})", esc(&f.finding.title), esc(&f.finding.id)))
+                .collect();
+            body.push_str(&format!(
+                "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
+                s.seq,
+                esc(source.as_str()),
+                esc(text),
+                if names.is_empty() {
+                    "-".to_string()
+                } else {
+                    names
+                        .iter()
+                        .map(|n| esc(n))
+                        .collect::<Vec<_>>()
+                        .join("<br>")
+                },
+                if borne_on.is_empty() {
+                    "none recorded".to_string()
+                } else {
+                    borne_on.join("<br>")
+                }
+            ));
+        }
+        body.push_str("</table>");
+    }
+
+    body.push_str("<h2>Unplanned work</h2>");
+    let unplanned: Vec<_> = a
+        .findings
+        .iter()
+        .filter(|f| f.is_open() && f.checker() == Some("baseline_diff"))
+        .collect();
+    if unplanned.is_empty() {
+        body.push_str("<p>Nothing the plan or a prompt did not ask for was found.</p>");
+    } else {
+        body.push_str("<ul>");
+        for f in unplanned {
+            body.push_str(&format!(
+                "<li>[{}] {} ({}, record {})</li>",
+                esc(&format!("{:?}", f.finding.severity)),
+                esc(&f.finding.title),
+                esc(f.finding.tier.as_str()),
+                f.seq
+            ));
+        }
+        body.push_str("</ul>");
     }
 
     body.push_str(&format!(

@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "plans": [],
+  "exec": {
+    "timeout": "30m",
+    "commands": [
+      { "run": "cargo test --workspace --locked", "tier": "ran" },
+      { "run": "cargo clippy --workspace --all-targets --locked -- -D warnings", "tier": "ran" }
+    ]
+  },
+  "lanes": {
+    "low":      { "checkers": ["wiring", "regressions", "claims_vs_code", "unfinished"], "desks": [] },
+    "standard": { "checkers": ["wiring", "baseline_diff", "regressions", "tests_weakened", "claims_vs_code", "unfinished", "exec"], "desks": ["engineer", "qa"] },
+    "high":     { "checkers": ["*", "-firstrun", "-release"], "desks": ["engineer", "qa", "security", "refuter"] },
+    "release":  { "checkers": ["*"], "desks": ["*"], "bar": "zero_above_nit" }
+  },
+  "blast": {
+    "high_if_touches": ["crates/**", "policy/**", "Cargo.toml", "Cargo.lock"],
+    "release_if_touches": ["CHANGELOG.md", "release/**"]
+  },
+  "mutation": {
+    "require_when": ["critical_logic_changed", "test_sensitivity_uncertain"],
+    "never_merely_for": ["lane_label", "file_count", "release"]
+  },
+  "firstrun": {
+    "commands": [
+      { "run": "cargo build --workspace --locked" },
+      { "run": "target/debug/vdt --version" }
+    ]
+  },
+  "release": {
+    "tag": "v1.0.0",
+    "version": "1.0.0",
+    "version_files": ["Cargo.toml"],
+    "readme": "README.md",
+    "checks": ["cargo test --workspace --locked"]
+  },
+  "vendors": {
+    "cross_vendor_required_from_lane": "standard",
+    "single_vendor": "refuse",
+    "providers": []
+  },
+  "gate": { "mode": "shadow", "max_sendbacks": 2, "stop_timeout": "20s" },
+  "decisions_owner": "human",
+  "exclude": ["generated", "vendor"]
+}

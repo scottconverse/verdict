@@ -308,6 +308,12 @@ pub fn target_path(
             };
             Ok(home.join("hooks.json"))
         }
+        Host::Dsh => Err(
+            "the DeepSeek Harness keeps its own configuration. Register `vdt mcp` with it and, if \
+             your harness version can call a command hook, use `vdt hook dsh <event>`; see \
+             docs/DSH.md"
+                .into(),
+        ),
     }
 }
 

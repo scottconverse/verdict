@@ -10,6 +10,6 @@ publish = false
 
 [dependencies]
 serde_json = "1.0.154"
-verdict-adapters = { version = "0.0.0", path = "../verdict-adapters" }
-verdict-core = { version = "0.0.0", path = "../verdict-core" }
-verdict-desks = { version = "0.0.0", path = "../verdict-desks" }
+verdict-adapters = { version = "1.0.0", path = "../verdict-adapters" }
+verdict-core = { version = "1.0.0", path = "../verdict-core" }
+verdict-desks = { version = "1.0.0", path = "../verdict-desks" }

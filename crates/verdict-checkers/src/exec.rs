@@ -55,6 +55,9 @@ pub struct RunResult {
     pub output_hash: String,
     /// The last bytes of output, as text.
     pub tail: String,
+    /// The first part of standard output as text, for a configured tool that prints a result in a
+    /// known format (the mutation protocol). Bounded; empty when the command did not run.
+    pub stdout_text: String,
     /// False when the output pipes did not close, so the hash covers only part of the output.
     pub output_complete: bool,
     /// True when processes the command started were still running after it ended (they were
@@ -103,6 +106,7 @@ impl RunResult {
             spawn_error: Some(err),
             output_hash: blake3::hash(b"").to_hex().to_string(),
             tail: String::new(),
+            stdout_text: String::new(),
             output_complete: true,
             left_behind: false,
             tree_error: None,
@@ -114,9 +118,17 @@ impl RunResult {
 struct Capture {
     hasher: blake3::Hasher,
     tail: Vec<u8>,
+    /// The first bytes of the stream, kept only for standard output.
+    head: Vec<u8>,
 }
 
-fn drain<R: Read + Send + 'static>(mut r: R) -> (Arc<Mutex<Capture>>, std::thread::JoinHandle<()>) {
+/// How much of the start of standard output to keep for a configured tool's protocol output.
+const HEAD_BYTES: usize = 1 << 20;
+
+fn drain<R: Read + Send + 'static>(
+    mut r: R,
+    keep_head: bool,
+) -> (Arc<Mutex<Capture>>, std::thread::JoinHandle<()>) {
     let cap = Arc::new(Mutex::new(Capture::default()));
     let c2 = Arc::clone(&cap);
     let h = std::thread::spawn(move || {
@@ -127,6 +139,10 @@ fn drain<R: Read + Send + 'static>(mut r: R) -> (Arc<Mutex<Capture>>, std::threa
             }
             if let Ok(mut c) = c2.lock() {
                 c.hasher.update(&buf[..n]);
+                if keep_head && c.head.len() < HEAD_BYTES {
+                    let room = HEAD_BYTES - c.head.len();
+                    c.head.extend_from_slice(&buf[..n.min(room)]);
+                }
                 c.tail.extend_from_slice(&buf[..n]);
                 if c.tail.len() > TAIL_BYTES * 2 {
                     let cut = c.tail.len() - TAIL_BYTES;
@@ -197,12 +213,68 @@ fn build_command(cmd: &str, cwd: &Path, powershell: &str) -> Command {
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        // Start suspended: the process cannot run (and cannot start a child) until it is in the
+        // job object. `Tree::attach` assigns the job and then resumes the first thread, so no
+        // grandchild can be created outside the tree it is meant to be in.
+        c.creation_flags(CREATE_SUSPENDED);
+    }
     #[cfg(unix)]
     {
         use std::os::unix::process::CommandExt;
         c.process_group(0);
     }
     c
+}
+
+/// `CREATE_SUSPENDED`: create the process with its first thread suspended.
+#[cfg(windows)]
+const CREATE_SUSPENDED: u32 = 0x0000_0004;
+
+/// Resume the first thread of a process created with [`CREATE_SUSPENDED`]. The process has
+/// exactly one thread until it runs, so the first thread found is the one to resume.
+#[cfg(windows)]
+fn resume_first_thread(pid: u32) -> Result<(), String> {
+    use windows_sys::Win32::Foundation::{CloseHandle, INVALID_HANDLE_VALUE};
+    use windows_sys::Win32::System::Diagnostics::ToolHelp::{
+        CreateToolhelp32Snapshot, TH32CS_SNAPTHREAD, THREADENTRY32, Thread32First, Thread32Next,
+    };
+    use windows_sys::Win32::System::Threading::{OpenThread, ResumeThread, THREAD_SUSPEND_RESUME};
+    let fail = |what: &str| format!("{what} failed: {}", std::io::Error::last_os_error());
+    // SAFETY: every handle is created here and closed here; the struct is fully initialised and
+    // its size is given to the API, as the API requires.
+    unsafe {
+        let snap = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
+        if snap == INVALID_HANDLE_VALUE {
+            return Err(fail("CreateToolhelp32Snapshot"));
+        }
+        let mut te: THREADENTRY32 = std::mem::zeroed();
+        te.dwSize = std::mem::size_of::<THREADENTRY32>() as u32;
+        let mut next = Thread32First(snap, &mut te);
+        let mut result = Err("no thread of the new process was found".to_string());
+        while next != 0 {
+            if te.th32OwnerProcessID == pid {
+                let thread = OpenThread(THREAD_SUSPEND_RESUME, 0, te.th32ThreadID);
+                if thread.is_null() {
+                    result = Err(fail("OpenThread"));
+                } else {
+                    let resumed = ResumeThread(thread);
+                    CloseHandle(thread);
+                    result = if resumed == u32::MAX {
+                        Err(fail("ResumeThread"))
+                    } else {
+                        Ok(())
+                    };
+                }
+                break;
+            }
+            next = Thread32Next(snap, &mut te);
+        }
+        CloseHandle(snap);
+        result
+    }
 }
 
 /// The process tree one command runs in. On Windows a Job Object with kill-on-close holds the
@@ -225,53 +297,61 @@ impl Tree {
         use windows_sys::Win32::System::JobObjects::{
             AssignProcessToJobObject, CreateJobObjectW, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
             JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JobObjectExtendedLimitInformation,
-            SetInformationJobObject,
+            SetInformationJobObject, TerminateJobObject,
         };
         let pid = child.id();
         let fail = |what: &str| format!("{what} failed: {}", std::io::Error::last_os_error());
-        // SAFETY: plain Win32 calls on a handle this function creates and owns; the structure
+        // SAFETY: plain Win32 calls on handles this function creates and owns; the structure
         // passed to SetInformationJobObject is zero-initialised and fully sized.
-        unsafe {
+        let mut error = None;
+        let job = unsafe {
             let job = CreateJobObjectW(std::ptr::null(), std::ptr::null());
             if job.is_null() {
-                return Tree {
-                    job: std::ptr::null_mut(),
-                    pid,
-                    error: Some(fail("CreateJobObject")),
-                };
+                error = Some(fail("CreateJobObject"));
+                std::ptr::null_mut()
+            } else {
+                let mut info: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = std::mem::zeroed();
+                info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+                let ok = SetInformationJobObject(
+                    job,
+                    JobObjectExtendedLimitInformation,
+                    &info as *const _ as *const std::ffi::c_void,
+                    std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+                );
+                if ok == 0 {
+                    error = Some(fail("SetInformationJobObject"));
+                    CloseHandle(job);
+                    std::ptr::null_mut()
+                } else if AssignProcessToJobObject(job, child.as_raw_handle() as HANDLE) == 0 {
+                    error = Some(fail("AssignProcessToJobObject"));
+                    CloseHandle(job);
+                    std::ptr::null_mut()
+                } else {
+                    job
+                }
             }
-            let mut info: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = std::mem::zeroed();
-            info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
-            let ok = SetInformationJobObject(
-                job,
-                JobObjectExtendedLimitInformation,
-                &info as *const _ as *const std::ffi::c_void,
-                std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
-            );
-            if ok == 0 {
-                let e = fail("SetInformationJobObject");
-                CloseHandle(job);
-                return Tree {
-                    job: std::ptr::null_mut(),
-                    pid,
-                    error: Some(e),
-                };
-            }
-            if AssignProcessToJobObject(job, child.as_raw_handle() as HANDLE) == 0 {
-                let e = fail("AssignProcessToJobObject");
-                CloseHandle(job);
-                return Tree {
-                    job: std::ptr::null_mut(),
-                    pid,
-                    error: Some(e),
-                };
-            }
-            Tree {
-                job,
-                pid,
-                error: None,
+        };
+        // The process was created suspended so that it could not start anything before it was in
+        // the job. Resume it now; if that fails, nothing would ever run, so end it.
+        if let Err(e) = resume_first_thread(pid) {
+            error = Some(match error {
+                Some(previous) => format!("{previous}; {e}"),
+                None => e,
+            });
+            if !job.is_null() {
+                // SAFETY: a live job object this function created.
+                unsafe {
+                    TerminateJobObject(job, 1);
+                }
+            } else {
+                let _ = Command::new("taskkill")
+                    .args(["/PID", &pid.to_string(), "/T", "/F"])
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::null())
+                    .status();
             }
         }
+        Tree { job, pid, error }
     }
 
     /// How many processes of the tree are still running (`None` if that cannot be read).
@@ -413,8 +493,8 @@ pub fn run_command(cmd: &str, cwd: &Path, timeout: Duration) -> RunResult {
         return RunResult::not_started(last_err);
     };
     let mut tree = Tree::attach(&child);
-    let (out_cap, out_h) = drain(child.stdout.take().expect("piped"));
-    let (err_cap, err_h) = drain(child.stderr.take().expect("piped"));
+    let (out_cap, out_h) = drain(child.stdout.take().expect("piped"), true);
+    let (err_cap, err_h) = drain(child.stderr.take().expect("piped"), false);
     let start = Instant::now();
     let mut timed_out = false;
     let exit = loop {
@@ -466,6 +546,10 @@ pub fn run_command(cmd: &str, cwd: &Path, timeout: Duration) -> RunResult {
     };
     let (oh, ot) = take(&out_cap);
     let (eh, et) = take(&err_cap);
+    let stdout_text = {
+        let c = out_cap.lock().expect("capture lock");
+        String::from_utf8_lossy(&c.head).to_string()
+    };
     let mut h = blake3::Hasher::new();
     h.update(b"stdout:");
     h.update(oh.as_bytes());
@@ -478,6 +562,7 @@ pub fn run_command(cmd: &str, cwd: &Path, timeout: Duration) -> RunResult {
         spawn_error: None,
         output_hash: h.finalize().to_hex().to_string(),
         tail,
+        stdout_text,
         output_complete,
         left_behind,
         tree_error: tree.error.clone(),

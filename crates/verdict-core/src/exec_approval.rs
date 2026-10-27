@@ -101,6 +101,43 @@ pub fn shell_for(cmd: &str) -> &'static str {
     }
 }
 
+/// Commands the other configured tools would run: the mutation runner, the first-run workflow and
+/// the release checks. They are covered by the same human approval as `exec.commands`, so changing
+/// any of them asks the human again.
+pub fn tool_commands(policy: &Policy) -> Vec<(&'static str, String)> {
+    let mut out = Vec::new();
+    if let Some(c) = policy
+        .value
+        .pointer("/mutation/command")
+        .and_then(Value::as_str)
+    {
+        let c = c.trim();
+        if !c.is_empty() {
+            out.push(("mutation", c.to_string()));
+        }
+    }
+    for key in ["/firstrun/commands", "/release/checks"] {
+        if let Some(list) = policy.value.pointer(key).and_then(Value::as_array) {
+            for item in list {
+                let cmd = match item {
+                    Value::String(s) => Some(s.trim()),
+                    Value::Object(o) => o.get("run").and_then(Value::as_str).map(str::trim),
+                    _ => None,
+                };
+                if let Some(c) = cmd.filter(|c| !c.is_empty()) {
+                    let kind = if key.contains("firstrun") {
+                        "firstrun"
+                    } else {
+                        "release"
+                    };
+                    out.push((kind, c.to_string()));
+                }
+            }
+        }
+    }
+    out
+}
+
 /// The effective configuration in a fixed text form: one line per command, then the timeout.
 /// This is what gets hashed, and it is also a readable summary.
 pub fn config_text(policy: &Policy) -> String {
@@ -112,6 +149,13 @@ pub fn config_text(policy: &Policy) -> String {
             c.tier.as_str(),
             c.needs.as_deref().unwrap_or("-"),
             shell_for(&c.run)
+        ));
+    }
+    for (kind, command) in tool_commands(policy) {
+        out.push_str(&format!(
+            "tool\t{kind}\t{}\tshell={}\n",
+            command.replace(['\n', '\r', '\t'], " "),
+            shell_for(&command)
         ));
     }
     let timeout = match policy_timeout_text(policy) {

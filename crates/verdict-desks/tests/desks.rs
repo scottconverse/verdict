@@ -271,6 +271,28 @@ fn a_project_may_not_set_the_global_single_vendor_downgrade() {
     )
     .unwrap();
     assert!(matches!(out, Outcome::Refused { .. }), "{out:?}");
+
+    // Setting the default (`refuse`) explicitly in a project is not a downgrade and is allowed.
+    std::fs::write(
+        dir.path().join("verdict.json"),
+        r#"{"version":1,"vendors":{"single_vendor":"refuse"}}"#,
+    )
+    .unwrap();
+    let policy = Policy::load(dir.path(), Some(home.path())).unwrap();
+    let out = run(
+        &mut l,
+        dir.path(),
+        &sid,
+        &policy,
+        &DeskOptions {
+            lane: Lane::Standard,
+            timeout: Duration::from_secs(20),
+        },
+        &providers,
+    )
+    .unwrap();
+    // Same vendor and `refuse`: the run is refused by the cross-vendor rule, not by the setting.
+    assert!(matches!(out, Outcome::Refused { .. }), "{out:?}");
 }
 
 #[test]

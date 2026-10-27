@@ -23,8 +23,11 @@ pub mod changes;
 pub mod claims_vs_code;
 pub mod context;
 pub mod exec;
+pub mod firstrun;
+pub mod mutation;
 pub mod paths;
 pub mod regressions;
+pub mod release;
 pub mod scan;
 pub mod tests_weakened;
 pub mod tree;
@@ -58,13 +61,16 @@ pub trait Checker: Send + Sync {
 }
 
 /// Names of the checkers this crate provides.
-pub const CHECKER_NAMES: [&str; 7] = [
+pub const CHECKER_NAMES: [&str; 10] = [
     "wiring",
     "baseline_diff",
     "regressions",
     "tests_weakened",
     "unfinished",
     "exec",
+    "mutation",
+    "firstrun",
+    "release",
     "claims_vs_code",
 ];
 
@@ -200,6 +206,9 @@ pub fn real_registry() -> Vec<Box<dyn Checker>> {
         Box::new(tests_weakened::TestsWeakened),
         Box::new(unfinished::Unfinished),
         Box::new(exec::Exec),
+        Box::new(mutation::Mutation),
+        Box::new(firstrun::FirstRun),
+        Box::new(release::Release),
         Box::new(claims_vs_code::ClaimsVsCode),
     ]
 }
@@ -672,7 +681,7 @@ mod tests {
     #[test]
     fn star_and_minus_expand() {
         let all = expand_selection(&v(&["*"]));
-        assert_eq!(all.len(), 7);
+        assert_eq!(all.len(), CHECKER_NAMES.len());
         assert_eq!(all.last().map(String::as_str), Some("claims_vs_code"));
         let some = expand_selection(&v(&["*", "-exec", "-unfinished"]));
         assert!(!some.contains(&"exec".to_string()));

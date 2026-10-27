@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "mutation": {
+    "require_when": ["critical_logic_changed"],
+    "report": "mutation-report.json"
+  }
+}

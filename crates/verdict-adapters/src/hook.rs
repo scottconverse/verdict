@@ -16,7 +16,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use crate::payload::{EventKind, Host, parse_payload, peek_context};
-use crate::recorder::{Options, record_event, record_unavailable};
+use crate::recorder::{HookReply, Options, record_event, record_unavailable};
 
 /// Work budget for a Stop hook.
 pub const STOP_BUDGET: Duration = Duration::from_secs(15);
@@ -48,29 +48,62 @@ pub fn budget_for(event: &str) -> Duration {
     }
 }
 
-/// Entry point for `vdt hook ...`: `args` are the words after `hook`. Never fails and never
-/// prints; the caller exits 0 afterwards.
+/// Entry point for `vdt hook ...`: `args` are the words after `hook`. It prints one JSON decision
+/// when enforce mode holds the agent, prints nothing otherwise, and the caller exits 0.
 pub fn run_hook_cli(args: &[String]) {
     std::panic::set_hook(Box::new(|_| {}));
     let host = args.first().map(String::as_str).unwrap_or("");
     let event = args.get(1).map(String::as_str).unwrap_or("");
-    run_hook(
+    if let Some(text) = run_hook(
         host,
         event,
         Box::new(std::io::stdin()),
         Options::default(),
         budget_for(event),
-    );
+    ) {
+        use std::io::Write;
+        let mut out = std::io::stdout();
+        let _ = writeln!(out, "{text}");
+        let _ = out.flush();
+    }
 }
 
-/// Run one hook. See the module documentation for the contract.
+/// The JSON a host reads, for a reply that holds the agent. Only hosts whose output shape is known
+/// get one; the others keep recording in shadow and answer nothing.
+fn reply_json(host: Host, kind: EventKind, reply: &HookReply) -> Option<String> {
+    let shape = match reply {
+        HookReply::Continue => return None,
+        HookReply::Deny(reason) => serde_json::json!({
+            "hookSpecificOutput": {
+                "hookEventName": kind.as_str(),
+                "permissionDecision": "deny",
+                "permissionDecisionReason": reason,
+            }
+        }),
+        HookReply::SendBack(reason) => serde_json::json!({
+            "decision": "block",
+            "reason": reason,
+        }),
+    };
+    match host {
+        Host::Claude => Some(shape.to_string()),
+        // The Codex hook docs do not state the output shape in the parts read for this build; the
+        // same JSON is sent and the real-host behaviour is labeled unverified in docs/HOSTS.md.
+        Host::Codex => Some(shape.to_string()),
+        Host::Cursor | Host::Antigravity | Host::Dsh => None,
+    }
+}
+
+/// Run one hook. Returns the JSON to print, if any. See the module documentation for the contract.
 pub fn run_hook(
     host_arg: &str,
     event_arg: &str,
     stdin: Box<dyn Read + Send>,
     opts: Options,
     budget: Duration,
-) {
+) -> Option<String> {
+    let host = Host::parse(host_arg);
+    let kind = EventKind::parse(event_arg);
     let ctx = Arc::new(Mutex::new(Context::default()));
     let (tx, rx) = mpsc::channel();
     {
@@ -89,11 +122,16 @@ pub fn run_hook(
             });
         });
         if spawned.is_err() {
-            return;
+            return None;
         }
     }
     let failure = match rx.recv_timeout(budget) {
-        Ok(Ok(())) => return,
+        Ok(Ok(reply)) => {
+            return match (host, kind) {
+                (Some(h), Some(k)) => reply_json(h, k, &reply),
+                _ => None,
+            };
+        }
         Ok(Err(reason)) => reason,
         Err(mpsc::RecvTimeoutError::Timeout) => format!(
             "the adapter did not finish within {} ms and was abandoned so the agent could continue",
@@ -125,6 +163,7 @@ pub fn run_hook(
     if spawned.is_ok() {
         let _ = rx2.recv_timeout(UNAVAILABLE_BUDGET);
     }
+    None
 }
 
 fn work(
@@ -133,7 +172,7 @@ fn work(
     stdin: Box<dyn Read + Send>,
     opts: &Options,
     ctx: &Mutex<Context>,
-) -> Result<(), String> {
+) -> Result<HookReply, String> {
     let mut bytes = Vec::new();
     stdin
         .take(MAX_PAYLOAD_BYTES + 1)

@@ -62,6 +62,16 @@ fn existing_settings() -> Value {
 }
 
 #[test]
+fn a_dsh_install_is_refused_with_the_host_managed_pointer() {
+    let p = Project::new();
+    let r = req(Host::Dsh, p.dir.path(), None, true, true);
+    let mut out = Vec::new();
+    let err = hooks_command(&r, p.dir.path(), &mut out).unwrap_err();
+    assert!(err.contains("docs/DSH.md"), "{err}");
+    assert!(!p.dir.path().join(".dsh").exists());
+}
+
+#[test]
 fn cursor_install_writes_its_flat_schema_and_uninstall_restores_the_file() {
     let p = Project::new();
     let file = p.dir.path().join(".cursor/hooks.json");

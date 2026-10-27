@@ -85,7 +85,10 @@ fixture_tests!(
     tests_weakened,
     claims_vs_code,
     unfinished,
-    exec;
+    exec,
+    mutation,
+    firstrun,
+    release;
     cases: wiring
 );
 

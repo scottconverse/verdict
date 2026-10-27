@@ -111,6 +111,13 @@ pub fn sarif(ledger: &Ledger, session: Option<&str>) -> Result<String, LedgerErr
                 "verdictSession": a.session,
                 "verdictHypotheses": a.hypotheses.len(),
                 "verdictLedgerIntact": ledger.verify()?.is_ok(),
+                "verdictOverrides": a.overrides.iter().map(|ov| json!({
+                    "record": ov.seq,
+                    "tree": ov.tree,
+                    "reason": ov.reason,
+                    "findingIds": ov.finding_ids,
+                    "open": ov.open,
+                })).collect::<Vec<_>>(),
             }
         }]
     });

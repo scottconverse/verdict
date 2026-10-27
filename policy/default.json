@@ -19,6 +19,14 @@
     "require_when": ["critical_logic_changed", "test_sensitivity_uncertain"],
     "never_merely_for": ["lane_label", "file_count", "release"]
   },
+  "firstrun": {
+    "commands": []
+  },
+  "release": {
+    "version_files": [],
+    "assets": [],
+    "checks": []
+  },
   "vendors": {
     "cross_vendor_required_from_lane": "standard",
     "verifier_order": [],

@@ -133,11 +133,13 @@ adapter's to set. Undo: `verdict-mcp` `claim`/`done_when` session lookup.
 - **Extra backup file left on retry.** A retry that abandons a backup it just made removes it, and
   an existing backup holding identical bytes is reused instead of duplicated. Undo:
   `verdict-adapters/src/install.rs::backup` / `change_file`.
-- **Windows Job Object: a grandchild can escape the exec kill.** Not fixed. A child started in the
-  first instant after `CreateProcess` can spawn before the job assignment. A complete fix needs a
-  suspended start (custom `CreateProcessW` with `CREATE_SUSPENDED`, job assignment, then
-  `ResumeThread`), which std's `Command` does not expose. Recorded as a remaining platform risk,
-  not claimed fixed. Undo: none.
+- **Windows Job Object: a grandchild can escape the exec kill.** **Fixed.** The command is created
+  with `CREATE_SUSPENDED`, assigned to the job object, and only then has its first thread resumed,
+  so no descendant can exist outside the job. If the resume fails the process is terminated and the
+  check records the tree error rather than running an uncontrolled command. A test that leaves a
+  process writing a file after the command ends proves the stray is still killed
+  (`a_stray_process_is_really_killed`). Undo: `exec.rs`, `build_command` / `Tree::attach` /
+  `resume_first_thread`.
 
 ## 14. The five-finding cap: at dispatch or at the report?
 
@@ -193,3 +195,57 @@ A live Claude Code 2.1.296 SessionStart payload carries only `session_id`, `tran
 `anthropic` from the host. Inventing a model from the CLI's name would make the ledger lie about
 what ran. Undo: none.
 
+
+## 20. When does enforce mode hold an edit?
+
+**Ruling: only an edit to a file the latest prompt named, and only while no claim covers it.**
+
+The design's pre-edit hold is a speed bump, not a lock: a claim through `verdict_claim` releases
+it, and a file the prompt did not name is never held. The hook stays fail-open: an error, a timeout
+or a missing ledger records `check_unavailable` and the edit proceeds. Undo:
+`verdict-adapters::recorder`, the `PreToolUse` arm.
+
+## 21. How many send-backs, and what happens after the last one?
+
+**Ruling: `gate.max_sendbacks` (two by default). After the last, the agent is released and a core
+`check` record tells the human; the verdict stays FAILED.**
+
+A send-back carries the report, so the agent sees the finding and its pointer. The limit is in the
+host-session state file; losing it at worst allows one extra send-back. No send-back is invented in
+shadow mode. Undo: `recorder.rs`, the `Stop` arm.
+
+## 22. What is a mutation runner's protocol?
+
+**Ruling: one JSON object — `{"survivors": [...], "killed": N, "total": N}` — from the configured
+command's stdout, or from the configured report file.**
+
+Verdict does not parse a tool's human output, and it does not guess a tool's exit-code meaning. A
+runner that prints nothing parsable is unavailable; missing tooling is unavailable; a survivor is a
+Major finding with a pointer when it names a file. Undo: `checkers::mutation`.
+
+## 23. What does firstrun prove?
+
+**Ruling: that the project's configured first-run commands run and pass, recorded with their
+output. The clean-container walk is a release activity, run in CI.**
+
+Commands needing a server Verdict does not start are marked not established, not skipped quietly.
+Undo: `checkers::firstrun`.
+
+## 24. What is release coherence?
+
+**Ruling: the configured tag on HEAD, the configured version in the configured files, the
+configured assets present, the README's relative links resolving, and the project's own release
+checks passing.**
+
+Nothing is assumed: an empty `release` block is unavailable, never clean. The tag check cannot pass
+before the human creates the tag, which is the point of a release lane. Undo:
+`checkers::release`.
+
+## 25. What does the DSH integration include?
+
+**Ruling: the MCP connection is the supported path; a host-neutral `vdt hook dsh` adapter exists;
+no native plugin is claimed, because the installed harness exposes no plugin API here.**
+
+Writing a plugin against an invented manifest would be a false claim. The adapter and the MCP
+server are real and tested; `docs/DSH.md` states the limits and `vdt hooks install dsh` refuses with
+that pointer. Undo: `payload.rs` `Host::Dsh`, `docs/DSH.md`.

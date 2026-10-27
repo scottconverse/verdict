@@ -16,7 +16,7 @@ use verdict_core::{
 
 pub mod project;
 
-pub const NAMES: [&str; 7] = verdict_checkers::CHECKER_NAMES;
+pub const NAMES: [&str; verdict_checkers::CHECKER_NAMES.len()] = verdict_checkers::CHECKER_NAMES;
 
 fn fixtures_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures")

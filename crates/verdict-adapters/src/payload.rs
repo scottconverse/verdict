@@ -19,16 +19,21 @@ pub enum Host {
     Cursor,
     /// Google Antigravity.
     Antigravity,
+    /// DeepSeek Harness (optional host: the MCP connection is its primary path; the hook command
+    /// exists for a harness that can call one).
+    Dsh,
 }
 
 impl Host {
-    /// Parse the command-line name (`claude`, `codex`, `cursor`, `antigravity`), case-insensitively.
+    /// Parse the command-line name (`claude`, `codex`, `cursor`, `antigravity`, `dsh`),
+    /// case-insensitively.
     pub fn parse(s: &str) -> Option<Host> {
         match s.trim().to_ascii_lowercase().as_str() {
             "claude" | "claude-code" => Some(Host::Claude),
             "codex" => Some(Host::Codex),
             "cursor" => Some(Host::Cursor),
             "antigravity" | "antigravity-cli" => Some(Host::Antigravity),
+            "dsh" | "deepseek-harness" => Some(Host::Dsh),
             _ => None,
         }
     }
@@ -40,16 +45,17 @@ impl Host {
             Host::Codex => "codex",
             Host::Cursor => "cursor",
             Host::Antigravity => "antigravity",
+            Host::Dsh => "dsh",
         }
     }
 
-    /// The model vendor recorded in the session record. Cursor serves models from several vendors,
-    /// so its vendor is derived from the model; `unknown` when the payload does not say.
+    /// The model vendor recorded in the session record. Cursor and DSH serve models from several
+    /// vendors, so their vendor is derived from the model; `unknown` when the payload does not say.
     pub fn vendor(self) -> &'static str {
         match self {
             Host::Claude => "anthropic",
             Host::Codex => "openai",
-            Host::Cursor => "unknown",
+            Host::Cursor | Host::Dsh => "unknown",
             Host::Antigravity => "google",
         }
     }
@@ -82,10 +88,12 @@ impl Host {
             Host::Codex => ".codex/hooks.json",
             Host::Cursor => ".cursor/hooks.json",
             Host::Antigravity => ".agents/hooks.json",
+            // DSH's own configuration is host-managed; docs/DSH.md explains the options.
+            Host::Dsh => "the harness's own configuration",
         }
     }
 
-    /// Every host, in page order.
+    /// The hosts the page offers to install hooks for (DSH is host-managed; see docs/DSH.md).
     pub const ALL: [Host; 4] = [Host::Claude, Host::Codex, Host::Cursor, Host::Antigravity];
 }
 
@@ -113,7 +121,7 @@ pub fn vendor_of_model(model: &str) -> Option<&'static str> {
 /// serve several vendors.
 pub fn session_vendor(host: Host, model: Option<&str>) -> String {
     match host {
-        Host::Cursor => model
+        Host::Cursor | Host::Dsh => model
             .and_then(vendor_of_model)
             .unwrap_or("unknown")
             .to_string(),

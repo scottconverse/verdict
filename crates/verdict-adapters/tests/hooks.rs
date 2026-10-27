@@ -1,7 +1,7 @@
 mod common;
 
 use common::*;
-use std::io::Read;
+use std::io::{Cursor, Read};
 use std::time::{Duration, Instant};
 use verdict_adapters::run_hook;
 use verdict_core::{ClaimSource, Record, Writer};
@@ -144,21 +144,227 @@ fn normalized(p: &Project) -> Vec<(String, String, serde_json::Value)> {
         .collect()
 }
 
+fn enforce(p: &Project, session: &str) {
+    let mut l = p.ledger();
+    l.append(
+        Writer::Human,
+        Some(session),
+        Record::Decision {
+            decision: verdict_core::DecisionKind::ModeSwitch,
+            choice: "enforce".into(),
+            reason: None,
+            who: Writer::Human,
+        },
+    )
+    .unwrap();
+}
+
+fn block_finding(p: &Project, session: &str) {
+    let mut l = p.ledger();
+    l.append(
+        Writer::Checker,
+        Some(session),
+        Record::Finding(verdict_core::Finding {
+            id: "regressions:debugger.abc123".into(),
+            severity: verdict_core::Severity::Blocker,
+            title: "a leftover debugger statement".into(),
+            claim_seq: None,
+            evidence: vec![verdict_core::EvidencePointer::command("cargo test", b"red")],
+            tier: verdict_core::Tier::Static,
+            blast: None,
+            judgment: false,
+            fix_hint: None,
+        }),
+    )
+    .unwrap();
+}
+
+fn payload(p: &Project, sid: &str, event: &str, extra: serde_json::Value) -> String {
+    let mut base = serde_json::json!({
+        "session_id": sid,
+        "cwd": p.dir.path().to_string_lossy().to_string(),
+        "hook_event_name": event,
+    });
+    for (k, v) in extra.as_object().cloned().unwrap_or_default() {
+        base[k] = v;
+    }
+    base.to_string()
+}
+
 #[test]
-fn parity_same_logical_session_gives_the_same_records_on_all_four_hosts() {
+fn shadow_mode_never_holds_the_agent() {
+    let p = Project::new();
+    let sid = "shadow-1";
+    run_bytes(
+        &p,
+        "claude",
+        "UserPromptSubmit",
+        payload(
+            &p,
+            sid,
+            "UserPromptSubmit",
+            serde_json::json!({"prompt": "fix src/login.rs"}),
+        )
+        .as_bytes(),
+    );
+    let session = p.records()[0].session_id.clone().unwrap();
+    block_finding(&p, &session);
+    let reply = run_hook(
+        "claude",
+        "Stop",
+        Box::new(Cursor::new(
+            payload(
+                &p,
+                sid,
+                "Stop",
+                serde_json::json!({"last_assistant_message": "done"}),
+            )
+            .into_bytes(),
+        )),
+        p.opts(),
+        Duration::from_secs(20),
+    );
+    assert!(reply.is_none(), "shadow mode printed a decision: {reply:?}");
+}
+
+#[test]
+fn enforce_mode_sends_the_agent_back_twice_then_releases_it() {
+    let p = Project::new();
+    let sid = "enforce-1";
+    run_bytes(
+        &p,
+        "claude",
+        "UserPromptSubmit",
+        payload(
+            &p,
+            sid,
+            "UserPromptSubmit",
+            serde_json::json!({"prompt": "fix src/login.rs"}),
+        )
+        .as_bytes(),
+    );
+    let session = p.records()[0].session_id.clone().unwrap();
+    enforce(&p, &session);
+    block_finding(&p, &session);
+    let stop = || {
+        run_hook(
+            "claude",
+            "Stop",
+            Box::new(Cursor::new(
+                payload(
+                    &p,
+                    sid,
+                    "Stop",
+                    serde_json::json!({"last_assistant_message": "done"}),
+                )
+                .into_bytes(),
+            )),
+            p.opts(),
+            Duration::from_secs(20),
+        )
+    };
+    let first = stop().expect("the first Stop is sent back");
+    assert!(first.contains("\"decision\":\"block\""), "{first}");
+    assert!(first.contains("send-back 1 of 2"), "{first}");
+    let second = stop().expect("the second Stop is sent back");
+    assert!(second.contains("send-back 2 of 2"), "{second}");
+    let third = stop();
+    assert!(
+        third.is_none(),
+        "after two send-backs the agent is released: {third:?}"
+    );
+    let recs = p.records();
+    assert!(
+        recs.iter().any(|s| matches!(
+            &s.record,
+            Record::Check { name, detail: Some(d), .. }
+                if name == "sendbacks" && d.contains("send-back limit reached")
+        )),
+        "the release is recorded for the human"
+    );
+}
+
+#[test]
+fn enforce_mode_holds_an_edit_until_a_claim_covers_it() {
+    let p = Project::new();
+    let sid = "preedit-1";
+    run_bytes(
+        &p,
+        "claude",
+        "UserPromptSubmit",
+        payload(
+            &p,
+            sid,
+            "UserPromptSubmit",
+            serde_json::json!({"prompt": "change src/login.rs"}),
+        )
+        .as_bytes(),
+    );
+    let session = p.records()[0].session_id.clone().unwrap();
+    enforce(&p, &session);
+    let edit = |file: &str| {
+        run_hook(
+            "claude",
+            "PreToolUse",
+            Box::new(Cursor::new(
+                payload(
+                    &p,
+                    sid,
+                    "PreToolUse",
+                    serde_json::json!({
+                        "tool_name": "Edit",
+                        "tool_input": {"file_path": file}
+                    }),
+                )
+                .into_bytes(),
+            )),
+            p.opts(),
+            Duration::from_secs(20),
+        )
+    };
+    let held = edit("src/login.rs").expect("an uncovered edit is held");
+    assert!(held.contains("\"permissionDecision\":\"deny\""), "{held}");
+    assert!(held.contains("verdict_claim"), "{held}");
+    // A file the prompt did not name is not held.
+    assert!(edit("src/other.rs").is_none());
+    // A claim naming the file releases it.
+    let mut l = p.ledger();
+    l.append(
+        Writer::Agent,
+        Some(&session),
+        Record::Claim {
+            source: ClaimSource::PromptTranslation,
+            text: "src/login.rs shows an error on a wrong password".into(),
+            names: vec!["src/login.rs".into()],
+            prompt_ordinal: Some(1),
+        },
+    )
+    .unwrap();
+    drop(l);
+    assert!(
+        edit("src/login.rs").is_none(),
+        "the claim released the edit"
+    );
+}
+
+#[test]
+fn parity_same_logical_session_gives_the_same_records_on_every_host() {
     let a = Project::new();
     let b = Project::new();
     let c = Project::new();
     let d = Project::new();
+    let e = Project::new();
     run_fixture(&a, "claude", CLAUDE);
     run_fixture(&b, "codex", CODEX);
     run_fixture(&c, "cursor", CURSOR);
     run_fixture(&d, "antigravity", ANTIGRAVITY);
-    let (na, nb, nc, nd) = (
+    run_fixture(&e, "dsh", DSH);
+    let (na, nb, nc, nd, ne) = (
         normalized(&a),
         normalized(&b),
         normalized(&c),
         normalized(&d),
+        normalized(&e),
     );
     assert_eq!(na.len(), 5);
     assert_eq!(
@@ -167,6 +373,12 @@ fn parity_same_logical_session_gives_the_same_records_on_all_four_hosts() {
     );
     assert_eq!(nc, na, "Cursor gives the same ledger records");
     assert_eq!(nd, na, "Antigravity gives the same ledger records");
+    assert_eq!(ne, na, "DeepSeek Harness gives the same ledger records");
+    // The harness is not a vendor: its session vendor follows the model it served.
+    let Record::Session { vendor, .. } = &e.records()[0].record else {
+        panic!()
+    };
+    assert_eq!(vendor, "deepseek");
 }
 
 #[test]

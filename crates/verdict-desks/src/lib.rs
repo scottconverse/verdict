@@ -518,28 +518,38 @@ pub fn run(
         .unwrap_or_default();
     let cross_required = opts.lane >= threshold;
 
-    // A project may not set the global warn-only downgrade for itself.
+    // A project may not set the global warn-only downgrade for itself. Setting it to `refuse` (the
+    // default) is not a downgrade and is allowed.
     for src in &policy.sources {
-        if let verdict_core::policy::PolicySource::Project(path) = src
-            && std::fs::read_to_string(path).is_ok_and(|t| t.contains("\"single_vendor\""))
-        {
-            let reason =
-                "single_vendor may only be set in the global policy, never in a project's \
-                          verdict.json"
-                    .to_string();
-            for desk in &desks {
-                ledger
-                    .append(
-                        Writer::Desk,
-                        Some(session),
-                        Record::CheckUnavailable {
-                            component: format!("desk:{desk}"),
-                            reason: reason.clone(),
-                        },
-                    )
-                    .map_err(|e| e.to_string())?;
+        if let verdict_core::policy::PolicySource::Project(path) = src {
+            let tries_warn = std::fs::read_to_string(path)
+                .ok()
+                .and_then(|t| serde_json::from_str::<Value>(&t).ok())
+                .and_then(|v| {
+                    v.pointer("/vendors/single_vendor")
+                        .and_then(Value::as_str)
+                        .map(|s| s == "warn")
+                })
+                .unwrap_or(false);
+            if tries_warn {
+                let reason =
+                    "single_vendor may only be set in the global policy, never in a project's \
+                     verdict.json"
+                        .to_string();
+                for desk in &desks {
+                    ledger
+                        .append(
+                            Writer::Desk,
+                            Some(session),
+                            Record::CheckUnavailable {
+                                component: format!("desk:{desk}"),
+                                reason: reason.clone(),
+                            },
+                        )
+                        .map_err(|e| e.to_string())?;
+                }
+                return Ok(Outcome::Refused { reason, desks });
             }
-            return Ok(Outcome::Refused { reason, desks });
         }
     }
     let warn_only = policy

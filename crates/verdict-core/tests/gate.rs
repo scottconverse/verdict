@@ -570,3 +570,30 @@ fn vdt_verdict_computes_writes_and_names_the_session() {
     assert_eq!(c.word, VerdictWord::Verified);
     assert!(run_verdict(r.repo.path(), Some(r.home.path()), Some("s-nope"), None).is_err());
 }
+
+#[test]
+fn a_second_run_that_reports_the_same_finding_supersedes_the_first_occurrence() {
+    let r = repo();
+    r.stage("docs/guide.md", "hi\n");
+    let runner = FakeRunner::new();
+    runner.set(
+        "wiring",
+        Tier::Static,
+        &[("wiring:same-occurrence.abc", Severity::Major)],
+    );
+    runner.set_all_static(&["regressions", "claims_vs_code", "unfinished"]);
+    assert_eq!(r.gate(&runner).computed.unwrap().word, VerdictWord::Failed);
+    assert_eq!(r.gate(&runner).computed.unwrap().word, VerdictWord::Failed);
+    let l = r.ledger();
+    let corrections: Vec<_> = l
+        .records()
+        .unwrap()
+        .into_iter()
+        .filter(|s| matches!(s.record, Record::Correction { .. }))
+        .collect();
+    assert_eq!(corrections.len(), 1, "the older occurrence is superseded");
+    let Record::Correction { reason, .. } = &corrections[0].record else {
+        panic!()
+    };
+    assert!(reason.contains("superseded"), "{reason}");
+}

@@ -1,0 +1,79 @@
+name: clean-install-and-parity
+
+# Two independent machines generate Verdict's files from the same revision, and a third compares
+# them byte for byte; a clean Ubuntu container installs Verdict from the README's instructions and
+# runs it. Runs only when asked (workflow_dispatch) or on a pull request, never on a release tag.
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches-ignore: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  clean-container-install:
+    name: README install in a clean Ubuntu container
+    runs-on: ubuntu-latest
+    container: ubuntu:24.04
+    steps:
+      - name: Prepare the container
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            ca-certificates curl build-essential git pkg-config libssl-dev
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+      - uses: actions/checkout@v4
+      - name: Follow the README's build steps
+        shell: bash
+        run: |
+          set -euo pipefail
+          . "$HOME/.cargo/env"
+          cargo build --workspace --locked
+          cargo test -p verdict-core --locked --test ledger_rules
+          target/debug/vdt --version
+          printf '{"session_id":"ci-1","cwd":"%s","hook_event_name":"SessionStart"}\n' "$PWD" \
+            | target/debug/vdt hook claude SessionStart
+          target/debug/vdt sessions
+          target/debug/vdt ledger verify
+
+  generate:
+    name: generate on ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo build --locked --bin vdt
+      - name: Generate the host files twice
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo run --locked --bin vdt -- generate --out first
+          cargo run --locked --bin vdt -- generate --out second
+          diff -r first second
+      - uses: actions/upload-artifact@v4
+        with:
+          name: generated-${{ matrix.os }}
+          path: first
+
+  compare:
+    name: the two machines' output is byte-identical
+    needs: generate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
+          merge-multiple: false
+      - name: Compare every byte
+        run: |
+          set -euo pipefail
+          (cd out/generated-ubuntu-latest && find . -type f -print0 | sort -z | xargs -0 sha256sum) > ubuntu.txt
+          (cd out/generated-windows-latest && find . -type f -print0 | sort -z | xargs -0 sha256sum) > windows.txt
+          diff ubuntu.txt windows.txt
+          echo "byte-identical across two machines"

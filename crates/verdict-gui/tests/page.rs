@@ -94,6 +94,7 @@ fn fixture() -> Fixture {
 
 struct Reply {
     status: u16,
+    headers: String,
     body: String,
 }
 
@@ -135,11 +136,15 @@ fn http(
         .nth(1)
         .and_then(|c| c.parse().ok())
         .unwrap_or(0);
-    let body = text
+    let (head, body) = text
         .split_once("\r\n\r\n")
-        .map(|(_, b)| b.to_string())
+        .map(|(h, b)| (h.to_string(), b.to_string()))
         .unwrap_or_default();
-    Reply { status, body }
+    Reply {
+        status,
+        headers: head,
+        body,
+    }
 }
 
 fn get(page: &Page, path: &str) -> Reply {
@@ -177,6 +182,54 @@ fn install_body(f: &Fixture, host: &str, token: &str) -> String {
 
 fn origin(f: &Fixture) -> String {
     format!("http://127.0.0.1:{}", f.page.addr.port())
+}
+
+#[test]
+fn the_packet_and_sarif_routes_serve_the_exports_as_downloads() {
+    let f = fixture();
+    let packet = get(&f.page, &format!("/session/{}/packet", f.session));
+    assert_eq!(packet.status, 200);
+    assert!(
+        packet
+            .headers
+            .to_ascii_lowercase()
+            .contains("content-type: text/plain"),
+        "{}",
+        packet.headers
+    );
+    assert!(
+        packet
+            .headers
+            .to_ascii_lowercase()
+            .contains("content-disposition: attachment"),
+        "{}",
+        packet.headers
+    );
+    assert!(
+        packet.body.contains("VERDICT ACCEPTANCE PACKET"),
+        "{}",
+        packet.body
+    );
+    assert!(packet.body.contains("FINDINGS"), "{}", packet.body);
+
+    let sarif = get(&f.page, &format!("/session/{}/sarif", f.session));
+    assert_eq!(sarif.status, 200);
+    assert!(
+        sarif
+            .headers
+            .to_ascii_lowercase()
+            .contains("application/sarif+json"),
+        "{}",
+        sarif.headers
+    );
+    let v: serde_json::Value = serde_json::from_str(&sarif.body).expect("the download is JSON");
+    assert_eq!(v["version"], "2.1.0");
+    assert!(v["runs"][0]["results"].is_array());
+
+    // The session page links to both.
+    let page = get(&f.page, &format!("/session/{}", f.session)).body;
+    assert!(page.contains(&format!("/session/{}/packet", f.session)));
+    assert!(page.contains(&format!("/session/{}/sarif", f.session)));
 }
 
 #[test]

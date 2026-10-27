@@ -467,9 +467,10 @@ pub fn run_checkers(
     }
 }
 
-/// A finding a checker no longer reports when it re-ran is resolved (a correction record by the
-/// core). Only findings whose id names the checker (`<checker>:...`) are considered, and only when
-/// that checker ran again and did not write the same id again.
+/// A finding a checker reported again is superseded by the new occurrence; one it no longer
+/// reports is resolved (a correction record by the core). Ids that carry a re-run suffix
+/// (`.r2`, `.r3`) are compared by their base id, so a re-run does not leave the old occurrence
+/// open beside the new one.
 fn resolve_superseded(
     ledger: &mut Ledger,
     session: &str,
@@ -484,33 +485,63 @@ fn resolve_superseded(
     if rerun.is_empty() {
         return Ok(());
     }
+    let highest_before = before.findings.iter().map(|f| f.seq).max().unwrap_or(0);
     let after = analyze(ledger, session)?;
+    let newest: BTreeMap<&str, u64> = after
+        .findings
+        .iter()
+        .filter(|f| f.seq > highest_before)
+        .fold(BTreeMap::new(), |mut m, f| {
+            let base = base_id(&f.finding.id);
+            let slot = m.entry(base).or_insert(f.seq);
+            *slot = (*slot).max(f.seq);
+            m
+        });
+    // A checker that wrote findings counts as having run even when it also reported that part of
+    // its work could not be looked up (a release check whose commands are not approved, for
+    // example). Its older occurrences must still be superseded, not left open beside the new one.
+    let mut touched: BTreeMap<&str, u64> = rerun.clone();
+    for f in after.findings.iter().filter(|f| f.seq > highest_before) {
+        if let Some(checker) = f.checker() {
+            touched.entry(checker).or_insert(f.seq);
+        }
+    }
     for old in before.findings.iter().filter(|f| f.is_open()) {
         let Some(checker) = old.checker() else {
             continue;
         };
-        let Some(check_seq) = rerun.get(checker) else {
+        let Some(check_seq) = touched.get(checker) else {
             continue;
         };
-        let reported_again = after
-            .findings
-            .iter()
-            .any(|f| f.finding.id == old.finding.id && f.seq > old.seq);
-        if !reported_again {
-            ledger.append(
-                Writer::Core,
-                Some(session),
-                Record::Correction {
-                    target_seq: old.seq,
-                    reason: format!(
-                        "resolved: {checker} ran again (check record {check_seq}) and no longer reports it"
-                    ),
-                    replacement: None,
-                },
-            )?;
-        }
+        let base = base_id(&old.finding.id);
+        let why = match newest.get(base) {
+            Some(seq) if *seq > old.seq => format!(
+                "superseded: {checker} ran again (check record {check_seq}) and reported it at record {seq}"
+            ),
+            Some(_) => continue,
+            None => format!(
+                "resolved: {checker} ran again (check record {check_seq}) and no longer reports it"
+            ),
+        };
+        ledger.append(
+            Writer::Core,
+            Some(session),
+            Record::Correction {
+                target_seq: old.seq,
+                reason: why,
+                replacement: None,
+            },
+        )?;
     }
     Ok(())
+}
+
+/// A finding id without its re-run suffix (`.r2`, `.r3`, ...).
+fn base_id(id: &str) -> &str {
+    match id.rsplit_once(".r") {
+        Some((base, n)) if !n.is_empty() && n.chars().all(|c| c.is_ascii_digit()) => base,
+        _ => id,
+    }
 }
 
 /// What `vdt verdict` does: optionally run the lane's checkers through the runner, then compute and
@@ -567,4 +598,29 @@ pub fn run_verdict(
     let c = compute(&ledger, &session, &live.input)?;
     let seq = record_verdict(&mut ledger, &c)?;
     Ok((c, seq))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::base_id;
+
+    #[test]
+    fn rerun_suffixes_are_stripped_but_real_id_parts_are_kept() {
+        assert_eq!(
+            base_id("release:tag-missing.abc123"),
+            "release:tag-missing.abc123"
+        );
+        assert_eq!(
+            base_id("release:tag-missing.abc123.r2"),
+            "release:tag-missing.abc123"
+        );
+        assert_eq!(
+            base_id("release:tag-missing.abc123.r17"),
+            "release:tag-missing.abc123"
+        );
+        assert_eq!(
+            base_id("release:tag-missing.abc123.rule"),
+            "release:tag-missing.abc123.rule"
+        );
+    }
 }

@@ -53,7 +53,62 @@
       "type": "object",
       "properties": {
         "require_when": { "type": "array", "items": { "type": "string" } },
-        "never_merely_for": { "type": "array", "items": { "type": "string" } }
+        "never_merely_for": { "type": "array", "items": { "type": "string" } },
+        "command": {
+          "description": "The project's mutation runner. It must print one JSON object: {\"survivors\": [{\"file\",\"line\",\"description\"}], \"killed\": N, \"total\": N}.",
+          "type": "string",
+          "minLength": 1
+        },
+        "report": {
+          "description": "A JSON report the project's runner writes, read instead of running command.",
+          "type": "string",
+          "minLength": 1
+        },
+        "timeout": { "$ref": "#/$defs/duration" }
+      }
+    },
+    "firstrun": {
+      "type": "object",
+      "properties": {
+        "commands": {
+          "description": "The documented first-run workflow, run in order. Each is a command, or an object with run and an optional needs.",
+          "type": "array",
+          "items": {
+            "anyOf": [
+              { "type": "string", "minLength": 1 },
+              {
+                "type": "object",
+                "required": ["run"],
+                "properties": {
+                  "run": { "type": "string", "minLength": 1 },
+                  "needs": { "type": "string" }
+                }
+              }
+            ]
+          }
+        },
+        "timeout": { "$ref": "#/$defs/duration" }
+      }
+    },
+    "release": {
+      "type": "object",
+      "properties": {
+        "tag": { "type": "string", "minLength": 1 },
+        "version": { "type": "string", "minLength": 1 },
+        "version_files": {
+          "description": "Files that must state the release version (for example a manifest).",
+          "$ref": "#/$defs/globs"
+        },
+        "assets": {
+          "description": "Release artifacts: exact paths, folders, or simple globs such as dist/*.zip.",
+          "$ref": "#/$defs/globs"
+        },
+        "readme": { "type": "string", "minLength": 1 },
+        "checks": {
+          "description": "The project's own release checks, run under the same human approval as exec.commands.",
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        }
       }
     },
     "vendors": {

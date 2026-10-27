@@ -29,6 +29,9 @@ pub struct SessionState {
     /// Tool-use id to start time (milliseconds since the epoch).
     #[serde(default)]
     pub pending: BTreeMap<String, u64>,
+    /// Stop-hook send-backs used in this host session (enforce mode only).
+    #[serde(default)]
+    pub sendbacks: u32,
 }
 
 const MAX_TURNS: usize = 256;

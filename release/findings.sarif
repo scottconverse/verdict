@@ -1,0 +1,152 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Verdict",
+          "informationUri": "https://github.com/scottconverse/verdict",
+          "semanticVersion": "1.0.0",
+          "rules": [
+            {
+              "id": "release",
+              "name": "release",
+              "shortDescription": {
+                "text": "release: what Verdict's checkers record"
+              },
+              "properties": {
+                "tags": [
+                  "verdict"
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "release",
+          "level": "error",
+          "message": {
+            "text": "the release candidate is not tagged v1.0.0 (tags on HEAD: none)"
+          },
+          "locations": [],
+          "partialFingerprints": {
+            "verdictFindingId": "release:tag-missing.8bdbbb74"
+          },
+          "properties": {
+            "verdictFindingId": "release:tag-missing.8bdbbb74",
+            "verdictRecord": 2,
+            "verdictTier": "asset",
+            "verdictSeverity": "blocker",
+            "verdictStatus": "resolved",
+            "judgment": false,
+            "verdictEvidence": [
+              "command `git tag --points-at HEAD (v1.0.0)`"
+            ],
+            "verdictFixHint": "create the tag only after the human approves the release"
+          }
+        },
+        {
+          "ruleId": "release",
+          "level": "error",
+          "message": {
+            "text": "the release candidate is not tagged v1.0.0 (tags on HEAD: none)"
+          },
+          "locations": [],
+          "partialFingerprints": {
+            "verdictFindingId": "release:tag-missing.8bdbbb74.r2"
+          },
+          "properties": {
+            "verdictFindingId": "release:tag-missing.8bdbbb74.r2",
+            "verdictRecord": 18,
+            "verdictTier": "asset",
+            "verdictSeverity": "blocker",
+            "verdictStatus": "resolved",
+            "judgment": false,
+            "verdictEvidence": [
+              "command `git tag --points-at HEAD (v1.0.0)`"
+            ],
+            "verdictFixHint": "create the tag only after the human approves the release"
+          }
+        },
+        {
+          "ruleId": "release",
+          "level": "error",
+          "message": {
+            "text": "the release candidate is not tagged v1.0.0 (tags on HEAD: none)"
+          },
+          "locations": [],
+          "partialFingerprints": {
+            "verdictFindingId": "release:tag-missing.8bdbbb74.r3"
+          },
+          "properties": {
+            "verdictFindingId": "release:tag-missing.8bdbbb74.r3",
+            "verdictRecord": 45,
+            "verdictTier": "asset",
+            "verdictSeverity": "blocker",
+            "verdictStatus": "resolved",
+            "judgment": false,
+            "verdictEvidence": [
+              "command `git tag --points-at HEAD (v1.0.0)`"
+            ],
+            "verdictFixHint": "create the tag only after the human approves the release"
+          }
+        },
+        {
+          "ruleId": "release",
+          "level": "error",
+          "message": {
+            "text": "the release candidate is not tagged v1.0.0 (tags on HEAD: none)"
+          },
+          "locations": [],
+          "partialFingerprints": {
+            "verdictFindingId": "release:tag-missing.8bdbbb74.r4"
+          },
+          "properties": {
+            "verdictFindingId": "release:tag-missing.8bdbbb74.r4",
+            "verdictRecord": 72,
+            "verdictTier": "asset",
+            "verdictSeverity": "blocker",
+            "verdictStatus": "resolved",
+            "judgment": false,
+            "verdictEvidence": [
+              "command `git tag --points-at HEAD (v1.0.0)`"
+            ],
+            "verdictFixHint": "create the tag only after the human approves the release"
+          }
+        },
+        {
+          "ruleId": "release",
+          "level": "error",
+          "message": {
+            "text": "the release candidate is not tagged v1.0.0 (tags on HEAD: none)"
+          },
+          "locations": [],
+          "partialFingerprints": {
+            "verdictFindingId": "release:tag-missing.8bdbbb74.r5"
+          },
+          "properties": {
+            "verdictFindingId": "release:tag-missing.8bdbbb74.r5",
+            "verdictRecord": 99,
+            "verdictTier": "asset",
+            "verdictSeverity": "blocker",
+            "verdictStatus": "open",
+            "judgment": false,
+            "verdictEvidence": [
+              "command `git tag --points-at HEAD (v1.0.0)`"
+            ],
+            "verdictFixHint": "create the tag only after the human approves the release"
+          }
+        }
+      ],
+      "properties": {
+        "verdictSession": "s-a9fc550c24",
+        "verdictHypotheses": 0,
+        "verdictLedgerIntact": true,
+        "verdictOverrides": []
+      }
+    }
+  ]
+}

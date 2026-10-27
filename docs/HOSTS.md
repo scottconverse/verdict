@@ -11,6 +11,16 @@ reads a fixture as a live proof.
 | Codex | `$CODEX_HOME/hooks.json` (usually `~/.codex/hooks.json`) | **Yes** — codex-cli 0.162.0-alpha.2, Oct 27 2026 | Yes for the fields used (session id, turn id, model, prompt, tool name/input, final message) | Codex requires the hooks to be trusted (`/hooks`) or the run to pass `--dangerously-bypass-hook-trust`. The session recorded `model: gpt-6.1-sol`, `vendor: openai`. |
 | Cursor | `.cursor/hooks.json` (project) | **No** | **No** — the file schema is from Cursor's documented hooks page (`version: 1`, flat per-event entries, `command`/`matcher`/`timeout`), but the payload field names are read tolerantly and are not checked against a live session | Events registered: `sessionStart`, `beforeSubmitPrompt`, `preToolUse`, `postToolUse`, `stop`. If the live payload uses other names, the adapter records `check_unavailable` rather than an invented record. |
 | Antigravity | `.agents/hooks.json` (project) | **No** | **No** — the file schema (named groups, `SessionStart`/`PreInvocation`/`PreToolUse`/`PostToolUse`/`Stop`) is from Antigravity's documented hooks page; the payload field names are unverified | Antigravity has no prompt-submit event, so the prompt is captured at `PreInvocation`. Tool names `run_command`, `write_to_file`, `replace_file_content` and `multi_replace_file_content` are mapped to the host-neutral names. |
+| DeepSeek Harness | the harness's own configuration | **No** | **No** | The supported path is the MCP server (`vdt mcp`); `vdt hook dsh <event>` accepts the host-neutral payload for a harness that can call a command hook. `vdt hooks install dsh` is refused because the harness owns its configuration (`docs/DSH.md`). |
+
+## Enforce mode on each host
+
+Shadow mode records and prints nothing on every host. In enforce mode the adapter returns one JSON
+decision: a pre-edit `permissionDecision: "deny"` and a Stop-hook `{"decision":"block"}`. The Claude
+Code shapes are the documented ones and are covered by tests; the Codex, Cursor, Antigravity and DSH
+output shapes are not verified against a live host, so enforcement on those hosts is unproven even
+though recording is not. A host that ignores the JSON keeps running; the ledger still records what
+happened.
 
 ## What a fixture proves, and what it does not
 

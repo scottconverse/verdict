@@ -13,7 +13,7 @@
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use verdict_core::{
-    ClaimSource, Ledger, Record, SessionParams, Writer, find_project_root, start_session,
+    ClaimSource, Ledger, Policy, Record, SessionParams, Writer, find_project_root, start_session,
 };
 
 use crate::payload::{
@@ -21,6 +21,90 @@ use crate::payload::{
 };
 use crate::redact::redact;
 use crate::state::{self, Lock, SessionState};
+
+/// What the hook tells the host about this event. Shadow mode always answers [`HookReply::Continue`],
+/// so the agent is never held until a human has turned enforce on.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum HookReply {
+    /// Nothing to say: print nothing, let the agent continue.
+    Continue,
+    /// Hold this tool call (enforce mode, pre-edit check).
+    Deny(String),
+    /// Send the agent back with the finding list (enforce mode, Stop hook).
+    SendBack(String),
+}
+
+fn bounded(mut text: String, max: usize) -> String {
+    if text.len() > max {
+        let cut = text
+            .char_indices()
+            .map(|(i, _)| i)
+            .take_while(|i| *i <= max)
+            .last()
+            .unwrap_or(0);
+        text.truncate(cut);
+        text.push_str("\n... (the rest is in the GUI and `vdt report`)");
+    }
+    text
+}
+
+/// The mode in force for this project: the human's switch in the ledger wins, then the policy.
+fn enforce_mode(ledger: &Ledger, root: &Path, home: Option<&Path>) -> bool {
+    let mode = verdict_core::human::chosen_mode(ledger)
+        .ok()
+        .flatten()
+        .or_else(|| {
+            verdict_core::verdict::load_policy(root, home)
+                .map(|(p, _)| p.gate_mode().to_string())
+                .ok()
+        });
+    mode.as_deref() == Some("enforce")
+}
+
+fn policy_for(root: &Path, home: Option<&Path>) -> Policy {
+    verdict_core::verdict::load_policy(root, home)
+        .map(|(p, _)| p)
+        .or_else(|_| Policy::builtin())
+        .unwrap_or_else(|_| Policy::builtin().expect("the built-in policy is valid"))
+}
+
+/// Is `target` covered by a claim of this session (its own words or the names it recorded)?
+fn claims_cover(ledger: &Ledger, session: &str, target: &str) -> bool {
+    let target = target.replace('\\', "/");
+    let base = target.rsplit('/').next().unwrap_or(&target);
+    let Ok(records) = ledger.records_for_session(session) else {
+        return false;
+    };
+    records.iter().any(|s| match &s.record {
+        Record::Claim { text, names, .. } => {
+            names.iter().any(|n| {
+                let n = n.replace('\\', "/");
+                n == target || n.ends_with(&format!("/{base}")) || n == base
+            }) || text.contains(&target)
+                || (!base.is_empty() && text.contains(base))
+        }
+        _ => false,
+    })
+}
+
+fn latest_prompt_names(ledger: &Ledger, session: &str, target: &str) -> bool {
+    let target = target.replace('\\', "/");
+    let base = target.rsplit('/').next().unwrap_or(&target);
+    let Ok(records) = ledger.records_for_session(session) else {
+        return false;
+    };
+    records
+        .iter()
+        .rev()
+        .find_map(|s| match &s.record {
+            Record::Prompt { text, .. } => Some(text.clone()),
+            _ => None,
+        })
+        .is_some_and(|p| {
+            let p = p.replace('\\', "/");
+            p.contains(&target) || (!base.is_empty() && p.contains(base))
+        })
+}
 
 /// Knobs for tests. `Options::default()` is what the real hook uses.
 #[derive(Debug, Clone, Default)]
@@ -46,7 +130,7 @@ fn project_root(cwd: Option<&Path>) -> Result<PathBuf, String> {
 
 /// Record one event. On error nothing is half-written that matters: the caller turns the error
 /// into a `check_unavailable` record via [`record_unavailable`].
-pub fn record_event(ev: &HookEvent, opts: &Options) -> Result<(), String> {
+pub fn record_event(ev: &HookEvent, opts: &Options) -> Result<HookReply, String> {
     let sid = ev.session_id.as_deref().ok_or_else(|| {
         "the payload had no session_id, so it cannot be tied to a session".to_string()
     })?;
@@ -88,6 +172,7 @@ pub fn record_event(ev: &HookEvent, opts: &Options) -> Result<(), String> {
             .map_err(|e| format!("cannot write to the ledger: {e}"))
     };
 
+    let mut reply = HookReply::Continue;
     match ev.kind {
         EventKind::SessionStart => {}
         EventKind::UserPromptSubmit => {
@@ -110,6 +195,25 @@ pub fn record_event(ev: &HookEvent, opts: &Options) -> Result<(), String> {
             )?;
         }
         EventKind::PreToolUse => {
+            // In enforce mode an edit is held until a claim covers the file the prompt named. The
+            // check is a speed bump, not a lock: a claim through `verdict_claim` releases it.
+            if enforce_mode(&ledger, &root, opts.home.as_deref())
+                && let Some(name) = &ev.tool_name
+            {
+                let tool = canonical_tool(name);
+                if tool == "edit" || tool == "write" {
+                    let target = tool_target(&tool, &ev.tool_input, ev.cwd.as_deref());
+                    if !target.is_empty()
+                        && latest_prompt_names(&ledger, &ledger_sid, &target)
+                        && !claims_cover(&ledger, &ledger_sid, &target)
+                    {
+                        reply = HookReply::Deny(format!(
+                            "Verdict is holding this edit: no claim covers {target}. Record one \
+                             checkable line naming it with verdict_claim, then try the edit again."
+                        ));
+                    }
+                }
+            }
             if let Some(id) = &ev.tool_use_id {
                 st.note_pending(id, now_ms());
                 dirty = true;
@@ -168,12 +272,70 @@ pub fn record_event(ev: &HookEvent, opts: &Options) -> Result<(), String> {
                     );
                 }
             }
+            // Enforce mode: send the agent back with the findings, at most the policy's number of
+            // times. After that the agent is released and the human is told through the ledger.
+            if enforce_mode(&ledger, &root, opts.home.as_deref())
+                && let Ok(live) = verdict_core::verdict::compute_live(
+                    &root,
+                    &ledger,
+                    &ledger_sid,
+                    opts.home.as_deref(),
+                )
+                && live.word == verdict_core::VerdictWord::Failed
+            {
+                let policy = policy_for(&root, opts.home.as_deref());
+                let max = policy
+                    .value
+                    .pointer("/gate/max_sendbacks")
+                    .and_then(serde_json::Value::as_u64)
+                    .unwrap_or(2) as u32;
+                if st.sendbacks < max {
+                    st.sendbacks += 1;
+                    dirty = true;
+                    let report = verdict_core::report::render_report_with(
+                        &ledger,
+                        Some(&ledger_sid),
+                        Some(&live),
+                    )
+                    .unwrap_or_else(|_| {
+                        "VERDICT: FAILED (the report could not be rendered)".into()
+                    });
+                    reply = HookReply::SendBack(bounded(
+                        format!(
+                            "Verdict found a blocking finding (send-back {} of {max}). Fix it, then say done again.\n\n{report}",
+                            st.sendbacks
+                        ),
+                        12_000,
+                    ));
+                } else {
+                    let detail = format!(
+                        "send-back limit reached ({max}); the agent was released and the human was told. The verdict stays FAILED."
+                    );
+                    let tree = verdict_core::baseline::tree_state_of_ledger(&ledger);
+                    ledger
+                        .append(
+                            Writer::Core,
+                            Some(&ledger_sid),
+                            Record::Check {
+                                name: "sendbacks".into(),
+                                tier: verdict_core::Tier::Judgment,
+                                inputs_hash: String::new(),
+                                started_at: verdict_core::timefmt::now_rfc3339(),
+                                finished_at: verdict_core::timefmt::now_rfc3339(),
+                                outcome: verdict_core::CheckOutcome::Ran,
+                                detail: Some(detail),
+                                tree_state: tree,
+                            },
+                        )
+                        .map_err(|e| format!("cannot record the send-back limit: {e}"))?;
+                }
+            }
         }
     }
     if dirty {
         state::save(&state_file, &st).map_err(|e| format!("cannot save session state: {e}"))?;
     }
-    Ok(())
+    Ok(reply)
 }
 
 /// Write a `check_unavailable` record saying why the adapter could not record. Best effort:

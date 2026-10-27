@@ -96,6 +96,8 @@ fn router(state: St) -> Router {
         .route("/", get(home))
         .route("/session/{id}", get(decisions::session_page))
         .route("/session/{id}/log", get(log_page))
+        .route("/session/{id}/packet", get(packet_download))
+        .route("/session/{id}/sarif", get(sarif_download))
         .route("/hooks/{host}", get(hooks_page))
         .route("/install-hooks", post(install_hooks))
         .route("/decide", post(decisions::decide))
@@ -461,6 +463,77 @@ async fn log_page(State(st): State<St>, Path(id): Path<String>) -> Response {
     .await;
     match r {
         Ok(Ok(Some(html))) => Html(html).into_response(),
+        Ok(Ok(None)) => not_found("There is no such session in this project's ledger."),
+        Ok(Err(e)) => error_page(&e),
+        Err(e) => error_page(&LedgerError::Invalid(e.to_string())),
+    }
+}
+
+/// One file the page offers for download: its exact text, and the headers that make a browser
+/// save it instead of showing it.
+fn download(text: String, kind: &'static str, name: &str) -> Response {
+    let Ok(disposition) = HeaderValue::from_str(&format!("attachment; filename=\"{name}\"")) else {
+        return error_page(&LedgerError::Invalid(
+            "a download header could not be formed".into(),
+        ));
+    };
+    (
+        StatusCode::OK,
+        [
+            (header::CONTENT_TYPE, HeaderValue::from_static(kind)),
+            (header::CONTENT_DISPOSITION, disposition),
+        ],
+        text,
+    )
+        .into_response()
+}
+
+/// `GET /session/<id>/packet`: the acceptance document, as a text download.
+async fn packet_download(State(st): State<St>, Path(id): Path<String>) -> Response {
+    let name_id = id.clone();
+    let root = st.root.clone();
+    let r = tokio::task::spawn_blocking(move || -> Result<Option<String>, LedgerError> {
+        let Some(l) = Ledger::open_existing(&root)? else {
+            return Ok(None);
+        };
+        let Some(session) = resolve_session(&l, Some(&id)).ok().flatten() else {
+            return Ok(None);
+        };
+        verdict_core::export::packet(&root, &l, &session).map(Some)
+    })
+    .await;
+    match r {
+        Ok(Ok(Some(text))) => download(
+            text,
+            "text/plain; charset=utf-8",
+            &format!("verdict-{name_id}-packet.txt"),
+        ),
+        Ok(Ok(None)) => not_found("There is no such session in this project's ledger."),
+        Ok(Err(e)) => error_page(&e),
+        Err(e) => error_page(&LedgerError::Invalid(e.to_string())),
+    }
+}
+
+/// `GET /session/<id>/sarif`: the session's findings as SARIF 2.1.0.
+async fn sarif_download(State(st): State<St>, Path(id): Path<String>) -> Response {
+    let name_id = id.clone();
+    let root = st.root.clone();
+    let r = tokio::task::spawn_blocking(move || -> Result<Option<String>, LedgerError> {
+        let Some(l) = Ledger::open_existing(&root)? else {
+            return Ok(None);
+        };
+        let Some(session) = resolve_session(&l, Some(&id)).ok().flatten() else {
+            return Ok(None);
+        };
+        verdict_core::export::sarif(&l, Some(&session)).map(Some)
+    })
+    .await;
+    match r {
+        Ok(Ok(Some(text))) => download(
+            text,
+            "application/sarif+json",
+            &format!("verdict-{name_id}.sarif"),
+        ),
         Ok(Ok(None)) => not_found("There is no such session in this project's ledger."),
         Ok(Err(e)) => error_page(&e),
         Err(e) => error_page(&LedgerError::Invalid(e.to_string())),

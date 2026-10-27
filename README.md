@@ -1,9 +1,8 @@
 # Verdict
 
-**Status: Phases 1–4 are built. Phase 5 (full GUI, enforce-mode send-backs, firstrun in a clean
-container, release lane, GUI installer) is not built.** The sections below say exactly what runs
-today, and [docs/HOSTS.md](docs/HOSTS.md) says which host adapters have been proven against a live
-host.
+**Status: 1.0.0 release candidate. Phases 1–5 are built.** What each piece can prove is below;
+[docs/HOSTS.md](docs/HOSTS.md) says which host adapters have been recorded against a live host, and
+[docs/RELEASE.md](docs/RELEASE.md) is the release procedure.
 
 Verdict is one open-source tool that verifies work done by AI coding agents.
 
@@ -21,17 +20,19 @@ not the builder: deterministic checkers, a model from a different vendor, or the
 | Evidence ledger (SQLite, blake3 hash chain, append-only, JSONL export) | built |
 | Claude Code and Codex hook adapters (`vdt hook`, `vdt hooks install`) | built; live sessions recorded on this machine |
 | Cursor and Antigravity hook adapters (`vdt hook cursor|antigravity`, `vdt hooks install`) | built; documented file shapes, payload field names not yet verified against a live host ([docs/HOSTS.md](docs/HOSTS.md)) |
+| DeepSeek Harness integration (`vdt mcp`, `vdt hook dsh`) | built; MCP is the supported path, no live session recorded ([docs/DSH.md](docs/DSH.md)) |
 | MCP server (`vdt mcp`): `verdict_check`, `verdict_scan`, `verdict_claim`, `verdict_done_when`, `verdict_decisions` | built |
-| Deterministic checkers: wiring, baseline_diff, regressions, tests_weakened, claims_vs_code, unfinished, exec | built, each with red and green fixtures |
+| Deterministic checkers: wiring, baseline_diff, regressions, tests_weakened, claims_vs_code, unfinished, exec, mutation, firstrun, release | built, each with red and green fixtures |
 | Tree-sitter extractors: FastAPI, SQLAlchemy/asyncpg, Alembic, Typer, Python and TypeScript MCP tools, TypeScript fetch/openapi-ts/TanStack/Kysely, Tauri, React | built |
 | `vdt scan` (whole tree, no plan, writes nothing) | built |
 | Verdict computation, lanes, pre-commit gate, commit anyway, decisions queue | built |
-| Localhost page (`vdt serve`, port 4717) | built: sessions, reports, record log, decisions, mode, pause, per-host install |
+| Localhost page (`vdt serve`, port 4717) | built: sessions, reports, claims and evidence, unplanned work, record log, decisions, mode, pause, per-host install, packet/SARIF download |
 | LLM desks: seven packaged rubrics, provider dispatch, citations, hypotheses, five-finding cap | built |
 | Cross-vendor routing, refusal, global warn-only (`single_vendor`) and per-desk receipts | built |
+| Enforce mode: pre-edit hold and Stop-hook send-backs (at most two), then release and tell the human | built (Claude Code verified; other hosts' output shapes unverified) |
 | `vdt generate` (skills + hook registrations from the policy, byte-identical) | built |
 | `vdt export --sarif` and `--packet` | built |
-| Enforce-mode send-backs, release/firstrun checkers, GUI installer | Phase 5, not built |
+| Release lane, installers, clean-container and two-machine checks | built; the clean-container and two-machine runs are CI jobs that execute on a pushed revision ([docs/RELEASE.md](docs/RELEASE.md)) |
 
 ## Names
 
@@ -92,6 +93,27 @@ only to a provider whose vendor differs from the builder's; with none available 
 and recorded, unless the **global** policy sets `vendors.single_vendor: "warn"`, in which case the
 receipt says `single_vendor`. Every finding must cite a ledger record (`{"record": N}`) or a
 current `file:line`; a citation that does not resolve makes the answer a hypothesis.
+
+## Install
+
+From a release archive:
+
+- Windows: `powershell -ExecutionPolicy Bypass -File install.ps1`
+- Linux/macOS: `sh install.sh`
+
+Each verifies the archive's adjacent `.sha256`, installs `vdt`, and opens the page at
+`http://127.0.0.1:4717/`. After that every step is a button on that page; no terminal is needed.
+The archives are unsigned unless the release says otherwise; checksums and rollback are in
+[docs/RELEASE.md](docs/RELEASE.md).
+
+## Hosts and docs
+
+- [docs/HOSTS.md](docs/HOSTS.md): which adapters have been recorded against a live host, and what
+  is still unverified.
+- [docs/DSH.md](docs/DSH.md): the optional DeepSeek Harness integration (MCP connection and hook
+  command).
+- [docs/DECISIONS.md](docs/DECISIONS.md): every design question the workers raised, with its ruling.
+- [docs/RELEASE.md](docs/RELEASE.md): the release lane, the tag, the installer and rollback.
 
 ## Design
 

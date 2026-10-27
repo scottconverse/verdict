@@ -1,0 +1,244 @@
+VERDICT ACCEPTANCE PACKET
+=========================
+
+Session: s-a9fc550c24
+Lane: release (policy v1)
+Builder: vdt/none [none]
+Verdict: FAILED
+Ledger: intact
+
+CLAIMS
+------
+(none)
+
+FINDINGS
+--------
+- [blocker] the release candidate is not tagged v1.0.0 (tags on HEAD: none) (asset, record 2, resolved)
+    evidence: command `git tag --points-at HEAD (v1.0.0)`
+- [blocker] the release candidate is not tagged v1.0.0 (tags on HEAD: none) (asset, record 18, resolved)
+    evidence: command `git tag --points-at HEAD (v1.0.0)`
+- [blocker] the release candidate is not tagged v1.0.0 (tags on HEAD: none) (asset, record 45, resolved)
+    evidence: command `git tag --points-at HEAD (v1.0.0)`
+- [blocker] the release candidate is not tagged v1.0.0 (tags on HEAD: none) (asset, record 72, resolved)
+    evidence: command `git tag --points-at HEAD (v1.0.0)`
+- [blocker] the release candidate is not tagged v1.0.0 (tags on HEAD: none) (asset, record 99, open)
+    evidence: command `git tag --points-at HEAD (v1.0.0)`
+
+HYPOTHESES (move nothing)
+------------------------
+(none)
+
+DECISIONS
+---------
+(none)
+
+OVERRIDES
+---------
+(none)
+
+NOT ESTABLISHED
+---------------
+- lane: .github/workflows/clean-install-and-parity.yml changes code or configuration
+- lane: .github/workflows/fixtures-red-must-fail.yml changes code or configuration
+- lane: .github/workflows/release.yml changes code or configuration
+- lane: CHANGELOG.md matches release_if_touches CHANGELOG.md
+- lane: Cargo.lock matches high_if_touches Cargo.lock
+- lane: Cargo.toml matches high_if_touches Cargo.toml
+- lane: crates/verdict-adapters/Cargo.toml matches high_if_touches crates/**
+- lane: crates/verdict-adapters/src/hook.rs matches high_if_touches crates/**
+- lane: crates/verdict-adapters/src/install.rs matches high_if_touches crates/**
+- lane: crates/verdict-adapters/src/payload.rs matches high_if_touches crates/**
+- lane: crates/verdict-adapters/src/recorder.rs matches high_if_touches crates/**
+- lane: crates/verdict-adapters/src/state.rs matches high_if_touches crates/**
+- lane: crates/verdict-adapters/tests/common/mod.rs matches high_if_touches crates/**
+- lane: crates/verdict-adapters/tests/fixtures/dsh-session.json matches high_if_touches crates/**
+- lane: crates/verdict-adapters/tests/hooks.rs matches high_if_touches crates/**
+- lane: crates/verdict-adapters/tests/install.rs matches high_if_touches crates/**
+- lane: crates/verdict-checkers/Cargo.toml matches high_if_touches crates/**
+- lane: crates/verdict-checkers/fixtures/firstrun/green/base/verdict.json matches high_if_touches crates/**
+- lane: crates/verdict-checkers/fixtures/firstrun/green/session.json matches high_if_touches crates/**
+- lane: crates/verdict-checkers/fixtures/firstrun/red/base/verdict.json matches high_if_touches crates/**
+- lane: crates/verdict-checkers/fixtures/firstrun/red/expect.txt matches high_if_touches crates/**
+- lane: crates/verdict-checkers/fixtures/firstrun/red/session.json matches high_if_touches crates/**
+- lane: crates/verdict-checkers/fixtures/mutation/green/base/src/logic.py matches high_if_touches crates/**
+- lane: crates/verdict-checkers/fixtures/mutation/green/base/verdict.json matches high_if_touches crates/**
+- lane: crates/verdict-checkers/fixtures/mutation/green/change/mutation-report.json matches high_if_touches crates/**
+- lane: crates/verdict-checkers/fixtures/mutation/green/change/src/logic.py matches high_if_touches crates/**
+- lane: crates/verdict-checkers/fixtures/mutation/red/base/src/logic.py matches high_if_touches crates/**
+- lane: crates/verdict-checkers/fixtures/mutation/red/base/verdict.json matches high_if_touches crates/**
+- lane: crates/verdict-checkers/fixtures/mutation/red/change/mutation-report.json matches high_if_touches crates/**
+- lane: crates/verdict-checkers/fixtures/mutation/red/change/src/logic.py matches high_if_touches crates/**
+- lane: crates/verdict-checkers/fixtures/mutation/red/expect.txt matches high_if_touches crates/**
+- lane: crates/verdict-checkers/fixtures/release/green/base/Cargo.toml matches high_if_touches crates/**
+- lane: crates/verdict-checkers/fixtures/release/green/base/README.md matches high_if_touches crates/**
+- lane: crates/verdict-checkers/fixtures/release/green/base/dist/app.bin matches high_if_touches crates/**
+- lane: crates/verdict-checkers/fixtures/release/green/base/docs/guide.md matches high_if_touches crates/**
+- lane: crates/verdict-checkers/fixtures/release/green/base/verdict.json matches high_if_touches crates/**
+- lane: crates/verdict-checkers/fixtures/release/red/base/Cargo.toml matches high_if_touches crates/**
+- lane: crates/verdict-checkers/fixtures/release/red/base/README.md matches high_if_touches crates/**
+- lane: crates/verdict-checkers/fixtures/release/red/base/verdict.json matches high_if_touches crates/**
+- lane: crates/verdict-checkers/fixtures/release/red/expect.txt matches high_if_touches crates/**
+- lane: crates/verdict-checkers/src/exec.rs matches high_if_touches crates/**
+- lane: crates/verdict-checkers/src/firstrun.rs matches high_if_touches crates/**
+- lane: crates/verdict-checkers/src/lib.rs matches high_if_touches crates/**
+- lane: crates/verdict-checkers/src/mutation.rs matches high_if_touches crates/**
+- lane: crates/verdict-checkers/src/release.rs matches high_if_touches crates/**
+- lane: crates/verdict-checkers/tests/common/mod.rs matches high_if_touches crates/**
+- lane: crates/verdict-checkers/tests/fixtures.rs matches high_if_touches crates/**
+- lane: crates/verdict-checkers/tests/lane.rs matches high_if_touches crates/**
+- lane: crates/verdict-cli/Cargo.toml matches high_if_touches crates/**
+- lane: crates/verdict-cli/tests/check.rs matches high_if_touches crates/**
+- lane: crates/verdict-core/src/exec_approval.rs matches high_if_touches crates/**
+- lane: crates/verdict-core/src/export.rs matches high_if_touches crates/**
+- lane: crates/verdict-core/src/gate.rs matches high_if_touches crates/**
+- lane: crates/verdict-core/tests/gate.rs matches high_if_touches crates/**
+- lane: crates/verdict-desks/Cargo.toml matches high_if_touches crates/**
+- lane: crates/verdict-desks/src/lib.rs matches high_if_touches crates/**
+- lane: crates/verdict-desks/tests/desks.rs matches high_if_touches crates/**
+- lane: crates/verdict-generate/Cargo.toml matches high_if_touches crates/**
+- lane: crates/verdict-gui/Cargo.toml matches high_if_touches crates/**
+- lane: crates/verdict-gui/src/decisions.rs matches high_if_touches crates/**
+- lane: crates/verdict-gui/src/lib.rs matches high_if_touches crates/**
+- lane: crates/verdict-gui/tests/page.rs matches high_if_touches crates/**
+- lane: crates/verdict-mcp/Cargo.toml matches high_if_touches crates/**
+- lane: policy/default.json matches high_if_touches policy/**
+- lane: policy/schema.json matches high_if_touches policy/**
+- lane: release/PACKET-BEFORE-TAG.txt matches release_if_touches release/**
+- lane: release/RELEASE-NOTES.md matches release_if_touches release/**
+- lane: release/findings.sarif matches release_if_touches release/**
+- lane: release/install.ps1 matches release_if_touches release/**
+- lane: release/install.sh matches release_if_touches release/**
+- lane: verdict.json changes code or configuration
+- wiring: could not run: no claim, plan line or done-when item of this session names a URL, file or symbol to trace
+- baseline_diff: could not run: this session has no prompt from the human and no claim the human accepted, so nothing says what was asked for
+- regressions: not established: the code changed after this check ran
+- tests_weakened: not established: the code changed after this check ran
+- claims_vs_code: could not run: this session has no final-message, commit-message or notes-file claims to look up
+- unfinished: not established: the code changed after this check ran
+- exec: could not run: not approved: the human has not decided to run the project's commands (nothing was run)
+- mutation: could not run: no mutation runner is configured (set mutation.command or mutation.report)
+- firstrun: could not run: not approved: the human has not decided to run this repo's configured commands
+- release: could not run: 1 finding(s) written, but not everything could be looked up: release checks were not run: the human has not approved this repo's commands
+- desk:engineer: could not run: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "none"; no configured provider serves another vendor
+- desk:docs: could not run: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "none"; no configured provider serves another vendor
+- desk:qa: could not run: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "none"; no configured provider serves another vendor
+- desk:ux: could not run: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "none"; no configured provider serves another vendor
+- desk:security: could not run: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "none"; no configured provider serves another vendor
+- desk:legal: could not run: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "none"; no configured provider serves another vendor
+- desk:refuter: could not run: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "none"; no configured provider serves another vendor
+- desks: could not run: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "none"; no configured provider serves another vendor
+- whether your build and tests pass: nothing was run
+- whether your real app works: no page was loaded
+- desk:engineer: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "none"; no configured provider serves another vendor (record 108)
+- desk:docs: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "none"; no configured provider serves another vendor (record 109)
+- desk:qa: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "none"; no configured provider serves another vendor (record 110)
+- desk:ux: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "none"; no configured provider serves another vendor (record 111)
+- desk:security: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "none"; no configured provider serves another vendor (record 112)
+- desk:legal: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "none"; no configured provider serves another vendor (record 113)
+- desk:refuter: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "none"; no configured provider serves another vendor (record 114)
+- desks: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "none"; no configured provider serves another vendor (record 115)
+
+THE REPORT AS PRINTED
+---------------------
+VERDICT: FAILED  (lane: release, policy v1, builder: vdt/none [none], verifier: none)
+read from code: done  |  your build and tests: not run  |  your real app: not run
+session s-a9fc550c24, started 2026-10-27T22:25:58.182Z  |  ledger: intact, 116 records  |  baseline a69571e63c39
+
+FIX FIRST
+  1. [Blocker] the release candidate is not tagged v1.0.0 (tags on HEAD: none) (asset, command `git tag --points-at HEAD (v1.0.0)`; record 99)
+
+YOURS TO SETTLE
+  1. check unavailable: wiring: no claim, plan line or done-when item of this session names a URL, file or symbol to trace (record 86)
+  2. check unavailable: baseline_diff: this session has no prompt from the human and no claim the human accepted, so nothing says what was asked for (record 88)
+  3. check unavailable: exec: not approved: the human has not decided to run the project's commands (nothing was run) (record 93)
+  4. check unavailable: mutation: no mutation runner is configured (set mutation.command or mutation.report) (record 95)
+  5. check unavailable: firstrun: not approved: the human has not decided to run this repo's configured commands (record 97)
+  6. check unavailable: release: 1 finding(s) written, but not everything could be looked up: release checks were not run: the human has not approved this repo's commands (record 100)
+  7. check unavailable: claims_vs_code: this session has no final-message, commit-message or notes-file claims to look up (record 102)
+  8. check unavailable: desk:engineer: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "none"; no configured provider serves another vendor (record 108)
+  9. check unavailable: desk:docs: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "none"; no configured provider serves another vendor (record 109)
+  10. check unavailable: desk:qa: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "none"; no configured provider serves another vendor (record 110)
+  11. check unavailable: desk:ux: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "none"; no configured provider serves another vendor (record 111)
+  12. check unavailable: desk:security: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "none"; no configured provider serves another vendor (record 112)
+  13. check unavailable: desk:legal: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "none"; no configured provider serves another vendor (record 113)
+  14. check unavailable: desk:refuter: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "none"; no configured provider serves another vendor (record 114)
+  15. check unavailable: desks: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "none"; no configured provider serves another vendor (record 115)
+
+CLOSED FINDINGS
+  [Blocker] the release candidate is not tagged v1.0.0 (tags on HEAD: none) (record 2): resolved (correction record 104)
+  [Blocker] the release candidate is not tagged v1.0.0 (tags on HEAD: none) (record 18): resolved (correction record 105)
+  [Blocker] the release candidate is not tagged v1.0.0 (tags on HEAD: none) (record 45): resolved (correction record 106)
+  [Blocker] the release candidate is not tagged v1.0.0 (tags on HEAD: none) (record 72): resolved (correction record 107)
+
+PROMPTS (0)
+  (none recorded)
+
+CLAIMS (0)
+  (none recorded)
+
+TOOL CALLS (0)
+  (none recorded)
+
+CHECKS
+  release: FailedToRun, tier honest_red: 1 finding(s) written, but not everything could be looked up: release checks were not run: the human has not approved this repo's commands (record 4)
+  wiring: FailedToRun, tier honest_red: no claim, plan line or done-when item of this session names a URL, file or symbol to trace (record 6)
+  baseline_diff: FailedToRun, tier honest_red: this session has no prompt from the human and no claim the human accepted, so nothing says what was asked for (record 8)
+  regressions: Ran, tier static: 0 finding(s); the baseline already had 70 uncommitted file(s); their lines cannot be told apart from this session's and count as this session's; unverified: only relative imports (JS/TS `./x`, Python `from .x`, Rust `mod x;`) are resolved; package and alias imports are not read until the tree-sitter extractor exists (record 9)
+  tests_weakened: Ran, tier static: 0 finding(s); the baseline already had 70 uncommitted file(s); their lines cannot be told apart from this session's and count as this session's; unverified: block comments and docstrings around tests are not read; test frameworks are recognized by line patterns, not a parser (record 10)
+  unfinished: Ran, tier static: 0 finding(s); the baseline already had 70 uncommitted file(s); their lines cannot be told apart from this session's and count as this session's (record 11)
+  exec: FailedToRun, tier honest_red: not approved: the human has not decided to run the project's commands (nothing was run) (record 13)
+  mutation: FailedToRun, tier honest_red: no mutation runner is configured (set mutation.command or mutation.report) (record 15)
+  firstrun: FailedToRun, tier honest_red: not approved: the human has not decided to run this repo's configured commands (record 17)
+  release: FailedToRun, tier honest_red: 1 finding(s) written, but not everything could be looked up: release checks were not run: the human has not approved this repo's commands (record 20)
+  claims_vs_code: FailedToRun, tier honest_red: this session has no final-message, commit-message or notes-file claims to look up (record 22)
+  wiring: FailedToRun, tier honest_red: no claim, plan line or done-when item of this session names a URL, file or symbol to trace (record 33)
+  baseline_diff: FailedToRun, tier honest_red: this session has no prompt from the human and no claim the human accepted, so nothing says what was asked for (record 35)
+  regressions: Ran, tier static: 0 finding(s); the baseline already had 70 uncommitted file(s); their lines cannot be told apart from this session's and count as this session's; unverified: only relative imports (JS/TS `./x`, Python `from .x`, Rust `mod x;`) are resolved; package and alias imports are not read until the tree-sitter extractor exists (record 36)
+  tests_weakened: Ran, tier static: 0 finding(s); the baseline already had 70 uncommitted file(s); their lines cannot be told apart from this session's and count as this session's; unverified: block comments and docstrings around tests are not read; test frameworks are recognized by line patterns, not a parser (record 37)
+  unfinished: Ran, tier static: 0 finding(s); the baseline already had 70 uncommitted file(s); their lines cannot be told apart from this session's and count as this session's (record 38)
+  exec: FailedToRun, tier honest_red: not approved: the human has not decided to run the project's commands (nothing was run) (record 40)
+  mutation: FailedToRun, tier honest_red: no mutation runner is configured (set mutation.command or mutation.report) (record 42)
+  firstrun: FailedToRun, tier honest_red: not approved: the human has not decided to run this repo's configured commands (record 44)
+  release: FailedToRun, tier honest_red: 1 finding(s) written, but not everything could be looked up: release checks were not run: the human has not approved this repo's commands (record 47)
+  claims_vs_code: FailedToRun, tier honest_red: this session has no final-message, commit-message or notes-file claims to look up (record 49)
+  wiring: FailedToRun, tier honest_red: no claim, plan line or done-when item of this session names a URL, file or symbol to trace (record 60)
+  baseline_diff: FailedToRun, tier honest_red: this session has no prompt from the human and no claim the human accepted, so nothing says what was asked for (record 62)
+  regressions: Ran, tier static: 0 finding(s); the baseline already had 70 uncommitted file(s); their lines cannot be told apart from this session's and count as this session's; unverified: only relative imports (JS/TS `./x`, Python `from .x`, Rust `mod x;`) are resolved; package and alias imports are not read until the tree-sitter extractor exists (record 63)
+  tests_weakened: Ran, tier static: 0 finding(s); the baseline already had 70 uncommitted file(s); their lines cannot be told apart from this session's and count as this session's; unverified: block comments and docstrings around tests are not read; test frameworks are recognized by line patterns, not a parser (record 64)
+  unfinished: Ran, tier static: 0 finding(s); the baseline already had 70 uncommitted file(s); their lines cannot be told apart from this session's and count as this session's (record 65)
+  exec: FailedToRun, tier honest_red: not approved: the human has not decided to run the project's commands (nothing was run) (record 67)
+  mutation: FailedToRun, tier honest_red: no mutation runner is configured (set mutation.command or mutation.report) (record 69)
+  firstrun: FailedToRun, tier honest_red: not approved: the human has not decided to run this repo's configured commands (record 71)
+  release: FailedToRun, tier honest_red: 1 finding(s) written, but not everything could be looked up: release checks were not run: the human has not approved this repo's commands (record 74)
+  claims_vs_code: FailedToRun, tier honest_red: this session has no final-message, commit-message or notes-file claims to look up (record 76)
+  wiring: FailedToRun, tier honest_red: no claim, plan line or done-when item of this session names a URL, file or symbol to trace (record 87)
+  baseline_diff: FailedToRun, tier honest_red: this session has no prompt from the human and no claim the human accepted, so nothing says what was asked for (record 89)
+  regressions: Ran, tier static: 0 finding(s); the baseline already had 70 uncommitted file(s); their lines cannot be told apart from this session's and count as this session's; unverified: only relative imports (JS/TS `./x`, Python `from .x`, Rust `mod x;`) are resolved; package and alias imports are not read until the tree-sitter extractor exists (record 90)
+  tests_weakened: Ran, tier static: 0 finding(s); the baseline already had 70 uncommitted file(s); their lines cannot be told apart from this session's and count as this session's; unverified: block comments and docstrings around tests are not read; test frameworks are recognized by line patterns, not a parser (record 91)
+  unfinished: Ran, tier static: 0 finding(s); the baseline already had 70 uncommitted file(s); their lines cannot be told apart from this session's and count as this session's (record 92)
+  exec: FailedToRun, tier honest_red: not approved: the human has not decided to run the project's commands (nothing was run) (record 94)
+  mutation: FailedToRun, tier honest_red: no mutation runner is configured (set mutation.command or mutation.report) (record 96)
+  firstrun: FailedToRun, tier honest_red: not approved: the human has not decided to run this repo's configured commands (record 98)
+  release: FailedToRun, tier honest_red: 1 finding(s) written, but not everything could be looked up: release checks were not run: the human has not approved this repo's commands (record 101)
+  claims_vs_code: FailedToRun, tier honest_red: this session has no final-message, commit-message or notes-file claims to look up (record 103)
+  12 of 41 checks ran.
+
+NOT ESTABLISHED
+  - wiring: could not run: no claim, plan line or done-when item of this session names a URL, file or symbol to trace
+  - baseline_diff: could not run: this session has no prompt from the human and no claim the human accepted, so nothing says what was asked for
+  - claims_vs_code: could not run: this session has no final-message, commit-message or notes-file claims to look up
+  - exec: could not run: not approved: the human has not decided to run the project's commands (nothing was run)
+  - mutation: could not run: no mutation runner is configured (set mutation.command or mutation.report)
+  - firstrun: could not run: not approved: the human has not decided to run this repo's configured commands
+  - release: could not run: 1 finding(s) written, but not everything could be looked up: release checks were not run: the human has not approved this repo's commands
+  - desk:engineer: could not run: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "none"; no configured provider serves another vendor
+  - desk:docs: could not run: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "none"; no configured provider serves another vendor
+  - desk:qa: could not run: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "none"; no configured provider serves another vendor
+  - desk:ux: could not run: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "none"; no configured provider serves another vendor
+  - desk:security: could not run: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "none"; no configured provider serves another vendor
+  - desk:legal: could not run: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "none"; no configured provider serves another vendor
+  - desk:refuter: could not run: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "none"; no configured provider serves another vendor
+  - desks: could not run: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "none"; no configured provider serves another vendor
+  - whether your build and tests pass: nothing was run
+  - whether your real app works: no page was loaded
+  - whether any of the 0 claim(s) is true beyond what the checks above show: claims are the agent's words, not evidence

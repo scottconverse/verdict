@@ -1,9 +1,9 @@
 # Changelog
 
 All notable changes to this project are recorded here. The format follows Keep a Changelog, and
-the project uses semantic versioning once it ships (v1.0 is Phase 5).
+the project uses semantic versioning from 1.0.0.
 
-## [Unreleased]
+## [1.0.0] - 2026-10-27
 
 ### Added
 
@@ -45,8 +45,30 @@ the project uses semantic versioning once it ships (v1.0 is Phase 5).
   timestamp or path enters the output; a test proves two runs are byte-identical.
 - **Phase 4 — Cursor and Antigravity adapters.** Registrations in their documented file shapes
   (Cursor's flat `version: 1` file, Antigravity's named `verdict` group), tolerant payload parsing,
-  a four-host parity test, and an honest real-host status in `docs/HOSTS.md`. Their payload field
-  names are not yet verified against a live host.
+  and a five-host parity test (Claude Code, Codex, Cursor, Antigravity, DeepSeek Harness), with an
+  honest real-host status in `docs/HOSTS.md`. Their payload field names are not yet verified
+  against a live host.
+- **Phase 4 — DeepSeek Harness.** `vdt hook dsh <event>` accepts the host-neutral payload and
+  records a session, and `vdt mcp` is the supported MCP connection; `vdt hooks install dsh` is
+  refused because the harness owns its configuration (`docs/DSH.md`).
+- **Phase 5 — enforce mode.** A human mode switch turns it on; a pre-edit hold stops an edit until
+  a claim covers the file the prompt named, and the Stop hook sends the agent back with the finding
+  list at most `gate.max_sendbacks` times (two by default), then releases it and records that the
+  human must look. Shadow mode stays the default and everything fails open.
+- **Phase 5 — mutation, firstrun and release checkers.** Mutation runs the configured runner (or
+  reads its report) only when the policy names a reason, records survivors with pointers, and
+  reports missing tooling as unavailable. firstrun runs the configured first-run commands and blocks
+  a release dead end. release checks the configured tag on HEAD, version files, assets, README
+  links and the project's own release checks. Each has a red fixture that must fail and a green one
+  that must stay quiet.
+- **Phase 5 — GUI and installer.** The page lists claims with the findings about each, the
+  unplanned work, the decisions queue, mode, timed pause, commit-anyway and per-host hook install,
+  and downloads the acceptance packet and SARIF. `release/install.ps1` and `release/install.sh`
+  verify the checksum, install `vdt`, and open the page with no terminal step after.
+- **Phase 5 — release lane.** Version 1.0.0, `verdict.json` with the project's own release block,
+  a tag-triggered `release` workflow that builds the four target archives with SHA-256 files and
+  attaches them, a clean-container install job and a two-machine byte comparison of `vdt generate`
+  (`docs/RELEASE.md`, `release/RELEASE-NOTES.md`).
 - **Exports.** `vdt export --sarif` writes SARIF 2.1.0 with the proof tier and ledger record in
   each result's properties; `vdt export --packet` writes the acceptance document (claims, findings,
   hypotheses, decisions, overrides, what was not established, and the report as printed). Also a
@@ -69,11 +91,16 @@ the project uses semantic versioning once it ships (v1.0 is Phase 5).
 - A retried hooks install no longer leaves or duplicates a backup.
 - MCP claim and done-when text is redacted before it reaches the append-only ledger.
 
-### Not built yet
+### Known limits
 
-- Phase 1/4 real-host status for Cursor and Antigravity: their payload field names are unverified
-  against a live host (`docs/HOSTS.md`).
-- Phase 4 acceptance across two physical machines: `vdt generate` is deterministic in tests, but
-  the cross-machine byte comparison has not been run (one machine available).
-- Phase 5: enforce-mode send-backs, firstrun in a clean container, the release checkers (`firstrun`,
-  `release`, `mutation`), the GUI installer, and the v1.0 release lane.
+- Cursor, Antigravity and DeepSeek Harness have not been recorded against a live host in this
+  release; their payload field names are documented but unverified, and an unreadable payload is a
+  `check_unavailable`, never a clean result (`docs/HOSTS.md`).
+- The two-machine byte comparison and the clean-container install run as CI jobs
+  (`.github/workflows/clean-install-and-parity.yml`); their result belongs to the revision they ran
+  on, not to a local run.
+- The release archives are unsigned until Windows Authenticode and Apple notary certificates are
+  supplied; the release notes say so.
+- The release checker's tag test and the attachment of assets can only pass after the human
+  creates the tag (`docs/RELEASE.md`).
+- The Unix process-tree path is covered by CI and was not exercised by hand on Windows here.
