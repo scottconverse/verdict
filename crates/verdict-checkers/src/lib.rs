@@ -294,6 +294,10 @@ fn real_pin(ctx: &CheckContext, before: &Option<String>, after: &Option<String>)
     ctx.cache_matches_tree() && ctx.cache_matches_changes() && snapshot_is_pinned(before, after)
 }
 
+/// The snapshot decision: given the warmed context and the tree state sampled before and after the
+/// warm read, is the cache that one snapshot?
+type SnapshotPin<'a> = &'a dyn Fn(&CheckContext, &Option<String>, &Option<String>) -> bool;
+
 /// [`run_lane_with_home`] with the snapshot decision given, so a test can exercise the torn path
 /// without racing a real edit. The seam is private: no public API grows.
 fn run_lane_pinned(
@@ -303,7 +307,7 @@ fn run_lane_pinned(
     checkers: &[String],
     opts: &RunOptions,
     home: Option<&Path>,
-    pin: &dyn Fn(&CheckContext, &Option<String>, &Option<String>) -> bool,
+    pin: SnapshotPin<'_>,
 ) -> Result<Vec<CheckSummary>, String> {
     let (policy, policy_problem) = match Policy::load(root, home) {
         Ok(p) => (p, None),
