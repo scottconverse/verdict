@@ -21,8 +21,10 @@ jobs:
       - name: Prepare the container
         run: |
           apt-get update
+          # `file` is appimagetool's own documented requirement: it inspects the AppDir payload and
+          # refuses to build without it. Nothing else the packaging step needs is installed.
           DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-            ca-certificates curl build-essential git pkg-config libssl-dev
+            ca-certificates curl build-essential git pkg-config libssl-dev file
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
       - uses: actions/checkout@v4
       - name: Follow the README's build steps

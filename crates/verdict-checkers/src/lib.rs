@@ -290,12 +290,21 @@ pub fn run_lane_with_home(
         Err(e) => (Policy::builtin().map_err(s)?, Some(e.to_string())),
     };
     let ctx = CheckContext::from_ledger(ledger, root, session, opts.lane, opts.timeout, policy)?;
-    // The snapshot stamp must describe the source the context is about to cache. It is taken
-    // before the context warms its tree/changes, so the stamp can only be older than the cached
-    // data, never newer. A check whose stamp differs from the tree at verdict time is stale, so an
-    // edit made after this point can never be certified by evidence about the earlier snapshot.
-    let tree_at_start = verdict_core::baseline::tree_state_of_ledger(ledger);
+    // Bind the stamp to the snapshot the context actually caches. The tree state is sampled before
+    // and after the warm read: when the two agree, the cached tree and diff are that one state, so
+    // a check can never be stamped with a snapshot newer than the data it inspected. When they
+    // differ, the read saw a tree changing underneath it and no single state describes it, so no
+    // checker may claim current evidence for it.
+    let tree_before_warm = verdict_core::baseline::tree_state_of_ledger(ledger);
     ctx.warm();
+    let tree_after_warm = verdict_core::baseline::tree_state_of_ledger(ledger);
+    let snapshot_pinned = snapshot_is_pinned(&tree_before_warm, &tree_after_warm);
+    // A torn read is stamped with no state at all, which never counts as current.
+    let tree_at_start = if snapshot_pinned {
+        tree_after_warm
+    } else {
+        None
+    };
     if let Some(problem) = &policy_problem {
         // The policy says which checkers run, what exec may run and what to exclude. If it cannot
         // be read, running under the built-in defaults would answer a different question, so no
@@ -311,6 +320,26 @@ pub fn run_lane_with_home(
                 &ctx.inputs_hash(&name),
                 &tree_at_start,
                 format!("policy could not be read: {problem}"),
+            )?);
+        }
+        return Ok(summaries);
+    }
+    if !snapshot_pinned {
+        // The tree changed while the checkers were reading it. The cached view is a mixture of two
+        // states, so nothing in this run may be reported as checking a current snapshot.
+        let mut summaries = Vec::new();
+        for name in order_checkers(checkers) {
+            let started = now_rfc3339();
+            summaries.push(unavailable(
+                ledger,
+                session,
+                &name,
+                &started,
+                &ctx.inputs_hash(&name),
+                &tree_at_start,
+                "the working tree changed while the checkers were reading it, so the snapshot \
+                 inspected cannot be identified; nothing was checked"
+                    .into(),
             )?);
         }
         return Ok(summaries);
@@ -735,9 +764,33 @@ pub fn cli_check(
     Ok(0)
 }
 
+/// Whether the two tree-state samples around the warm read describe one snapshot: only when both
+/// are present and equal. Two absent samples stay absent (an in-memory ledger has no project
+/// folder to sample), which is the same as before; one absent sample is a read that cannot be
+/// identified.
+fn snapshot_is_pinned(before: &Option<String>, after: &Option<String>) -> bool {
+    match (before, after) {
+        (Some(a), Some(b)) => a == b,
+        (None, None) => true,
+        _ => false,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_snapshot_counts_as_pinned_only_when_both_samples_agree() {
+        let a = Some("git:aaa".to_string());
+        let b = Some("git:bbb".to_string());
+        assert!(snapshot_is_pinned(&a, &a));
+        assert!(!snapshot_is_pinned(&a, &b), "a tree that moved is torn");
+        assert!(!snapshot_is_pinned(&a, &None), "one sample missing is torn");
+        assert!(!snapshot_is_pinned(&None, &a));
+        // An in-memory ledger has no folder to sample; that is not a tear.
+        assert!(snapshot_is_pinned(&None, &None));
+    }
 
     fn v(items: &[&str]) -> Vec<String> {
         items.iter().map(|s| s.to_string()).collect()
