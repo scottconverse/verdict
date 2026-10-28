@@ -19,6 +19,11 @@ mkdir -p "$appdir/usr/bin" "$appdir/usr/share/applications" "$appdir/usr/share/i
 cp "$binary" "$appdir/usr/bin/vdt"
 cp "$binary" "$appdir/usr/bin/vdt-setup"
 chmod +x "$appdir/usr/bin/vdt" "$appdir/usr/bin/vdt-setup"
+if command -v sha256sum >/dev/null 2>&1; then
+  ( cd "$appdir/usr/bin" && sha256sum vdt | cut -d' ' -f1 > vdt.sha256 )
+else
+  ( cd "$appdir/usr/bin" && shasum -a 256 vdt | cut -d' ' -f1 > vdt.sha256 )
+fi
 
 cat > "$appdir/usr/share/applications/verdict.desktop" <<'DESKTOP'
 [Desktop Entry]

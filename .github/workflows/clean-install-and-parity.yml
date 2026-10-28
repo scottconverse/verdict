@@ -65,6 +65,21 @@ jobs:
           fi
           if command -v pkill >/dev/null 2>&1; then pkill -f "vdt serve" || true; fi
 
+      - name: Build and run the Linux AppImage setup
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL -o /tmp/appimagetool \
+            https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x /tmp/appimagetool
+          APPIMAGETOOL=/tmp/appimagetool sh release/package-appimage.sh 1.0.0 target/release/vdt /tmp/appdist
+          app=/tmp/appdist/Verdict-1.0.0-x86_64.AppImage
+          chmod +x "$app"
+          mkdir -p /tmp/app-project /tmp/app-home
+          APPIMAGE_EXTRACT_AND_RUN=1 "$app" --silent --project /tmp/app-project \
+            --install-dir /tmp/app-home/bin --no-open
+          test -x /tmp/app-home/bin/vdt
+          /tmp/app-home/bin/vdt --version
   windows-archive-install:
     name: Windows archive install (silent, exact layout)
     runs-on: windows-latest

@@ -10,34 +10,22 @@
           "semanticVersion": "1.0.0",
           "rules": [
             {
-              "id": "exec",
-              "name": "exec",
-              "shortDescription": {
-                "text": "exec: what Verdict's checkers record"
-              },
-              "properties": {
-                "tags": [
-                  "verdict"
-                ]
-              }
-            },
-            {
-              "id": "firstrun",
-              "name": "firstrun",
-              "shortDescription": {
-                "text": "firstrun: what Verdict's checkers record"
-              },
-              "properties": {
-                "tags": [
-                  "verdict"
-                ]
-              }
-            },
-            {
               "id": "release",
               "name": "release",
               "shortDescription": {
                 "text": "release: what Verdict's checkers record"
+              },
+              "properties": {
+                "tags": [
+                  "verdict"
+                ]
+              }
+            },
+            {
+              "id": "desk",
+              "name": "desk",
+              "shortDescription": {
+                "text": "desk: what Verdict's checkers record"
               },
               "properties": {
                 "tags": [
@@ -50,76 +38,6 @@
       },
       "results": [
         {
-          "ruleId": "exec",
-          "level": "error",
-          "message": {
-            "text": "`cargo test --workspace --locked` exited with code 101 (it left processes running after it ended (they were stopped)); baseline unknown: the re-run on the baseline was not clean (it left processes running after it ended (they were stopped))"
-          },
-          "locations": [],
-          "partialFingerprints": {
-            "verdictFindingId": "exec:failed-baseline-unknown.057d6863"
-          },
-          "properties": {
-            "verdictFindingId": "exec:failed-baseline-unknown.057d6863",
-            "verdictRecord": 25,
-            "verdictTier": "ran",
-            "verdictSeverity": "blocker",
-            "verdictStatus": "open",
-            "judgment": false,
-            "verdictEvidence": [
-              "command `cargo test --workspace --locked`",
-              "command `cargo test --workspace --locked (on a copy of the baseline)`"
-            ],
-            "verdictFixHint": "fix the failure; the output's last lines are in the check's detail"
-          }
-        },
-        {
-          "ruleId": "firstrun",
-          "level": "error",
-          "message": {
-            "text": "first-run command 1 `cargo build --workspace --locked` did not pass: it exited 101"
-          },
-          "locations": [],
-          "partialFingerprints": {
-            "verdictFindingId": "firstrun:command-failed.3c60a769"
-          },
-          "properties": {
-            "verdictFindingId": "firstrun:command-failed.3c60a769",
-            "verdictRecord": 32,
-            "verdictTier": "ran",
-            "verdictSeverity": "blocker",
-            "verdictStatus": "open",
-            "judgment": false,
-            "verdictEvidence": [
-              "command `cargo build --workspace --locked`"
-            ],
-            "verdictFixHint": "make the documented first-run path work from an empty state"
-          }
-        },
-        {
-          "ruleId": "release",
-          "level": "error",
-          "message": {
-            "text": "release check `cargo test --workspace --locked` did not pass: it left processes running after it ended (they were stopped)"
-          },
-          "locations": [],
-          "partialFingerprints": {
-            "verdictFindingId": "release:check-failed.7e035316"
-          },
-          "properties": {
-            "verdictFindingId": "release:check-failed.7e035316",
-            "verdictRecord": 34,
-            "verdictTier": "ran",
-            "verdictSeverity": "blocker",
-            "verdictStatus": "open",
-            "judgment": false,
-            "verdictEvidence": [
-              "command `cargo test --workspace --locked`"
-            ],
-            "verdictFixHint": "make the project's own release check pass"
-          }
-        },
-        {
           "ruleId": "release",
           "level": "error",
           "message": {
@@ -131,7 +49,7 @@
           },
           "properties": {
             "verdictFindingId": "release:tag-missing.8bdbbb74",
-            "verdictRecord": 35,
+            "verdictRecord": 29,
             "verdictTier": "asset",
             "verdictSeverity": "blocker",
             "verdictStatus": "open",
@@ -141,11 +59,59 @@
             ],
             "verdictFixHint": "create the tag only after the human approves the release"
           }
+        },
+        {
+          "ruleId": "desk",
+          "level": "error",
+          "message": {
+            "text": "The release candidate lacks the required v1.0.0 tag on HEAD."
+          },
+          "locations": [],
+          "partialFingerprints": {
+            "verdictFindingId": "desk:engineer.d3019d3b"
+          },
+          "properties": {
+            "verdictFindingId": "desk:engineer.d3019d3b",
+            "verdictRecord": 32,
+            "verdictTier": "judgment",
+            "verdictSeverity": "blocker",
+            "verdictStatus": "open",
+            "judgment": true,
+            "verdictEvidence": [
+              "command `ledger record 29`",
+              "command `ledger record 30`"
+            ],
+            "verdictFixHint": "Once tagging is authorized, tag the intended release commit as v1.0.0 and rerun the release check."
+          }
+        },
+        {
+          "ruleId": "desk",
+          "level": "error",
+          "message": {
+            "text": "Record 30 is listed as a clean release result despite recording a release blocker"
+          },
+          "locations": [],
+          "partialFingerprints": {
+            "verdictFindingId": "desk:refuter.d4e4757e"
+          },
+          "properties": {
+            "verdictFindingId": "desk:refuter.d4e4757e",
+            "verdictRecord": 46,
+            "verdictTier": "judgment",
+            "verdictSeverity": "blocker",
+            "verdictStatus": "open",
+            "judgment": true,
+            "verdictEvidence": [
+              "command `ledger record 29`",
+              "command `ledger record 30`"
+            ],
+            "verdictFixHint": "Remove record 30 from the clean-result classification and retain the existing untagged-candidate blocker. Record 30 explicitly reports one finding and no tags on HEAD; passing tests and matching asset checksums do not contradict that blocker."
+          }
         }
       ],
       "properties": {
-        "verdictSession": "s-dc1edf6aaa",
-        "verdictHypotheses": 3,
+        "verdictSession": "s-58be697247",
+        "verdictHypotheses": 7,
         "verdictLedgerIntact": true,
         "verdictOverrides": []
       }
