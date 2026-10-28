@@ -26,7 +26,8 @@ server (`vdt mcp-install dsh` prints this exact entry):
 The five tools then appear: `verdict_check`, `verdict_scan`, `verdict_claim`, `verdict_done_when`
 and `verdict_decisions`. They are read/claim only: an attempt to write a finding, decision, verdict,
 mode or commit-anyway is refused by the ledger and recorded as a `refused_write`. `verdict_check`
-returns the same report the GUI and `vdt report` show, with `VERDICT:` and `NOT ESTABLISHED` in it.
+runs the lane's checkers and desks now (the same fresh verification the Stop hook runs) and returns
+the same report the GUI and `vdt report` show, with `VERDICT:` and `NOT ESTABLISHED` in it.
 
 A session has to exist before `verdict_claim` will record anything; the MCP server does not open one
 (decision 13 in `DECISIONS.md`). The native plugin below opens it.
@@ -46,6 +47,11 @@ them into `vdt hook dsh <event>` calls. Registration is one more `insert:` entry
 Environment: `VDT_BIN`, `VDT_DSH_PROJECT`, and the optional `VDT_BIN_ARGS`. A missing binary, a
 crash or a slow hook is ignored; the agent is never held.
 
+**The plugin is recording-only.** It captures prompts, tool results and the turn end. It has no
+pre-edit hold, and this build does not send a Stop send-back to DSH (the reply shape is not
+claimed). For enforce-mode holds, use Claude Code or Codex; for the other hosts the ledger still
+records what happened, which is what the verdict reads.
+
 ## What is verified, and what is not
 
 - **Verified here:** the MCP server speaks the protocol and its five tools behave as described
@@ -55,4 +61,6 @@ crash or a slow hook is ignored; the agent is never held.
   binary recorded a session, prompt, tool call and final claim into an intact ledger.
 - **Not done here:** loading the entries into the running DSH instance. This workstation's DSH
   configuration is preserved by instruction, so the YAML above is the installation step, not
-  something Verdict did. No part of the integration requires a Verdict-specific DSH build.
+  something Verdict did. The plugin is recording-only (no pre-edit hold, no Stop send-back); no
+  part of the integration requires a Verdict-specific DSH build. The integration is included in
+  the release archive under `integrations/dsh/`.

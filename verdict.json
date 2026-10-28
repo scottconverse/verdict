@@ -3,6 +3,7 @@
   "plans": [],
   "exec": {
     "timeout": "30m",
+    "shell": "native",
     "commands": [
       { "run": "cargo test --workspace --locked", "tier": "ran" },
       { "run": "cargo clippy --workspace --all-targets --locked -- -D warnings", "tier": "ran" }
@@ -20,19 +21,28 @@
   },
   "mutation": {
     "require_when": ["critical_logic_changed", "test_sensitivity_uncertain"],
-    "never_merely_for": ["lane_label", "file_count", "release"]
+    "never_merely_for": ["lane_label", "file_count", "release"],
+    "success_exit_codes": [0],
+    "critical_paths": ["crates/**"]
   },
   "firstrun": {
+    "web": false,
     "commands": [
       { "run": "cargo build --workspace --locked" },
       { "run": "target/debug/vdt --version" }
     ]
   },
+  "desks": {
+    "run_proposals": false
+  },
   "release": {
     "tag": "v1.0.0",
     "version": "1.0.0",
     "version_files": ["Cargo.toml"],
+    "assets": ["dist/*.zip", "dist/*.tar.gz", "dist/*.sha256"],
+    "product": { "name": "verdict-gate", "manifest": "crates/verdict-cli/Cargo.toml", "lockfile": "Cargo.lock" },
     "readme": "README.md",
+    "readme_commands": ["cargo build --workspace", "cargo test --workspace"],
     "checks": ["cargo test --workspace --locked"]
   },
   "vendors": {

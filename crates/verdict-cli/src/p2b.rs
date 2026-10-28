@@ -127,10 +127,26 @@ fn hooks(install: bool, a: &GateHookArgs, cwd: &Path) -> ExitCode {
 }
 
 /// `vdt verdict`
-pub fn verdict(session: Option<&str>, run: bool, project: Option<&Path>, cwd: &Path) -> ExitCode {
+pub fn verdict(
+    session: Option<&str>,
+    run: bool,
+    lane: Option<&str>,
+    project: Option<&Path>,
+    cwd: &Path,
+) -> ExitCode {
+    let lane = match lane {
+        None => None,
+        Some(l) => match verdict_core::lane::parse_lane(l) {
+            Some(l) => Some(l),
+            None => {
+                eprintln!("vdt: unknown lane {l:?} (use low, standard, high or release)");
+                return ExitCode::from(1);
+            }
+        },
+    };
     let root = find_project_root(project.unwrap_or(cwd));
     let runner = crate::runner::default_runner();
-    match run_verdict(&root, None, session, run.then_some(runner.as_ref())) {
+    match run_verdict(&root, None, session, lane, run.then_some(runner.as_ref())) {
         Ok((c, seq)) => {
             let ledger = match Ledger::open_existing(&root) {
                 Ok(Some(l)) => l,

@@ -1,74 +1,17 @@
 //! The one place the real checkers and desks plug in.
 //!
 //! The gate and `vdt verdict --run` reach checkers only through [`verdict_core::gate::CheckRunner`].
-//! [`RealRunner`] adapts it to `verdict_checkers::run_lane`, which writes each checker's `check`
-//! record (as the core) and its findings (as the checker) into the ledger, and to
-//! `verdict_desks::run`, which dispatches the lane's desks to the providers the policy configures.
+//! [`RealRunner`] now lives in `verdict-engine`, together with the fresh-verification path the Stop
+//! hook and the MCP `verdict_check` use, so there is exactly one checker and desk implementation.
 
 use std::path::Path;
 use std::time::Duration;
 
-use verdict_core::gate::{CheckRunner, CheckSummary, RunOptions};
-use verdict_core::{Lane, Ledger};
-
-/// Runs the deterministic checkers from crate `verdict-checkers` and the desks from
-/// `verdict-desks`.
-pub struct RealRunner;
-
-impl CheckRunner for RealRunner {
-    fn run_lane(
-        &self,
-        ledger: &mut Ledger,
-        root: &Path,
-        session: &str,
-        checkers: &[String],
-        opts: &RunOptions,
-    ) -> Result<Vec<CheckSummary>, String> {
-        let o = verdict_checkers::RunOptions {
-            lane: opts.lane,
-            timeout: opts.timeout,
-        };
-        verdict_checkers::run_lane(ledger, root, session, checkers, &o).map(|v| {
-            v.into_iter()
-                .map(|s| CheckSummary {
-                    name: s.name,
-                    outcome: s.outcome,
-                    findings: s.findings,
-                    check_seq: s.check_seq,
-                })
-                .collect()
-        })
-    }
-
-    fn run_desks(
-        &self,
-        ledger: &mut Ledger,
-        root: &Path,
-        session: &str,
-        lane: Lane,
-    ) -> Result<(), String> {
-        let policy = verdict_core::verdict::load_policy(root, None)
-            .map(|(p, _)| p)
-            .map_err(|e| e.to_string())?;
-        let specs = verdict_desks::providers_from_policy(&policy)?;
-        let providers: Vec<Box<dyn verdict_desks::DeskProvider>> = specs
-            .into_iter()
-            .map(|p| Box::new(p) as Box<dyn verdict_desks::DeskProvider>)
-            .collect();
-        let opts = verdict_desks::DeskOptions {
-            lane,
-            timeout: Duration::from_secs(300),
-        };
-        match verdict_desks::run(ledger, root, session, &policy, &opts, &providers)? {
-            verdict_desks::Outcome::Ran { .. } => Ok(()),
-            verdict_desks::Outcome::Refused { reason, .. } => Err(reason),
-        }
-    }
-}
+use verdict_core::gate::CheckRunner;
 
 /// The runner `vdt` uses.
 pub fn default_runner() -> Box<dyn CheckRunner> {
-    Box::new(RealRunner)
+    Box::new(verdict_engine::RealRunner::default())
 }
 
 /// `vdt desks`: run the lane's desks for the newest session (or `--session`) and print one line
@@ -79,7 +22,7 @@ pub fn desks(
     lane: Option<&str>,
     out: &mut dyn std::io::Write,
 ) -> Result<u8, String> {
-    let mut ledger = Ledger::open(root).map_err(|e| e.to_string())?;
+    let mut ledger = verdict_core::Ledger::open(root).map_err(|e| e.to_string())?;
     let session = verdict_core::part1c::resolve_session(&ledger, session)
         .map_err(|e| e.to_string())?
         .ok_or("this project's ledger has no sessions yet")?;

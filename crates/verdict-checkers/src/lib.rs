@@ -238,6 +238,9 @@ pub struct RunOptions {
     pub lane: Lane,
     /// The longest any one command may run (the policy's `exec.timeout` may lower it).
     pub timeout: Duration,
+    /// When the whole run must be done (the Stop hook's configurable budget). A checker that has
+    /// not started by then is recorded as unavailable, never as clean.
+    pub deadline: Option<std::time::Instant>,
 }
 
 /// What one checker's run came to.
@@ -284,6 +287,11 @@ pub fn run_lane_with_home(
         Err(e) => (Policy::builtin().map_err(s)?, Some(e.to_string())),
     };
     let ctx = CheckContext::from_ledger(ledger, root, session, opts.lane, opts.timeout, policy)?;
+    // The snapshot stamp must describe the source the context is about to cache. It is taken
+    // before the context warms its tree/changes, so the stamp can only be older than the cached
+    // data, never newer. A check whose stamp differs from the tree at verdict time is stale, so an
+    // edit made after this point can never be certified by evidence about the earlier snapshot.
+    let tree_at_start = verdict_core::baseline::tree_state_of_ledger(ledger);
     ctx.warm();
     if let Some(problem) = &policy_problem {
         // The policy says which checkers run, what exec may run and what to exclude. If it cannot
@@ -298,7 +306,7 @@ pub fn run_lane_with_home(
                 &name,
                 &started,
                 &ctx.inputs_hash(&name),
-                &verdict_core::baseline::tree_state_of_ledger(ledger),
+                &tree_at_start,
                 format!("policy could not be read: {problem}"),
             )?);
         }
@@ -312,10 +320,24 @@ pub fn run_lane_with_home(
     for name in order_checkers(checkers) {
         ctx.reset_run_state();
         let started = now_rfc3339();
-        // The code the check is about is the code as it stands when the check starts. An edit
-        // made while the check runs must not be stamped as "seen": the verdict compares this
-        // stamp with the tree now and drops the check when they differ.
-        let tree_at_start = verdict_core::baseline::tree_state_of_ledger(ledger);
+        if opts
+            .deadline
+            .is_some_and(|d| std::time::Instant::now() >= d)
+        {
+            summaries.push(unavailable(
+                ledger,
+                session,
+                &name,
+                &started,
+                &ctx.inputs_hash(&name),
+                &tree_at_start,
+                "the run's time budget was used up before this checker could start".into(),
+            )?);
+            continue;
+        }
+        // The stamp is the pre-warm snapshot above: every checker in this run reads from that
+        // snapshot (or a later lazy read, which can only be newer), so the recorded identity can
+        // never be newer than the data inspected.
         let Some(checker) = available.iter().find(|c| c.name() == name) else {
             summaries.push(unavailable(
                 ledger,
@@ -384,6 +406,30 @@ pub fn run_lane_with_home(
                     detail.push_str("; output tail: ");
                     detail.push_str(&t);
                 }
+                // A checker that says policy did not require it is recorded as skipped, never as
+                // having run; a skip is not execution proof.
+                if let Some(reason) = ctx.skip_reason() {
+                    let seq = append_check(
+                        ledger,
+                        session,
+                        &name,
+                        Tier::Unverified,
+                        &ctx.inputs_hash(&name),
+                        &started,
+                        &tree_at_start,
+                        CheckOutcome::SkippedByPolicy,
+                        Some(bounded(format!(
+                            "{reason}; {written} finding(s) recorded separately"
+                        ))),
+                    )?;
+                    summaries.push(CheckSummary {
+                        name,
+                        outcome: CheckOutcome::SkippedByPolicy,
+                        findings: written,
+                        check_seq: seq,
+                    });
+                    continue;
+                }
                 let tier = ctx
                     .reached_tier()
                     .or_else(|| checker.tiers().first().copied())
@@ -400,10 +446,14 @@ pub fn run_lane_with_home(
                 if !gaps.is_empty() {
                     // Part of what this checker was asked could not be established. Its findings
                     // stay in the ledger, but the check reads as unavailable, never as clean.
-                    let reason = format!(
+                    let mut reason = format!(
                         "{written} finding(s) written, but not everything could be looked up: {}",
                         gaps.join("; ")
                     );
+                    for n in ctx.notes() {
+                        reason.push_str("; ");
+                        reason.push_str(&n);
+                    }
                     summaries.push(unavailable(
                         ledger,
                         session,
@@ -649,9 +699,20 @@ pub fn cli_check(
         if is_new { "new" } else { "newest" },
         root.display()
     );
+    // The policy's own exec timeout governs a command, not a hardcoded three minutes.
+    let timeout = Policy::load(root, None)
+        .ok()
+        .and_then(|p| {
+            p.value
+                .pointer("/exec/timeout")
+                .and_then(serde_json::Value::as_str)
+                .and_then(verdict_core::exec_approval::parse_duration)
+        })
+        .unwrap_or(Duration::from_secs(180));
     let opts = RunOptions {
         lane,
-        timeout: Duration::from_secs(180),
+        timeout,
+        deadline: None,
     };
     let summaries = run_lane(&mut ledger, root, &session, &names, &opts)?;
     for sm in &summaries {

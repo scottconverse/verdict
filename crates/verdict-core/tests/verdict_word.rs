@@ -1,7 +1,8 @@
 mod p2b_common;
 
 use p2b_common::*;
-use verdict_core::verdict::{CommitAnywayChoice, FindingStatus, analyze, record_verdict};
+use verdict_core::lane::Bar;
+use verdict_core::verdict::{CommitAnywayChoice, FindingStatus, analyze, compute, record_verdict};
 use verdict_core::*;
 
 fn l() -> (Tmp, Ledger) {
@@ -644,5 +645,161 @@ fn a_broken_ledger_is_never_clean() {
         c.yours_to_settle
             .iter()
             .any(|s| s.contains("ledger integrity"))
+    );
+}
+
+// ---------------------------------------------------- lane desks, release tiers and bars
+
+#[test]
+fn a_lane_that_requires_desks_is_partial_until_they_have_receipts() {
+    let (_t, mut l) = l();
+    for name in input(Lane::Standard).lane_checkers[&Lane::Standard].clone() {
+        let tier = match name.as_str() {
+            "exec" | "mutation" => Tier::Ran,
+            _ => Tier::Static,
+        };
+        ran(&mut l, &name, tier);
+    }
+    let c = verdict_of(&l, Lane::Standard);
+    assert_eq!(c.word, VerdictWord::Partial, "{:?}", c.not_established);
+    assert!(
+        c.not_established
+            .iter()
+            .any(|s| s.contains("desk:engineer")),
+        "{:?}",
+        c.not_established
+    );
+    // The same ledger is clean once both required desks have a receipt on this code.
+    ran_desks(&mut l, Lane::Standard);
+    assert_eq!(verdict_of(&l, Lane::Standard).word, VerdictWord::Verified);
+}
+
+#[test]
+fn a_web_first_run_must_be_browsed_but_a_declared_non_web_one_needs_only_ran() {
+    let (_t, mut l) = l();
+    run_all_required(&mut l, Lane::Release);
+    assert_eq!(verdict_of(&l, Lane::Release).word, VerdictWord::ClearToShip);
+    // A ran firstrun is not a browsed attestation while the project's first run is a web walk.
+    ran(&mut l, "firstrun", Tier::Ran);
+    let c = verdict_of(&l, Lane::Release);
+    assert_ne!(c.word, VerdictWord::ClearToShip);
+    assert!(
+        c.not_established
+            .iter()
+            .any(|s| s.contains("firstrun") && s.contains("browsed")),
+        "{:?}",
+        c.not_established
+    );
+    // Declared as a non-web first run (a library or CLI), the same ran evidence is enough.
+    let mut i = input(Lane::Release);
+    i.firstrun_web = false;
+    let c = compute(&l, SID, &i).unwrap();
+    assert_eq!(c.word, VerdictWord::ClearToShip, "{:?}", c.not_established);
+}
+
+#[test]
+fn a_release_bar_of_blockers_only_does_not_fail_on_a_major() {
+    let (_t, mut l) = l();
+    run_all_required(&mut l, Lane::Release);
+    find(
+        &mut l,
+        "wiring:src/login.rs:4",
+        Severity::Major,
+        Tier::Static,
+    );
+    let mut i = input(Lane::Release);
+    i.current_tree = Some(TEST_TREE.into());
+    i.lane_bars.insert(Lane::Release, Bar::BlockersOnly);
+    let c = compute(&l, SID, &i).unwrap();
+    assert_eq!(c.word, VerdictWord::NeedsYou, "{:?}", c.not_established);
+    // The default (zero_above_nit) fails the same release.
+    assert_eq!(verdict_of(&l, Lane::Release).word, VerdictWord::Failed);
+}
+
+#[test]
+fn an_evidence_pointer_that_no_longer_matches_is_reported_as_stale() {
+    let t = Tmp::new("stale");
+    let mut l = seeded(t.path());
+    run_all_required(&mut l, Lane::Standard);
+    let path = t.path().join("src").join("login.rs");
+    std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+    std::fs::write(&path, "one\ntwo\n").unwrap();
+    let pointer = EvidencePointer::file_line(t.path(), "src/login.rs", 2).unwrap();
+    l.append(
+        Writer::Checker,
+        Some(SID),
+        Record::Finding(Finding {
+            id: "wiring:src/login.rs:2".into(),
+            severity: Severity::Minor,
+            title: "a line pointer".into(),
+            claim_seq: None,
+            evidence: vec![pointer],
+            tier: Tier::Static,
+            blast: None,
+            judgment: false,
+            fix_hint: None,
+        }),
+    )
+    .unwrap();
+    std::fs::write(&path, "one\nCHANGED\n").unwrap();
+    let mut i = input(Lane::Standard);
+    i.stale_pointers = live_stale(&t, &l);
+    let c = compute(&l, SID, &i).unwrap();
+    assert!(
+        c.not_established
+            .iter()
+            .any(|s| s.contains("stale evidence")),
+        "{:?}",
+        c.not_established
+    );
+}
+
+/// The stale-pointer lines `live_input` would compute, without needing a git baseline.
+fn live_stale(t: &Tmp, l: &Ledger) -> Vec<String> {
+    let live = verdict_core::verdict::live_input(t.path(), l, SID, None).unwrap();
+    live.input.stale_pointers
+}
+
+#[test]
+fn desks_that_disagree_about_one_claim_are_both_kept_and_shown_as_dissent() {
+    let (_t, mut l) = l();
+    run_all_required(&mut l, Lane::Standard);
+    for (id, severity, title) in [
+        (
+            "desk:engineer.tax",
+            Severity::Major,
+            "the refund double-counts tax",
+        ),
+        ("desk:qa.fine", Severity::Minor, "the refund path is fine"),
+    ] {
+        l.append(
+            Writer::Desk,
+            Some(SID),
+            Record::Finding(Finding {
+                id: id.into(),
+                severity,
+                title: title.into(),
+                claim_seq: Some(3),
+                evidence: vec![EvidencePointer::command(id, b"x")],
+                tier: Tier::Judgment,
+                blast: Some(Lane::Standard),
+                judgment: true,
+                fix_hint: None,
+            }),
+        )
+        .unwrap();
+    }
+    let a = analyze(&l, SID).unwrap();
+    let tension = verdict_core::verdict::dissent(&a);
+    assert_eq!(tension.len(), 1, "{tension:?}");
+    assert!(
+        tension[0].contains("disagree about claim record 3"),
+        "{tension:?}"
+    );
+    let c = compute(&l, SID, &input(Lane::Standard)).unwrap();
+    let report = report_with(&l, &c);
+    assert!(
+        report.contains("DESK DISSENT (both findings stay)"),
+        "{report}"
     );
 }

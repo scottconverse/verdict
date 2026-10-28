@@ -112,10 +112,56 @@ pub fn lane_checkers(policy: &Policy, lane: Lane) -> Vec<String> {
     ))
 }
 
-/// The expanded desk list for `lane` (`*` means every desk name the policy lists for release; the
-/// desks themselves arrive in a later phase, so `*` stays `*` here).
+/// Every desk the core knows, in the design's order. `*` in a lane's desk list means exactly these.
+pub const ALL_DESKS: [&str; 7] = [
+    "engineer", "docs", "qa", "ux", "security", "legal", "refuter",
+];
+
+/// The string list at `pointer` in the policy (empty when it is missing or not a list).
+pub fn policy_names(policy: &Policy, pointer: &str) -> Vec<String> {
+    names_of(policy, pointer)
+}
+
+/// Does `path` match any of `globs`? A malformed glob matches nothing (the caller reports it).
+pub fn path_matches(globs: &[String], path: &str) -> bool {
+    globs
+        .iter()
+        .any(|g| compile(g).map(|m| m.is_match(path)).unwrap_or(false))
+}
+
+/// True if `name` is one of the core's desks.
+pub fn is_desk(name: &str) -> bool {
+    ALL_DESKS.contains(&name)
+}
+
+/// Expand a lane's desk list: `*` means every desk, `-name` removes one, any other name is kept.
+pub fn expand_desks(items: &[String]) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    let mut removed: Vec<String> = Vec::new();
+    for item in items {
+        let item = item.trim();
+        if item == "*" {
+            for d in ALL_DESKS {
+                if !out.iter().any(|s| s == d) {
+                    out.push(d.to_string());
+                }
+            }
+        } else if let Some(rest) = item.strip_prefix('-') {
+            removed.push(rest.trim().to_string());
+        } else if !item.is_empty() && !out.iter().any(|s| s == item) {
+            out.push(item.to_string());
+        }
+    }
+    out.retain(|d| !removed.contains(d));
+    out
+}
+
+/// The expanded desk list for `lane` under `policy`.
 pub fn lane_desks(policy: &Policy, lane: Lane) -> Vec<String> {
-    names_of(policy, &format!("/lanes/{}/desks", lane_name(lane)))
+    expand_desks(&names_of(
+        policy,
+        &format!("/lanes/{}/desks", lane_name(lane)),
+    ))
 }
 
 /// A glob that matches at any depth when the pattern has no `/` (like a `.gitignore` line), and
@@ -134,6 +180,41 @@ fn compile(pattern: &str) -> Result<GlobMatcher, String> {
         .build()
         .map(|g: Glob| g.compile_matcher())
         .map_err(|e| format!("blast glob {pattern:?} is not a valid glob: {e}"))
+}
+
+/// A lane's verdict bar: how much has to be open before a release is refused.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Bar {
+    /// Release: any open finding above nit fails the release (the design's `zero_above_nit`).
+    #[default]
+    ZeroAboveNit,
+    /// Release: only a blocker fails it.
+    BlockersOnly,
+}
+
+/// The bar a lane declares in the policy. A missing or unknown value is `ZeroAboveNit` (the
+/// stricter default), and an unknown value is reported through [`lane_bar_with_warning`].
+pub fn lane_bar(policy: &Policy, lane: Lane) -> Bar {
+    lane_bar_with_warning(policy, lane).0
+}
+
+/// Like [`lane_bar`], also returning a warning for a value this build does not know.
+pub fn lane_bar_with_warning(policy: &Policy, lane: Lane) -> (Bar, Option<String>) {
+    match policy
+        .value
+        .pointer(&format!("/lanes/{}/bar", lane_name(lane)))
+        .and_then(Value::as_str)
+    {
+        None | Some("zero_above_nit") => (Bar::ZeroAboveNit, None),
+        Some("blockers_only") => (Bar::BlockersOnly, None),
+        Some(other) => (
+            Bar::ZeroAboveNit,
+            Some(format!(
+                "lanes.{}.bar is {other:?}, which this build does not know; the stricter zero_above_nit is used",
+                lane_name(lane)
+            )),
+        ),
+    }
 }
 
 /// The paths a session changed, as the lane sees them: forward slashes, relative to the project,

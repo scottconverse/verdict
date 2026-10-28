@@ -20,6 +20,22 @@ pub enum PolicySource {
     Global(PathBuf),
     /// `<repo>/verdict.json`.
     Project(PathBuf),
+    /// A file named on the command line for this one run (`vdt --policy <file>`).
+    RunTime(PathBuf),
+}
+
+/// The file named by `--policy` for this process, if any. It is merged last, after the project
+/// file, for this run only; nothing is written.
+static RUNTIME_OVERRIDE: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+
+/// Set the one-run policy override (the `--policy` flag). Idempotent; the first value wins.
+pub fn set_runtime_override(path: PathBuf) {
+    let _ = RUNTIME_OVERRIDE.set(path);
+}
+
+/// The one-run policy override, if one was set.
+pub fn runtime_override() -> Option<&'static std::path::Path> {
+    RUNTIME_OVERRIDE.get().map(|p| p.as_path())
 }
 
 /// A policy file problem.
@@ -89,6 +105,9 @@ impl Policy {
         }
         let p = project_root.join("verdict.json");
         layers.push((PolicySource::Project(p.clone()), p));
+        if let Some(p) = runtime_override() {
+            layers.push((PolicySource::RunTime(p.to_path_buf()), p.to_path_buf()));
+        }
 
         let mut value = policy.value.clone();
         let mut sources = policy.sources.clone();

@@ -13,16 +13,18 @@ param(
   [switch]$Silent,
   [switch]$NoShortcut,
   [switch]$NoLaunch,
-  [switch]$NoMcp
+  [switch]$NoMcp,
+  [switch]$AllowUnverified
 )
 $ErrorActionPreference = "Stop"
 
 function Find-Binary {
   $arch = if ([Environment]::Is64BitOperatingSystem) { "x86_64" } else { throw "Verdict needs 64-bit Windows" }
+  # The release archive layout first (`vdt.exe`), then the older versioned names.
   $names = @(
+    "vdt.exe",
     "vdt-$Version-$arch-pc-windows-msvc.exe",
-    "vdt-$Version-$arch-pc-windows-msvc.zip",
-    "vdt.exe"
+    "vdt-$Version-$arch-pc-windows-msvc.zip"
   )
   foreach ($n in $names) {
     $p = Join-Path $From $n
@@ -34,12 +36,26 @@ function Find-Binary {
 function Verify-Checksum([string]$path) {
   $sumFile = "$path.sha256"
   if (-not (Test-Path $sumFile)) {
-    Write-Warning "no checksum beside $path; the download is unverified"
-    return
+    if ($AllowUnverified) {
+      Write-Warning "no checksum beside $path and -AllowUnverified is set; the download is unverified"
+      return
+    }
+    throw "no checksum beside ${path}: refusing to install an unverified download (use -AllowUnverified to override)"
   }
   $want = (Get-Content $sumFile -Raw).Split()[0].ToLower()
   $got = (Get-FileHash $path -Algorithm SHA256).Hash.ToLower()
   if ($want -ne $got) { throw "checksum mismatch: the download is damaged or was changed" }
+}
+
+function Wait-Page([int]$Seconds) {
+  $until = (Get-Date).AddSeconds($Seconds)
+  while ((Get-Date) -lt $until) {
+    try {
+      $r = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:4717/" -TimeoutSec 2
+      if ($r.StatusCode -eq 200) { return $true }
+    } catch { Start-Sleep -Milliseconds 300 }
+  }
+  return $false
 }
 
 function Install-Verdict {
@@ -73,15 +89,19 @@ function Install-Verdict {
     $shell = New-Object -ComObject WScript.Shell
     $shortcut = $shell.CreateShortcut((Join-Path ([Environment]::GetFolderPath("Desktop")) "Verdict.lnk"))
     $shortcut.TargetPath = $target
-    $shortcut.Arguments = "serve"
-    $shortcut.WorkingDirectory = $env:USERPROFILE
+    # Keep the project the human chose: the page resolves its project from this argument, not from
+    # whatever folder the shortcut happens to start in.
+    $shortcut.Arguments = "serve --project `"$ProjectDir`""
+    $shortcut.WorkingDirectory = $ProjectDir
     $shortcut.Description = "Verdict: start the local page"
     $shortcut.Save()
   }
 
   if ($OpenPage -and -not $NoLaunch) {
-    Start-Process $target -ArgumentList "serve" -WorkingDirectory $ProjectDir
-    Start-Sleep -Seconds 1
+    Start-Process $target -ArgumentList @("serve", "--project", $ProjectDir) -WorkingDirectory $ProjectDir
+    if (-not (Wait-Page 20)) {
+      Write-Warning "the Verdict page did not answer on 127.0.0.1:4717 yet; it may still be starting, or another program may hold the port"
+    }
     Start-Process "http://127.0.0.1:4717/"
   }
   return $target

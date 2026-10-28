@@ -25,6 +25,10 @@ use verdict_core::{Ledger, LedgerError, find_project_root, list_sessions};
     about = "Verdict: the agent writes claims, never verdicts."
 )]
 struct Cli {
+    /// A policy file for this one run, merged on top of the project and global files. Nothing is
+    /// written; the next run without the flag uses the files again.
+    #[arg(long, global = true)]
+    policy: Option<std::path::PathBuf>,
     #[command(subcommand)]
     command: Command,
 }
@@ -100,6 +104,10 @@ enum Command {
         /// Run the lane's checkers first (through the checker runner wired into this build).
         #[arg(long)]
         run: bool,
+        /// The lane to compute in for this run (low, standard, high or release); it can only raise
+        /// the lane the diff implies.
+        #[arg(long)]
+        lane: Option<String>,
         /// Project folder (default: found from the current folder).
         #[arg(long)]
         project: Option<std::path::PathBuf>,
@@ -111,6 +119,15 @@ enum Command {
     },
     /// Commit past a FAILED pre-commit gate, with a reason you type (human only).
     CommitAnyway(p2b::CommitAnywayArgs),
+    /// Approve running this repo's configured commands (human only, like a button on the page).
+    ApproveCommands {
+        /// Project folder (default: found from the current folder).
+        #[arg(long)]
+        project: Option<std::path::PathBuf>,
+        /// You, the human, are doing this. Without it vdt only prints what it would change.
+        #[arg(long = "i-am-the-human")]
+        i_am_the_human: bool,
+    },
     /// Read the whole project for broken calls, routes nothing calls, controls with no handler,
     /// called stubs, unfinished work and regressions. No session, no claims; writes nothing and
     /// always exits 0.
@@ -151,6 +168,9 @@ enum Command {
         /// The acceptance packet: claims, findings, decisions, overrides, what was not established.
         #[arg(long)]
         packet: bool,
+        /// The project's human decisions as JSON lines (`decisions.jsonl`), for tracking in git.
+        #[arg(long)]
+        decisions: bool,
         /// Session id (default: the latest).
         #[arg(long)]
         session: Option<String>,
@@ -218,6 +238,9 @@ fn main() -> ExitCode {
         return ExitCode::SUCCESS;
     }
     let cli = Cli::parse();
+    if let Some(path) = &cli.policy {
+        verdict_core::policy::set_runtime_override(path.clone());
+    }
     let cwd = match std::env::current_dir() {
         Ok(d) => d,
         Err(e) => {
@@ -309,12 +332,13 @@ fn main() -> ExitCode {
         Command::Export {
             sarif,
             packet,
+            decisions,
             session,
             out,
             project,
         } => {
-            if *sarif == *packet {
-                eprintln!("vdt: choose exactly one of --sarif or --packet");
+            if u8::from(*sarif) + u8::from(*packet) + u8::from(*decisions) != 1 {
+                eprintln!("vdt: choose exactly one of --sarif, --packet or --decisions");
                 return ExitCode::from(1);
             }
             let root = find_project_root(project.as_deref().unwrap_or(&cwd));
@@ -329,6 +353,31 @@ fn main() -> ExitCode {
                     return ExitCode::from(1);
                 }
             };
+            if *decisions {
+                let text = verdict_core::export::decisions_jsonl(&ledger);
+                return match text {
+                    Ok(t) => match out {
+                        Some(path) => match std::fs::write(path, &t) {
+                            Ok(()) => {
+                                println!("wrote {}", path.display());
+                                ExitCode::SUCCESS
+                            }
+                            Err(e) => {
+                                eprintln!("vdt: cannot write {}: {e}", path.display());
+                                ExitCode::from(1)
+                            }
+                        },
+                        None => {
+                            print!("{t}");
+                            ExitCode::SUCCESS
+                        }
+                    },
+                    Err(e) => {
+                        eprintln!("vdt: {e}");
+                        ExitCode::from(1)
+                    }
+                };
+            }
             let session = match verdict_core::part1c::resolve_session(&ledger, session.as_deref()) {
                 Ok(Some(s)) => s,
                 Ok(None) => {
@@ -381,10 +430,85 @@ fn main() -> ExitCode {
         Command::Verdict {
             session,
             run,
+            lane,
             project,
-        } => return p2b::verdict(session.as_deref(), *run, project.as_deref(), &cwd),
+        } => {
+            return p2b::verdict(
+                session.as_deref(),
+                *run,
+                lane.as_deref(),
+                project.as_deref(),
+                &cwd,
+            );
+        }
         Command::Gate { action } => return p2b::gate(action, &cwd),
         Command::CommitAnyway(args) => return p2b::commit_anyway(args, &cwd),
+        Command::ApproveCommands {
+            project,
+            i_am_the_human,
+        } => {
+            let root = find_project_root(project.as_deref().unwrap_or(&cwd));
+            let c = |e: String| {
+                eprintln!("vdt: {e}");
+                ExitCode::from(1)
+            };
+            let mut ledger = match Ledger::open(&root) {
+                Ok(l) => l,
+                Err(e) => return c(e.to_string()),
+            };
+            let session = match verdict_core::part1c::resolve_session(&ledger, None) {
+                Ok(Some(s)) => s,
+                Ok(None) => match verdict_core::start_session(
+                    &mut ledger,
+                    &root,
+                    &verdict_core::SessionParams {
+                        agent: "vdt".into(),
+                        model: "none".into(),
+                        vendor: "none".into(),
+                        home: None,
+                    },
+                ) {
+                    Ok(s) => s.id,
+                    Err(e) => return c(e.to_string()),
+                },
+                Err(e) => return c(e.to_string()),
+            };
+            let policy = match verdict_core::policy::Policy::load(&root, None) {
+                Ok(p) => p,
+                Err(e) => return c(format!("the policy could not be read: {e}")),
+            };
+            let listed = verdict_core::exec_approval::describe_commands(&policy);
+            if listed.is_empty() {
+                println!("The policy lists no commands to approve. Nothing was recorded.");
+                return ExitCode::SUCCESS;
+            }
+            if !i_am_the_human {
+                println!("This would approve exactly these commands for this project:");
+                for l in &listed {
+                    println!("  {l}");
+                }
+                println!(
+                    "Nothing was recorded. Re-run with --i-am-the-human to record the decision."
+                );
+                return ExitCode::SUCCESS;
+            }
+            match verdict_core::human::apply(
+                &root,
+                &mut ledger,
+                &session,
+                &verdict_core::human::Action::ApproveCommands,
+                None,
+            ) {
+                Ok(seq) => {
+                    println!("Recorded your approval of these commands as decision record {seq}:");
+                    for l in &listed {
+                        println!("  {l}");
+                    }
+                    return ExitCode::SUCCESS;
+                }
+                Err(e) => return c(format!("nothing was recorded: {e}")),
+            }
+        }
         _ => {}
     }
     let stdout = std::io::stdout();
@@ -493,7 +617,8 @@ fn run(cli: Cli, cwd: &Path, out: &mut dyn Write) -> Result<u8, LedgerError> {
             | Command::Export { .. }
             | Command::Verdict { .. }
             | Command::Gate { .. }
-            | Command::CommitAnyway(_) => {} // handled in main
+            | Command::CommitAnyway(_)
+            | Command::ApproveCommands { .. } => {} // handled in main
         }
         return Ok(0);
     };
@@ -550,6 +675,7 @@ fn run(cli: Cli, cwd: &Path, out: &mut dyn Write) -> Result<u8, LedgerError> {
         | Command::Export { .. }
         | Command::Verdict { .. }
         | Command::Gate { .. }
-        | Command::CommitAnyway(_) => Ok(0), // handled in main
+        | Command::CommitAnyway(_)
+        | Command::ApproveCommands { .. } => Ok(0), // handled in main
     }
 }

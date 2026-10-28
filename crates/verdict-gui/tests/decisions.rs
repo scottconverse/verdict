@@ -83,6 +83,9 @@ fn fixture_with(findings: &[(&str, &str, Severity)]) -> Fixture {
         ("claims_vs_code", Tier::Static),
         ("unfinished", Tier::Static),
         ("exec", Tier::Ran),
+        // The standard lane also requires its desks; they ran as fakes here.
+        ("desk:engineer", Tier::Judgment),
+        ("desk:qa", Tier::Judgment),
     ] {
         l.append(
             Writer::Core,
@@ -347,7 +350,11 @@ fn the_queue_lists_what_is_waiting_and_every_phase_two_control() {
     assert!(forms >= 6, "{forms}");
     let decide_forms = b.matches("action=\"/decide\"").count();
     let install_forms = b.matches("action=\"/install-hooks\"").count();
-    assert_eq!(decide_forms + install_forms, forms);
+    // The page also has the page-run buttons and the MCP registration buttons; every form on it
+    // carries this run's token (asserted next).
+    let run_forms = b.matches("/check\"").count() + b.matches("/desks\"").count();
+    let mcp_forms = b.matches("action=\"/mcp-install\"").count();
+    assert_eq!(decide_forms + install_forms + run_forms + mcp_forms, forms);
     assert_eq!(install_forms, 4, "one button per host");
     assert_eq!(b.matches(&f.page.token).count(), forms);
 }

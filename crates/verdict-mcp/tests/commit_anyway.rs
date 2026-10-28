@@ -152,7 +152,11 @@ fn no_advertised_tool_can_commit_anyway_and_verdict_check_returns_the_computed_w
     let out = handle_tool(&t.0, "verdict_check", &args(json!({"session": sid}))).unwrap();
     assert!(!out.is_error, "{}", out.text);
     // The agent asked; the core answered with the computed word, and wrote it as the core.
-    assert!(out.text.contains("the verdict is "), "{}", out.text);
+    assert!(
+        out.text.to_lowercase().contains("the verdict is "),
+        "{}",
+        out.text
+    );
     assert!(out.text.contains("VERDICT: "), "{}", out.text);
     let l = Ledger::open_existing(&t.0).unwrap().unwrap();
     let verdicts: Vec<_> = l
@@ -170,12 +174,21 @@ fn no_advertised_tool_can_commit_anyway_and_verdict_check_returns_the_computed_w
         .unwrap()
         .records()
         .unwrap();
+    // Each verdict_check now runs the lane's checkers and desks afresh (the ordinary completion
+    // path), so asking again records a new verdict for that run. The first one stays: the ledger
+    // is append-only.
     assert_eq!(
         again
             .iter()
             .filter(|s| matches!(s.record, Record::Verdict { .. }))
             .count(),
-        1
+        2
+    );
+    assert!(
+        again
+            .iter()
+            .filter(|s| matches!(s.record, Record::Verdict { .. }))
+            .all(|s| s.writer == Writer::Core)
     );
 }
 

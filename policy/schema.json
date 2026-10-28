@@ -16,6 +16,10 @@
       "type": "object",
       "properties": {
         "timeout": { "$ref": "#/$defs/duration" },
+        "shell": {
+          "description": "The project's declared shell: native (default), cmd, pwsh, powershell, sh, bash or zsh. A named shell that cannot start is an honest failure, never a silent fallback.",
+          "enum": ["native", "cmd", "pwsh", "powershell", "sh", "bash", "zsh"]
+        },
         "commands": {
           "type": "array",
           "items": {
@@ -24,7 +28,16 @@
             "properties": {
               "run": { "type": "string", "minLength": 1 },
               "tier": { "$ref": "#/$defs/tier" },
-              "needs": { "type": "string" }
+              "needs": { "type": "string" },
+              "browser": {
+                "description": "For a browsed-tier command: the screenshot it writes and the page it loaded. Without it the command earns ran, not browsed.",
+                "type": "object",
+                "required": ["screenshot"],
+                "properties": {
+                  "screenshot": { "type": "string", "minLength": 1 },
+                  "url": { "type": "string" }
+                }
+              }
             }
           }
         }
@@ -64,7 +77,10 @@
           "type": "string",
           "minLength": 1
         },
-        "timeout": { "$ref": "#/$defs/duration" }
+        "timeout": { "$ref": "#/$defs/duration" },
+        "critical_paths": { "$ref": "#/$defs/globs" },
+        "success_exit_codes": { "type": "array", "items": { "type": "integer" } },
+        "test_sensitivity_uncertain": { "type": "boolean" }
       }
     },
     "firstrun": {
@@ -87,7 +103,30 @@
             ]
           }
         },
-        "timeout": { "$ref": "#/$defs/duration" }
+        "timeout": { "$ref": "#/$defs/duration" },
+        "web": {
+          "description": "True (default) when the first run walks a page and must be attested at the browsed tier; false for a library or CLI with no page to load.",
+          "type": "boolean"
+        },
+        "server": {
+          "description": "The server Verdict starts for the first-run walk; its url must answer before the commands run.",
+          "type": "object",
+          "required": ["command", "url"],
+          "properties": {
+            "command": { "type": "string", "minLength": 1 },
+            "url": { "type": "string", "minLength": 1 },
+            "ready_timeout": { "$ref": "#/$defs/duration" }
+          }
+        },
+        "browser": {
+          "description": "The browser command whose screenshot attests the page load.",
+          "type": "object",
+          "required": ["command", "screenshot"],
+          "properties": {
+            "command": { "type": "string", "minLength": 1 },
+            "screenshot": { "type": "string", "minLength": 1 }
+          }
+        }
       }
     },
     "release": {
@@ -103,7 +142,32 @@
           "description": "Release artifacts: exact paths, folders, or simple globs such as dist/*.zip.",
           "$ref": "#/$defs/globs"
         },
+        "asset_hashes": {
+          "description": "Expected SHA-256 per asset path.",
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "published": {
+          "description": "A saved gh-release-view-shaped JSON record of the published release's assets, compared with the candidate.",
+          "type": "string",
+          "minLength": 1
+        },
+        "product": {
+          "description": "The product identity: the name its manifest states and the lockfile that must pin its version.",
+          "type": "object",
+          "required": ["name"],
+          "properties": {
+            "name": { "type": "string", "minLength": 1 },
+            "manifest": { "type": "string" },
+            "lockfile": { "type": "string" }
+          }
+        },
         "readme": { "type": "string", "minLength": 1 },
+        "readme_commands": {
+          "description": "Commands that must appear verbatim in the README.",
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
         "checks": {
           "description": "The project's own release checks, run under the same human approval as exec.commands.",
           "type": "array",
@@ -146,15 +210,34 @@
         "stop_timeout": { "$ref": "#/$defs/duration" }
       }
     },
+    "desks": {
+      "type": "object",
+      "properties": {
+        "run_proposals": {
+          "description": "When true, a desk's proposal to run a configured mutation or firstrun cell is run by the core.",
+          "type": "boolean"
+        }
+      }
+    },
     "decisions_owner": { "const": "human" },
     "exclude": { "$ref": "#/$defs/globs" },
     "suite": {
-      "description": "Suite umbrella only: member repositories and the files that pin them.",
+      "description": "Optional suite umbrella: member repositories, their dependency-pin files and release records.",
       "type": "object",
       "properties": {
-        "members": { "type": "array", "items": { "type": "string" } },
-        "pins": { "$ref": "#/$defs/globs" },
-        "release_truth": { "$ref": "#/$defs/globs" }
+        "members": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["path"],
+            "properties": {
+              "path": { "type": "string", "minLength": 1 },
+              "dependency_files": { "type": "array", "items": { "type": "string" } },
+              "product_version": { "type": "string" },
+              "release_record": { "type": "string" }
+            }
+          }
+        }
       }
     }
   },

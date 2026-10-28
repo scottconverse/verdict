@@ -2,24 +2,40 @@
 //!
 //! A mutation run is the strongest evidence a test suite has teeth, and it is expensive, so it
 //! runs only when the policy names a reason (design: `mutation.require_when`, never a lane label
-//! or a file count). The runner is a command or a report file the project's tooling writes:
+//! or a file count):
 //!
-//! * `mutation.command`: run in the project, under the same human approval as `exec.commands`.
-//!   It must print one JSON object with `{"survivors": [...], "killed": N, "total": N}`.
+//! * `critical_logic_changed` — a changed **logic** file (not a test) touches a path the project
+//!   classifies as critical (`mutation.critical_paths`, else `blast.high_if_touches` and
+//!   `blast.release_if_touches`). With no classification configured, any changed logic file counts:
+//!   missing classification is treated conservatively, never as "nothing critical changed".
+//! * `test_sensitivity_uncertain` — the project declares `mutation.test_sensitivity_uncertain:
+//!   true`. The tool never guesses this from a file count or a lane.
+//!
+//! The runner is a command or a report file the project's tooling writes:
+//!
+//! * `mutation.command`: run in the project under the declared shell and the same human approval
+//!   as `exec.commands`. It must print one JSON object with
+//!   `{"survivors": [...], "killed": N, "total": N}`. Exit codes other than 0 count only when the
+//!   policy lists them in `mutation.success_exit_codes` (a documented tool convention); any other
+//!   non-zero ending is a failure, and its output is never read as a clean report.
 //! * `mutation.report`: read that JSON from this path instead (a runner in CI may write it).
 //!
-//! A survivor is a `Major` finding with a `file:line` pointer when it names one. A required
-//! mutation run with no runner configured, no approval, or unreadable output is `Unavailable`,
-//! never a pass. Tooling that is not installed is recorded as unavailable, not manufactured.
+//! The report is parsed strictly: `survivors` must be a JSON array of objects, `killed` and
+//! `total` must be numbers when present, and a total that does not equal killed plus survivors is
+//! refused. A survivor's `seed` is kept in its finding. A required mutation run with no runner
+//! configured, no approval, a failed command or malformed output is `Unavailable`, never a pass.
+//! Tooling that is not installed is recorded as unavailable, not manufactured.
 
 use std::path::Path;
 
 use serde_json::Value;
+use verdict_core::exec_approval::policy_shell;
+use verdict_core::lane::{path_matches, policy_names};
 use verdict_core::{Finding, Lane, Policy, Severity, Tier};
 
 use crate::Checker;
 use crate::context::{CheckContext, Draft, Unavailable, finish};
-use crate::exec::{parse_duration, run_command};
+use crate::exec::{parse_duration, run_command_in};
 
 /// The mutation checker.
 pub struct Mutation;
@@ -45,25 +61,60 @@ impl Checker for Mutation {
                 "no mutation runner is configured (set mutation.command or mutation.report)",
             ));
         }
-        // The policy's proportionality rule: mutation runs only when a reason it names is present.
         let reasons = policy_list(&ctx.policy, "/mutation/require_when");
         if reasons.is_empty() {
-            ctx.note("mutation is configured but mutation.require_when names no reason, so it was not required");
+            ctx.skipped(
+                "mutation is configured but mutation.require_when names no reason, so the policy \
+                 does not require a mutation run here",
+            );
             return Ok(Vec::new());
         }
         let changes = ctx.changes().map_err(|u| Unavailable::new(u.reason))?;
-        let logic_changed = changes.files.iter().any(|f| {
-            crate::paths::is_code(&f.path)
-                && !crate::paths::is_test_path(&f.path)
-                && !matches!(f.status, crate::changes::Status::Deleted)
-        });
-        // A configured report is the project's own runner's output: reading it is evidence that a
-        // run happened, and a survivor in it proves logic was mutated. Only the command mode needs
-        // the changed-logic heuristic before it spends time running anything.
-        if !logic_changed && report.is_none() {
-            ctx.note("mutation was not required: no logic file changed");
+        let changed_logic: Vec<String> = changes
+            .files
+            .iter()
+            .filter(|f| {
+                crate::paths::is_code(&f.path)
+                    && !crate::paths::is_test_path(&f.path)
+                    && !matches!(f.status, crate::changes::Status::Deleted)
+            })
+            .map(|f| f.path.clone())
+            .collect();
+        let critical = critical_change(&ctx.policy, &changed_logic);
+        let sensitive = ctx
+            .policy
+            .value
+            .pointer("/mutation/test_sensitivity_uncertain")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+        let mut why: Vec<String> = Vec::new();
+        if reasons.iter().any(|r| r == "critical_logic_changed") && critical {
+            why.push(format!(
+                "critical logic changed ({})",
+                changed_logic
+                    .iter()
+                    .take(3)
+                    .cloned()
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ));
+        }
+        if reasons.iter().any(|r| r == "test_sensitivity_uncertain") && sensitive {
+            why.push("the project declares test_sensitivity_uncertain".into());
+        }
+        if why.is_empty() {
+            ctx.skipped(format!(
+                "mutation was not required by mutation.require_when ({}) for this diff: {}",
+                reasons.join(", "),
+                if changed_logic.is_empty() {
+                    "no logic file changed".to_string()
+                } else {
+                    "no named reason applies".to_string()
+                }
+            ));
             return Ok(Vec::new());
         }
+        ctx.note(format!("mutation required: {}", why.join("; ")));
 
         let mut drafts = Vec::new();
         let (text, tier, source) = if let Some(report) = &report {
@@ -84,7 +135,12 @@ impl Checker for Mutation {
                 .as_deref()
                 .and_then(parse_duration)
                 .unwrap_or(ctx.timeout);
-            let run = run_command(&command, &ctx.root, timeout);
+            let shell = policy_shell(&ctx.policy).map_err(|e| {
+                Unavailable::new(format!(
+                    "the project's declared shell cannot be used: {e}; nothing was run"
+                ))
+            })?;
+            let run = run_command_in(&command, &ctx.root, timeout, shell);
             if let Some(e) = &run.spawn_error {
                 return Err(Unavailable::new(format!(
                     "the mutation runner could not start: {e}"
@@ -96,8 +152,26 @@ impl Checker for Mutation {
                     timeout.as_secs()
                 )));
             }
-            if let Some(problem) = run.problem() {
-                ctx.note(format!("mutation runner: {problem}"));
+            let allowed = exit_codes(&ctx.policy);
+            let ended_ok = run.clean()
+                && run
+                    .exit
+                    .is_some_and(|code| allowed.contains(&i64::from(code)));
+            if !ended_ok {
+                return Err(Unavailable::new(format!(
+                    "the mutation runner did not end successfully ({}), so its output was not read \
+                     as a mutation report",
+                    match run.exit {
+                        Some(c) => format!(
+                            "exit {c}{}",
+                            run.problem()
+                                .as_ref()
+                                .map(|p| format!("; {p}"))
+                                .unwrap_or_default()
+                        ),
+                        None => "it ended without an exit code".to_string(),
+                    }
+                )));
             }
             ctx.reached(Tier::Ran);
             (
@@ -107,33 +181,37 @@ impl Checker for Mutation {
             )
         };
 
-        let parsed = last_report(&text).ok_or_else(|| {
+        let parsed = parse_report(&text).map_err(|e| {
             Unavailable::new(format!(
-                "the mutation runner ({source}) printed no {{\"survivors\": [...]}} report"
+                "the mutation runner ({source}) produced no usable report: {e}"
             ))
         })?;
-        let survivors = parsed
-            .get("survivors")
-            .and_then(Value::as_array)
-            .cloned()
-            .unwrap_or_default();
-        let killed = parsed.get("killed").and_then(Value::as_u64);
-        let total = parsed.get("total").and_then(Value::as_u64);
+        let seed_list: Vec<String> = parsed
+            .survivors
+            .iter()
+            .map(|s| survivor_seed(s).unwrap_or_else(|| "-".into()))
+            .collect();
         ctx.note(format!(
-            "mutation: {} survivor(s){}{}",
-            survivors.len(),
-            killed.map(|k| format!(", {k} killed")).unwrap_or_default(),
-            total
+            "mutation: {} survivor(s){}{}; seeds: {}",
+            parsed.survivors.len(),
+            parsed
+                .killed
+                .map(|k| format!(", {k} killed"))
+                .unwrap_or_default(),
+            parsed
+                .total
                 .map(|t| format!(" of {t} mutant(s)"))
-                .unwrap_or_default()
+                .unwrap_or_default(),
+            seed_list.join(", ")
         ));
-        for (i, s) in survivors.iter().enumerate() {
+        for (i, s) in parsed.survivors.iter().enumerate() {
             let file = s.get("file").and_then(Value::as_str);
             let line = s.get("line").and_then(Value::as_u64);
             let description = s
                 .get("description")
                 .and_then(Value::as_str)
                 .unwrap_or("a mutant survived the tests");
+            let seed = survivor_seed(s);
             let (path, line_no, pointer) = match (file, line) {
                 (Some(f), Some(l)) => {
                     let p = Path::new(f);
@@ -158,9 +236,12 @@ impl Checker for Mutation {
                 rule: "survivor",
                 severity: Severity::Major,
                 title: format!(
-                    "mutation survivor {} of {}: {}",
+                    "mutation survivor {} of {}{}: {}",
                     i + 1,
-                    survivors.len(),
+                    parsed.survivors.len(),
+                    seed.as_deref()
+                        .map(|s| format!(" (seed {s})"))
+                        .unwrap_or_default(),
                     description
                 ),
                 claim_seq: None,
@@ -175,6 +256,101 @@ impl Checker for Mutation {
         }
         Ok(finish(self.name(), drafts))
     }
+}
+
+fn survivor_seed(s: &Value) -> Option<String> {
+    s.get("seed").and_then(|v| match v {
+        Value::String(x) => Some(x.clone()),
+        Value::Number(n) => Some(n.to_string()),
+        _ => None,
+    })
+}
+
+/// Whether a changed logic file counts as critical for the mutation rule.
+fn critical_change(policy: &Policy, files: &[String]) -> bool {
+    if files.is_empty() {
+        return false;
+    }
+    let mut globs = policy_names(policy, "/mutation/critical_paths");
+    globs.extend(policy_names(policy, "/blast/high_if_touches"));
+    globs.extend(policy_names(policy, "/blast/release_if_touches"));
+    if globs.is_empty() {
+        // The project has not said what is critical. That is not "nothing is", so a changed logic
+        // file is treated as critical: the conservative direction for requiring more evidence.
+        return true;
+    }
+    files.iter().any(|f| path_matches(&globs, f))
+}
+
+/// The exit codes the policy names as a successful mutation-runner convention (default `[0]`).
+fn exit_codes(policy: &Policy) -> Vec<i64> {
+    let listed: Vec<i64> = policy
+        .value
+        .pointer("/mutation/success_exit_codes")
+        .and_then(Value::as_array)
+        .map(|a| a.iter().filter_map(Value::as_i64).collect())
+        .unwrap_or_default();
+    if listed.is_empty() { vec![0] } else { listed }
+}
+
+struct Report {
+    survivors: Vec<Value>,
+    killed: Option<u64>,
+    total: Option<u64>,
+}
+
+/// Parse the mutation report strictly. A non-array `survivors`, a non-object survivor, a
+/// non-numeric count or an inconsistent total is an error, never a clean empty report.
+fn parse_report(text: &str) -> Result<Report, String> {
+    let mut starts: Vec<usize> = text.match_indices('{').map(|(i, _)| i).collect();
+    starts.reverse();
+
+    for i in starts {
+        let mut it = serde_json::Deserializer::from_str(&text[i..]).into_iter::<Value>();
+        let Some(Ok(v)) = it.next() else { continue };
+        let Some(survivors) = v.get("survivors") else {
+            continue;
+        };
+        let Some(array) = survivors.as_array() else {
+            return Err("`survivors` is not a list".into());
+        };
+        let mut out = Vec::new();
+        for (n, s) in array.iter().enumerate() {
+            if !s.is_object() {
+                return Err(format!(
+                    "survivor {} is not an object with a file, line or description",
+                    n + 1
+                ));
+            }
+            out.push(s.clone());
+        }
+        let count = |key: &str| -> Result<Option<u64>, String> {
+            match v.get(key) {
+                None => Ok(None),
+                Some(Value::Number(n)) => n
+                    .as_u64()
+                    .map(Some)
+                    .ok_or_else(|| format!("`{key}` is not a whole number")),
+                Some(_) => Err(format!("`{key}` is not a number")),
+            }
+        };
+        let killed = count("killed")?;
+        let total = count("total")?;
+        if let (Some(k), Some(t)) = (killed, total)
+            && k.saturating_add(out.len() as u64) != t
+        {
+            return Err(format!(
+                "the report is inconsistent: {k} killed plus {} survivor(s) is not the stated total of {t}",
+                out.len()
+            ));
+        }
+        return Ok(Report {
+            survivors: out,
+            killed,
+            total,
+        });
+    }
+    Err("it printed no {\"survivors\": [...]} report".into())
 }
 
 fn policy_str(policy: &Policy, pointer: &str) -> Option<String> {
@@ -201,30 +377,27 @@ fn policy_list(policy: &Policy, pointer: &str) -> Vec<String> {
         .unwrap_or_default()
 }
 
-/// The last JSON object in `text` that carries a `survivors` key.
-fn last_report(text: &str) -> Option<Value> {
-    let mut starts: Vec<usize> = text.match_indices('{').map(|(i, _)| i).collect();
-    starts.reverse();
-    for i in starts {
-        let mut it = serde_json::Deserializer::from_str(&text[i..]).into_iter::<Value>();
-        if let Some(Ok(v)) = it.next()
-            && v.get("survivors").is_some()
-        {
-            return Some(v);
-        }
-    }
-    None
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn the_report_is_the_last_object_that_has_survivors() {
-        let text = "noise {\"other\": 1}\n{\"survivors\": [], \"killed\": 3}\n";
-        assert_eq!(last_report(text).unwrap()["killed"], serde_json::json!(3));
-        assert!(last_report("nothing here").is_none());
-        assert!(last_report("{\"killed\": 1}").is_none());
+        let text = "noise {\"other\": 1}\n{\"survivors\": [], \"killed\": 3, \"total\": 3}\n";
+        let r = parse_report(text).unwrap();
+        assert_eq!(r.killed, Some(3));
+        assert_eq!(r.total, Some(3));
+        assert!(parse_report("nothing here").is_err());
+        assert!(parse_report("{\"killed\": 1}").is_err());
+    }
+
+    #[test]
+    fn malformed_reports_are_refused_never_read_as_clean() {
+        assert!(parse_report("{\"survivors\": null}").is_err());
+        assert!(parse_report("{\"survivors\": [\"a mutant\"]}").is_err());
+        assert!(parse_report("{\"survivors\": [], \"killed\": \"3\"}").is_err());
+        // A total that does not add up is malformed output, not a clean run.
+        assert!(parse_report("{\"survivors\": [], \"killed\": 3, \"total\": 4}").is_err());
+        assert!(parse_report("{\"survivors\": [{\"seed\": 7}]}").is_ok());
     }
 }

@@ -30,10 +30,14 @@ CHECKS
   5 of 5 checks ran.
   required: unfinished did not run
   required: exec could not run: the tool is not installed
+  required: desk:engineer did not run
+  required: desk:qa did not run
 
 NOT ESTABLISHED
   - unfinished: did not run
   - exec: could not run: the tool is not installed
+  - desk:engineer: did not run
+  - desk:qa: did not run
   - whether your build and tests pass: nothing was run
   - whether your real app works: no page was loaded
   - whether any of the 1 claim(s) is true beyond what the checks above show: claims are the agent's words, not evidence

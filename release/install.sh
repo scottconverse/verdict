@@ -1,8 +1,14 @@
 #!/bin/sh
-# Verdict installer for Linux and macOS. Run it from the downloaded release folder:
+# Verdict installer for Linux and macOS. Run it from the extracted release folder:
 #   sh install.sh
-# It verifies the binary against the checksum beside it, installs it in ~/.local/bin, and starts
-# the local page. No terminal step is needed after it finishes.
+#
+# The release archive holds the binary (`vdt`) and its SHA-256 (`vdt.sha256`); older release
+# layouts named the binary `vdt-<version>-<arch>-<os>`. This installer finds either, verifies the
+# binary against the checksum beside it, installs it in ~/.local/bin, registers the MCP server with
+# the project it was run in, and starts the local page. No terminal step is needed after it.
+#
+# A missing checksum is an error, not a warning: an unverified download is not installed unless
+# VDT_ALLOW_UNVERIFIED=1 is set on purpose.
 set -eu
 
 version="${VDT_VERSION:-1.0.0}"
@@ -21,18 +27,33 @@ case "$arch" in
   *) echo "unsupported architecture: $arch" >&2; exit 1 ;;
 esac
 
-bin="$here/vdt-$version-$arch_part-$os_part"
-[ -f "$bin" ] || { echo "cannot find $bin beside the installer" >&2; exit 1; }
-if [ -f "$bin.sha256" ]; then
-  want=$(cut -d' ' -f1 "$bin.sha256")
+# The archive layout first (`vdt`), then the older versioned name, then the same in this folder's
+# parent (an archive extracted one level up).
+bin=""
+for candidate in \
+  "$here/vdt" \
+  "$here/vdt-$version-$arch_part-$os_part" \
+  "$(dirname "$here")/vdt" \
+  "$(dirname "$here")/vdt-$version-$arch_part-$os_part"
+do
+  if [ -f "$candidate" ]; then bin="$candidate"; break; fi
+done
+[ -n "$bin" ] || { echo "cannot find the vdt binary beside the installer ($here)" >&2; exit 1; }
+
+sum="$bin.sha256"
+if [ -f "$sum" ]; then
+  want=$(cut -d' ' -f1 "$sum")
   if command -v sha256sum >/dev/null 2>&1; then
     got=$(sha256sum "$bin" | cut -d' ' -f1)
   else
     got=$(shasum -a 256 "$bin" | cut -d' ' -f1)
   fi
   [ "$want" = "$got" ] || { echo "checksum mismatch: the download is damaged or was changed" >&2; exit 1; }
+elif [ "${VDT_ALLOW_UNVERIFIED:-0}" = "1" ]; then
+  echo "warning: no checksum beside $bin and VDT_ALLOW_UNVERIFIED=1; the download is unverified" >&2
 else
-  echo "warning: no checksum beside $bin; the download is unverified" >&2
+  echo "no checksum beside $bin: refusing to install an unverified download (set VDT_ALLOW_UNVERIFIED=1 to override)" >&2
+  exit 1
 fi
 
 dir="$HOME/.local/bin"
@@ -55,10 +76,10 @@ if [ "${VDT_NO_MCP:-0}" != "1" ]; then
     || echo "warning: could not register the MCP server with Cursor" >&2
 fi
 
-echo "Starting the Verdict page..."
-"$dir/vdt" serve >"$HOME/.verdict-serve.log" 2>&1 &
+echo "Starting the Verdict page for $PWD..."
+"$dir/vdt" serve --project "$PWD" >"$HOME/.verdict-serve.log" 2>&1 &
 sleep 1
 if command -v xdg-open >/dev/null 2>&1; then xdg-open "http://127.0.0.1:4717/" >/dev/null 2>&1 || true
 elif command -v open >/dev/null 2>&1; then open "http://127.0.0.1:4717/" || true
 fi
-echo "Verdict is running at http://127.0.0.1:4717/"
+echo "Verdict is running at http://127.0.0.1:4717/ (project: $PWD)"

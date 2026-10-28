@@ -22,8 +22,8 @@ use std::collections::BTreeMap;
 use std::path::Path;
 
 use crate::lane::{
-    ALL_LANES, Classification, classify_lane, effective_lane, is_checker, lane_checkers,
-    normalize_paths, touched_paths_checked,
+    ALL_LANES, Bar, Classification, classify_lane, effective_lane, is_checker,
+    lane_bar_with_warning, lane_checkers, lane_desks, normalize_paths, touched_paths_checked,
 };
 use crate::ledger::{Ledger, LedgerError};
 use crate::model::{
@@ -45,6 +45,17 @@ pub struct VerdictInput {
     pub implied_lane: Lane,
     /// The expanded checker list of each lane.
     pub lane_checkers: BTreeMap<Lane, Vec<String>>,
+    /// The expanded desk list of each lane. A required desk with no `desk:<name>` receipt on the
+    /// code being judged makes the verdict PARTIAL, never clean (see [`compute`]).
+    pub lane_desks: BTreeMap<Lane, Vec<String>>,
+    /// The bar each lane declares. In the release lane it decides what "zero findings above nit"
+    /// means.
+    pub lane_bars: BTreeMap<Lane, Bar>,
+    /// True when the project's first run is a web walk that needs browser evidence; false when the
+    /// project declares it has no page to load (`firstrun.web: false`).
+    pub firstrun_web: bool,
+    /// Policy problems found while reading the lane configuration (an unknown bar, a bad glob).
+    pub policy_warnings: Vec<String>,
     /// Policy version in force.
     pub policy_version: u32,
     /// Why the lane is what it is, for the report.
@@ -55,6 +66,9 @@ pub struct VerdictInput {
     /// Set when the session's diff could not be read (why). The lane was then set to the highest
     /// one, and the verdict cannot be clean.
     pub diff_unavailable: Option<String>,
+    /// Evidence pointers of the session's findings whose hash no longer matches the tree (or whose
+    /// file or line is gone), as plain lines. Filled in by [`live_input`], which has the tree.
+    pub stale_pointers: Vec<String>,
 }
 
 impl VerdictInput {
@@ -62,16 +76,33 @@ impl VerdictInput {
     /// (set [`VerdictInput::current_tree`]); [`live_input`] fills it in from the disk.
     pub fn from_policy(policy: &Policy, implied: Classification) -> VerdictInput {
         let mut lane_checkers_map = BTreeMap::new();
+        let mut lane_desks_map = BTreeMap::new();
+        let mut lane_bars = BTreeMap::new();
+        let mut warnings = implied.warnings.clone();
         for lane in ALL_LANES {
             lane_checkers_map.insert(lane, lane_checkers(policy, lane));
+            lane_desks_map.insert(lane, lane_desks(policy, lane));
+            let (bar, warning) = lane_bar_with_warning(policy, lane);
+            lane_bars.insert(lane, bar);
+            warnings.extend(warning);
         }
+        let firstrun_web = policy
+            .value
+            .pointer("/firstrun/web")
+            .and_then(Value::as_bool)
+            .unwrap_or(true);
         VerdictInput {
             implied_lane: implied.lane,
             lane_checkers: lane_checkers_map,
+            lane_desks: lane_desks_map,
+            lane_bars,
+            firstrun_web,
+            policy_warnings: warnings,
             policy_version: policy.version,
             lane_reasons: implied.reasons,
             current_tree: None,
             diff_unavailable: None,
+            stale_pointers: Vec::new(),
         }
     }
 }
@@ -595,13 +626,21 @@ fn severity_rank(s: Severity) -> u8 {
 /// * In the release lane any open finding above minor fails it, desks included.
 /// * Everything else, and every closed finding, does not.
 pub fn is_blocking(view: &FindingView, lane: Lane) -> bool {
+    is_blocking_with(view, lane, Bar::ZeroAboveNit)
+}
+
+/// [`is_blocking`] under a lane's declared bar.
+pub fn is_blocking_with(view: &FindingView, lane: Lane, bar: Bar) -> bool {
     if !view.is_open() {
         return false;
     }
     let f = &view.finding;
     let serious = severity_rank(f.severity) <= severity_rank(Severity::Major);
-    if lane == Lane::Release && serious {
-        return true;
+    if lane == Lane::Release {
+        return match bar {
+            Bar::ZeroAboveNit => serious,
+            Bar::BlockersOnly => f.severity == Severity::Blocker,
+        };
     }
     let desk = f.judgment || f.tier == Tier::Judgment;
     let soft = view
@@ -612,7 +651,12 @@ pub fn is_blocking(view: &FindingView, lane: Lane) -> bool {
 
 /// True if this open, non-blocking finding is the human's to settle (anything above a nit).
 pub fn needs_attention(view: &FindingView, lane: Lane) -> bool {
-    view.is_open() && !is_blocking(view, lane) && view.finding.severity != Severity::Nit
+    needs_attention_with(view, lane, Bar::ZeroAboveNit)
+}
+
+/// [`needs_attention`] under a lane's declared bar.
+pub fn needs_attention_with(view: &FindingView, lane: Lane, bar: Bar) -> bool {
+    view.is_open() && !is_blocking_with(view, lane, bar) && view.finding.severity != Severity::Nit
 }
 
 /// The proof tier a tier counts as for the VERIFIED suffix. Only tiers that read, ran or loaded
@@ -722,20 +766,62 @@ pub struct Sections {
 
 /// Split the open findings into FIX FIRST and YOURS TO SETTLE for `lane`.
 pub fn sections(a: &Analysis, lane: Lane) -> Sections {
+    sections_with(a, lane, Bar::ZeroAboveNit)
+}
+
+/// [`sections`] under a lane's declared bar.
+pub fn sections_with(a: &Analysis, lane: Lane, bar: Bar) -> Sections {
     Sections {
         fix_first: a
             .findings
             .iter()
-            .filter(|f| is_blocking(f, lane))
+            .filter(|f| is_blocking_with(f, lane, bar))
             .map(fix_item)
             .collect(),
         settle: a
             .findings
             .iter()
-            .filter(|f| needs_attention(f, lane))
+            .filter(|f| needs_attention_with(f, lane, bar))
             .map(fix_item)
             .collect(),
     }
+}
+
+/// Open desk findings that disagree about the same claim. Desks are independent: both stay, and
+/// the report shows the tension rather than averaging them.
+pub fn dissent(a: &Analysis) -> Vec<String> {
+    let open: Vec<&FindingView> = a
+        .findings
+        .iter()
+        .filter(|f| f.is_open() && (f.finding.judgment || f.finding.tier == Tier::Judgment))
+        .collect();
+    let mut out = Vec::new();
+    for (i, x) in open.iter().enumerate() {
+        for y in open.iter().skip(i + 1) {
+            let same_claim =
+                x.finding.claim_seq.is_some() && x.finding.claim_seq == y.finding.claim_seq;
+            let disagree = x.finding.severity != y.finding.severity;
+            if same_claim && disagree {
+                let desk = |f: &FindingView| {
+                    checker_of(&f.finding)
+                        .unwrap_or("a desk")
+                        .trim_start_matches("desk:")
+                        .to_string()
+                };
+                out.push(format!(
+                    "{} desk: \"{}\" (record {}) and {} desk: \"{}\" (record {}) disagree about claim record {}; both are kept",
+                    desk(x),
+                    x.finding.title,
+                    x.seq,
+                    desk(y),
+                    y.finding.title,
+                    y.seq,
+                    x.finding.claim_seq.unwrap_or(0)
+                ));
+            }
+        }
+    }
+    out
 }
 
 /// Compute the verdict of `session` from the ledger. See the [module docs](self) for the rules.
@@ -746,8 +832,18 @@ pub fn compute(
 ) -> Result<Computed, LedgerError> {
     let mut a = analyze(ledger, session)?;
     let lane = effective_lane(ledger, session, input.implied_lane)?;
-    let required: Vec<String> = input.lane_checkers.get(&lane).cloned().unwrap_or_default();
-    let sec = sections(&a, lane);
+    let bar = input
+        .lane_bars
+        .get(&lane)
+        .copied()
+        .unwrap_or(Bar::ZeroAboveNit);
+    // A checker and a required desk are both requirements of the lane. A missing desk receipt is
+    // exactly as serious as a missing checker: nothing can be computed as clean around it.
+    let mut required: Vec<String> = input.lane_checkers.get(&lane).cloned().unwrap_or_default();
+    for desk in input.lane_desks.get(&lane).cloned().unwrap_or_default() {
+        required.push(format!("desk:{desk}"));
+    }
+    let sec = sections_with(&a, lane, bar);
     let integrity = ledger.verify()?;
 
     // A check counts only for the code it ran on. One that ran on code that has changed since, or
@@ -861,16 +957,26 @@ pub fn compute(
     // finding is NEEDS YOU, never VERIFIED.)
     let mut withheld: Vec<String> = Vec::new();
     if word == VerdictWord::Verified && lane == Lane::Release {
-        let firstrun_ok = matches!(
-            a.checks.get("firstrun"),
+        // The project declares whether its first run walks a page (`firstrun.web`, the default) or
+        // is command evidence only. A web first run must reach the browsed tier; a declared
+        // non-web first run is satisfied by its commands' `ran` evidence.
+        let firstrun_ok = match a.checks.get("firstrun") {
             Some(CheckState::Ran {
                 tier: Tier::Browsed,
                 ..
-            })
-        );
+            }) => true,
+            Some(CheckState::Ran {
+                tier: Tier::Ran, ..
+            }) => !input.firstrun_web,
+            _ => false,
+        };
         let release_ok = matches!(a.checks.get("release"), Some(CheckState::Ran { .. }));
         if !firstrun_ok {
-            withheld.push("firstrun was not attested at the browsed tier".to_string());
+            withheld.push(if input.firstrun_web {
+                "firstrun was not attested at the browsed tier (this project's first run is a web walk)".to_string()
+            } else {
+                "firstrun did not record its command evidence".to_string()
+            });
         }
         if !release_ok {
             withheld.push("release coherence did not run".to_string());
@@ -922,6 +1028,12 @@ pub fn compute(
     }
     for (_, component, reason) in &a.plumbing_unavailable {
         ne.push(format!("{component}: could not run: {reason}"));
+    }
+    for w in &input.policy_warnings {
+        ne.push(format!("policy: {w}"));
+    }
+    for s in &input.stale_pointers {
+        ne.push(s.clone());
     }
     if !a.hypotheses.is_empty() {
         ne.push(format!(
@@ -1042,6 +1154,7 @@ pub fn live_input(
     let mut input = VerdictInput::from_policy(&policy, class);
     input.current_tree = crate::baseline::tree_state(root);
     input.diff_unavailable = touched.unreadable;
+    input.stale_pointers = stale_pointer_lines(ledger, session, root);
     Ok(Live {
         input,
         policy,
@@ -1049,6 +1162,31 @@ pub fn live_input(
         paths,
         warnings,
     })
+}
+
+/// Evidence of this session's open findings that no longer matches the tree: the design requires
+/// a stale pointer to be shown as stale, not silently displayed as if it still held.
+fn stale_pointer_lines(ledger: &Ledger, session: &str, root: &Path) -> Vec<String> {
+    let Ok(a) = analyze(ledger, session) else {
+        return Vec::new();
+    };
+    let mut out: Vec<String> = Vec::new();
+    for v in a.findings.iter().filter(|v| v.is_open()) {
+        for e in &v.finding.evidence {
+            if let crate::pointer::PointerStatus::Stale(why) = e.check(root) {
+                let line = format!(
+                    "stale evidence: {} (finding {}, record {}) no longer matches the tree: {why}",
+                    e.describe(),
+                    v.finding.id,
+                    v.seq
+                );
+                if !out.contains(&line) {
+                    out.push(line);
+                }
+            }
+        }
+    }
+    out
 }
 
 /// Load the effective policy, or the built-in default with a warning when the files are unusable

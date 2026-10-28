@@ -482,6 +482,16 @@ pub fn render_report_with(
         }
     }
 
+    if let Some(a) = &analysis {
+        let tension = crate::verdict::dissent(a);
+        if !tension.is_empty() {
+            let _ = writeln!(o, "\nDESK DISSENT (both findings stay)");
+            for (i, s) in tension.iter().enumerate() {
+                let _ = writeln!(o, "  {}. {s}", i + 1);
+            }
+        }
+    }
+
     let _ = writeln!(o, "\nCHECKS");
     let ran = checks
         .iter()

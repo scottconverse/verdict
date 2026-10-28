@@ -98,6 +98,10 @@ fn router(state: St) -> Router {
         .route("/session/{id}/log", get(log_page))
         .route("/session/{id}/packet", get(packet_download))
         .route("/session/{id}/sarif", get(sarif_download))
+        .route("/session/{id}/check", post(decisions::run_check))
+        .route("/session/{id}/desks", post(decisions::run_desks))
+        .route("/decisions.jsonl", get(decisions::decisions_download))
+        .route("/mcp-install", post(decisions::mcp_install))
         .route("/hooks/{host}", get(hooks_page))
         .route("/install-hooks", post(install_hooks))
         .route("/decide", post(decisions::decide))
@@ -471,7 +475,7 @@ async fn log_page(State(st): State<St>, Path(id): Path<String>) -> Response {
 
 /// One file the page offers for download: its exact text, and the headers that make a browser
 /// save it instead of showing it.
-fn download(text: String, kind: &'static str, name: &str) -> Response {
+pub(crate) fn download(text: String, kind: &'static str, name: &str) -> Response {
     let Ok(disposition) = HeaderValue::from_str(&format!("attachment; filename=\"{name}\"")) else {
         return error_page(&LedgerError::Invalid(
             "a download header could not be formed".into(),

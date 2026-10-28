@@ -19,6 +19,8 @@ struct Args {
     fail: u8,
     sleep_ms: u64,
     model: Option<String>,
+    served_vendor: Option<String>,
+    pad: usize,
     uncited: bool,
 }
 
@@ -30,6 +32,8 @@ fn args() -> Args {
         fail: 0,
         sleep_ms: 0,
         model: None,
+        served_vendor: None,
+        pad: 0,
         uncited: false,
     };
     let mut it = std::env::args().skip(1);
@@ -41,6 +45,8 @@ fn args() -> Args {
             "--fail" => a.fail = it.next().and_then(|v| v.parse().ok()).unwrap_or(1),
             "--sleep-ms" => a.sleep_ms = it.next().and_then(|v| v.parse().ok()).unwrap_or(0),
             "--model" => a.model = it.next(),
+            "--served-vendor" => a.served_vendor = it.next(),
+            "--pad" => a.pad = it.next().and_then(|v| v.parse().ok()).unwrap_or(0),
             "--uncited" => a.uncited = true,
             _ => {}
         }
@@ -87,7 +93,11 @@ fn main() {
     {
         evidence.push(serde_json::json!({"file": file, "line": line}));
     }
-    let answer = serde_json::json!({
+    if a.pad > 0 {
+        let padding = " ".repeat(a.pad);
+        print!("{padding}");
+    }
+    let mut answer = serde_json::json!({
         "findings": [
             {
                 "severity": a.severity,
@@ -104,6 +114,13 @@ fn main() {
         "model": a.model,
         "usage": {"input_tokens": 11, "output_tokens": 7}
     });
+    if let Some(vendor) = &a.served_vendor {
+        answer["served"] = serde_json::json!({
+            "vendor": vendor,
+            "model": a.model,
+            "settings": {"temperature": 0}
+        });
+    }
     let mut out = std::io::stdout();
     let _ = writeln!(out, "{answer}");
 }

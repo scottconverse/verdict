@@ -243,9 +243,17 @@ before the human creates the tag, which is the point of a release lane. Undo:
 
 ## 25. What does the DSH integration include?
 
-**Ruling: the MCP connection is the supported path; a host-neutral `vdt hook dsh` adapter exists;
-no native plugin is claimed, because the installed harness exposes no plugin API here.**
+**Ruling: the MCP connection and the native plugin are both shipped; the plugin is recording-only.**
 
-Writing a plugin against an invented manifest would be a false claim. The adapter and the MCP
-server are real and tested; `docs/DSH.md` states the limits and `vdt hooks install dsh` refuses with
-that pointer. Undo: `payload.rs` `Host::Dsh`, `docs/DSH.md`.
+`integrations/dsh/index.mjs` is a Cordis plugin (`export const name`, `export function apply(ctx)`)
+that subscribes to the harness events the installed packages already use and turns them into
+`vdt hook dsh <event>` payloads. It records the session, the user's message, tool results and the
+turn end; it never holds an edit and cannot apply a Stop send-back, because this build does not
+claim DSH's reply shape (the same limit as Cursor and Antigravity). `docs/DSH.md` states the limits,
+and the integration is optional: no part of the Rust core or the deterministic checks needs it.
+
+The earlier ruling said no native plugin was claimed. That was true when it was written and is no
+longer: the plugin exists, its tests use the harness's recorded event shapes, and it is packaged in
+the release archive. What is still not done is loading it into this workstation's preserved DSH
+configuration. Undo: delete `integrations/dsh/` and its `docs/DSH.md` section; the generic product
+is unaffected.

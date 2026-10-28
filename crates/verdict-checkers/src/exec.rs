@@ -4,7 +4,13 @@
 //!   (a `run_project_commands` decision whose hash matches the commands, tiers, shell and timeout
 //!   in force now). Without it the checker is unavailable ("not approved") and nothing runs.
 //! * Native on every platform: `.ps1` scripts go to `pwsh` / `powershell`, other commands to
-//!   `cmd /C` on Windows and `sh -c` elsewhere. Never bash on Windows, never WSL.
+//!   `cmd /C` on Windows and `sh -c` elsewhere. Never bash on Windows, never WSL. A project may
+//!   declare its own shell with `exec.shell` (`cmd`, `pwsh`, `powershell`, `sh`, `bash`, `zsh` or
+//!   `native`); a declared shell that cannot start is an honest failure, never a silent fallback.
+//! * A command registered at the `browsed` tier must carry browser evidence:
+//!   `"browser": {"screenshot": "path", "url": "..."}`. The screenshot must exist after the run and
+//!   its hash is recorded. Without it the command earns `ran`, not `browsed`, and the check reads
+//!   as not fully established: a configured label can never pass as browser proof.
 //! * Each command gets the policy timeout (never more than the caller's). Output is hashed in
 //!   full; only a short tail is kept. Every command that ran keeps its own receipt in the ledger.
 //! * A command runs inside a process tree the checker controls (a Job Object on Windows, a
@@ -25,6 +31,7 @@ use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
+use verdict_core::exec_approval::{Shell, policy_shell};
 use verdict_core::{EvidencePointer, Finding, Lane, Policy, Severity, Tier};
 
 use crate::Checker;
@@ -181,31 +188,143 @@ fn words(cmd: &str) -> Vec<String> {
     out
 }
 
-/// Build the process for `cmd`, natively for this platform.
-fn build_command(cmd: &str, cwd: &Path, powershell: &str) -> Command {
-    let ws = words(cmd);
-    let is_ps1 = verdict_core::exec_approval::is_powershell_script(cmd);
-    let mut c;
-    if is_ps1 {
-        c = Command::new(powershell);
-        c.args([
-            "-NoProfile",
-            "-NonInteractive",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-File",
-        ])
-        .args(&ws);
-    } else {
-        #[cfg(windows)]
-        {
-            use std::os::windows::process::CommandExt;
-            c = Command::new("cmd");
-            c.args(["/D", "/S", "/C"]).raw_arg(format!("\"{cmd}\""));
+/// On Windows, `cmd` reads a forward slash in a bare first token as a switch (`target/debug/vdt`
+/// becomes the command `target` plus switches). A command that starts with a project-relative path
+/// therefore has its leading token's slashes normalized to backslashes. Only the first token is
+/// touched; arguments are left exactly as the project wrote them.
+fn windows_cmd_line(cmd: &str) -> String {
+    #[cfg(not(windows))]
+    {
+        cmd.to_string()
+    }
+    #[cfg(windows)]
+    {
+        let trimmed = cmd.trim_start();
+        if trimmed.starts_with('-') || trimmed.starts_with('"') || !trimmed.contains('/') {
+            return cmd.to_string();
         }
-        #[cfg(not(windows))]
-        {
-            c = Command::new("sh");
+        let end = trimmed.find(char::is_whitespace).unwrap_or(trimmed.len());
+        let (first, rest) = trimmed.split_at(end);
+        // Only a path-like first token: no drive colon, no URL scheme, at least one slash.
+        if first.contains(':') || first.starts_with("//") {
+            return cmd.to_string();
+        }
+        format!("{}{}", first.replace('/', "\\"), rest)
+    }
+}
+
+/// Build a long-running command (the first-run server) under the declared shell, without the
+/// exec process-tree flags. The caller owns the pipes and (on Unix) the process group.
+pub fn server_command(cmd: &str, cwd: &Path, shell: Shell) -> Command {
+    let mut c;
+    match shell {
+        Shell::Native | Shell::Cmd => {
+            #[cfg(windows)]
+            {
+                use std::os::windows::process::CommandExt;
+                c = Command::new("cmd");
+                c.args(["/D", "/S", "/C"])
+                    .raw_arg(format!("\"{}\"", windows_cmd_line(cmd)));
+            }
+            #[cfg(not(windows))]
+            {
+                if shell == Shell::Native {
+                    c = Command::new("sh");
+                    c.arg("-c").arg(cmd);
+                } else {
+                    c = Command::new("cmd");
+                    c.args(["/D", "/S", "/C", cmd]);
+                }
+            }
+        }
+        Shell::Pwsh | Shell::Powershell => {
+            let program = if shell == Shell::Pwsh {
+                "pwsh"
+            } else {
+                "powershell"
+            };
+            c = Command::new(program);
+            c.args(["-NoProfile", "-Command", cmd]);
+        }
+        Shell::Sh | Shell::Bash | Shell::Zsh => {
+            let program = match shell {
+                Shell::Sh => "sh",
+                Shell::Bash => "bash",
+                _ => "zsh",
+            };
+            c = Command::new(program);
+            c.arg("-c").arg(cmd);
+        }
+    }
+    c.current_dir(cwd)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    c
+}
+
+/// Build the process for `cmd` under the project's declared shell.
+fn build_command(cmd: &str, cwd: &Path, powershell: &str, shell: Shell) -> Command {
+    let ws = words(cmd);
+    let mut c;
+    match shell {
+        Shell::Native => {
+            if verdict_core::exec_approval::is_powershell_script(cmd) {
+                c = Command::new(powershell);
+                c.args([
+                    "-NoProfile",
+                    "-NonInteractive",
+                    "-ExecutionPolicy",
+                    "Bypass",
+                    "-File",
+                ])
+                .args(&ws);
+            } else {
+                #[cfg(windows)]
+                {
+                    use std::os::windows::process::CommandExt;
+                    c = Command::new("cmd");
+                    c.args(["/D", "/S", "/C"])
+                        .raw_arg(format!("\"{}\"", windows_cmd_line(cmd)));
+                }
+                #[cfg(not(windows))]
+                {
+                    c = Command::new("sh");
+                    c.arg("-c").arg(cmd);
+                }
+            }
+        }
+        Shell::Cmd => {
+            // A project that declares cmd on a system without it gets an honest spawn failure.
+            #[cfg(windows)]
+            {
+                use std::os::windows::process::CommandExt;
+                c = Command::new("cmd");
+                c.args(["/D", "/S", "/C"])
+                    .raw_arg(format!("\"{}\"", windows_cmd_line(cmd)));
+            }
+            #[cfg(not(windows))]
+            {
+                c = Command::new("cmd");
+                c.args(["/D", "/S", "/C", cmd]);
+            }
+        }
+        Shell::Pwsh | Shell::Powershell => {
+            let program = if shell == Shell::Pwsh {
+                "pwsh"
+            } else {
+                "powershell"
+            };
+            c = Command::new(program);
+            c.args(["-NoProfile", "-Command", cmd]);
+        }
+        Shell::Sh | Shell::Bash | Shell::Zsh => {
+            let program = match shell {
+                Shell::Sh => "sh",
+                Shell::Bash => "bash",
+                _ => "zsh",
+            };
+            c = Command::new(program);
             c.arg("-c").arg(cmd);
         }
     }
@@ -466,8 +585,13 @@ impl Tree {
     }
 }
 
-/// Run one command line in `cwd` with a time limit.
+/// Run one command line in `cwd` with a time limit, in the platform's native shell.
 pub fn run_command(cmd: &str, cwd: &Path, timeout: Duration) -> RunResult {
+    run_command_in(cmd, cwd, timeout, Shell::Native)
+}
+
+/// Run one command line in `cwd` under the project's declared shell.
+pub fn run_command_in(cmd: &str, cwd: &Path, timeout: Duration, shell: Shell) -> RunResult {
     let mut spawned = None;
     let mut last_err = String::new();
     let candidates: &[&str] = if cfg!(windows) {
@@ -475,13 +599,14 @@ pub fn run_command(cmd: &str, cwd: &Path, timeout: Duration) -> RunResult {
     } else {
         &["pwsh"]
     };
-    let tries: Vec<&str> = if verdict_core::exec_approval::is_powershell_script(cmd) {
-        candidates.to_vec()
-    } else {
-        vec![""]
-    };
+    let tries: Vec<&str> =
+        if shell == Shell::Native && verdict_core::exec_approval::is_powershell_script(cmd) {
+            candidates.to_vec()
+        } else {
+            vec![""]
+        };
     for ps in tries {
-        match build_command(cmd, cwd, ps).spawn() {
+        match build_command(cmd, cwd, ps, shell).spawn() {
             Ok(c) => {
                 spawned = Some(c);
                 break;
@@ -650,6 +775,54 @@ fn baseline_copy(root: &Path, commit: &str) -> Result<BaselineCopy, String> {
     Ok(guard)
 }
 
+/// The browser evidence a `browsed` command must produce: the screenshot the command wrote, hashed.
+/// Returns the note that goes in the check detail, or why the evidence is not there.
+fn browser_attestation(ctx: &CheckContext, cmd: &ExecCommand) -> Result<String, String> {
+    let Some(b) = &cmd.browser else {
+        return Err(format!(
+            "`{}` is registered at the browsed tier but declares no browser evidence (set \
+             exec.commands[].browser.screenshot); it earned ran, not browsed",
+            cmd.run
+        ));
+    };
+    let path = ctx.root.join(&b.screenshot);
+    let meta = std::fs::metadata(&path).map_err(|e| {
+        format!(
+            "the browser evidence for `{}` is missing: {} cannot be read ({e}); it earned ran, not \
+             browsed",
+            cmd.run, b.screenshot
+        )
+    })?;
+    if !meta.is_file() || meta.len() == 0 {
+        return Err(format!(
+            "the browser evidence for `{}` is not a non-empty screenshot file: {}; it earned ran, \
+             not browsed",
+            cmd.run, b.screenshot
+        ));
+    }
+    let asset = EvidencePointer::asset(&ctx.root, &b.screenshot).map_err(|e| {
+        format!(
+            "the browser screenshot {} cannot be hashed: {e}",
+            b.screenshot
+        )
+    })?;
+    let hash = match &asset {
+        EvidencePointer::Asset { asset_hash, .. } => asset_hash.clone(),
+        _ => String::new(),
+    };
+    Ok(format!(
+        "browser evidence for `{}`: screenshot {} ({} bytes, blake3 {}){}",
+        cmd.run,
+        b.screenshot,
+        meta.len(),
+        hash,
+        b.url
+            .as_deref()
+            .map(|u| format!("; page {u}"))
+            .unwrap_or_default()
+    ))
+}
+
 /// Ignored folders that are only build output or caches: a baseline copy without them is not
 /// missing anything a command needs to run.
 const REBUILDABLE: &[&str] = &[
@@ -752,12 +925,14 @@ fn receipt(cmd: &str, tier: Tier, res: &RunResult, timeout: Duration) -> Receipt
 
 impl Exec {
     /// Run the failing command again on the baseline and say what that shows.
+    #[allow(clippy::too_many_arguments)]
     fn ask_baseline(
         &self,
         ctx: &CheckContext,
         cmd: &ExecCommand,
         first: &RunResult,
         timeout: Duration,
+        shell: Shell,
         base: &Option<String>,
         evidence: &mut Vec<EvidencePointer>,
     ) -> BaselineAnswer {
@@ -777,7 +952,7 @@ impl Exec {
                 );
             }
         };
-        let again = run_command(&cmd.run, &copy.cwd, timeout);
+        let again = run_command_in(&cmd.run, &copy.cwd, timeout, shell);
         evidence.push(EvidencePointer::Command {
             command: format!("{} (on a copy of the baseline)", cmd.run),
             output_hash: again.output_hash.clone(),
@@ -916,6 +1091,14 @@ impl Checker for Exec {
             .and_then(|v| v.as_str())
             .and_then(parse_duration)
             .map_or(ctx.timeout, |p| p.min(ctx.timeout));
+        let shell = match policy_shell(&ctx.policy) {
+            Ok(s) => s,
+            Err(e) => {
+                return Err(Unavailable::new(format!(
+                    "the project's declared shell cannot be used: {e}; nothing was run"
+                )));
+            }
+        };
         let base = ctx.base_commit();
         let mut drafts: Vec<Draft> = Vec::new();
         let mut ran = 0usize;
@@ -943,7 +1126,7 @@ impl Checker for Exec {
                 });
                 continue;
             }
-            let res = run_command(&cmd.run, &ctx.root, timeout);
+            let res = run_command_in(&cmd.run, &ctx.root, timeout, shell);
             if let Some(e) = &res.spawn_error {
                 skipped.push(format!("`{}`: {e}", cmd.run));
                 drafts.push(Draft {
@@ -962,10 +1145,28 @@ impl Checker for Exec {
                 continue;
             }
             ran += 1;
-            ctx.add_receipt(receipt(&cmd.run, cmd.tier, &res, timeout));
+            // A `browsed` command earns its tier only with the browser evidence the design asks
+            // for. A configured label alone is not proof: without the screenshot it earns `ran`
+            // and the check reads as not fully established.
+            let mut earned = cmd.tier;
+            let mut browser_note = None;
+            if res.success() && cmd.tier == Tier::Browsed {
+                match browser_attestation(ctx, cmd) {
+                    Ok(note) => browser_note = Some(note),
+                    Err(why) => {
+                        earned = Tier::Ran;
+                        ctx.note(why.clone());
+                        ctx.unestablished(why);
+                    }
+                }
+            }
+            ctx.add_receipt(receipt(&cmd.run, earned, &res, timeout));
             // A run that left processes behind or lost output earns no tier.
-            if res.clean() && best.is_none_or(|b| rank(cmd.tier) > rank(b)) {
-                best = Some(cmd.tier);
+            if res.clean() && best.is_none_or(|b| rank(earned) > rank(b)) {
+                best = Some(earned);
+            }
+            if let Some(n) = browser_note {
+                ctx.note(n);
             }
             if res.success() {
                 continue;
@@ -1006,7 +1207,7 @@ impl Checker for Exec {
                 });
                 continue;
             }
-            let answer = self.ask_baseline(ctx, cmd, &res, timeout, &base, &mut evidence);
+            let answer = self.ask_baseline(ctx, cmd, &res, timeout, shell, &base, &mut evidence);
             drafts.push(Draft {
                 rule: answer.rule,
                 severity: answer.severity,
@@ -1053,6 +1254,21 @@ impl Checker for Exec {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(windows)]
+    #[test]
+    fn a_windows_command_starting_with_a_relative_path_is_normalized() {
+        assert_eq!(
+            windows_cmd_line("target/debug/vdt --version"),
+            "target\\debug\\vdt --version"
+        );
+        assert_eq!(windows_cmd_line("npm test"), "npm test");
+        assert_eq!(windows_cmd_line("-x /y"), "-x /y");
+        assert_eq!(
+            windows_cmd_line("\"C:/Program Files/x.exe\" /a"),
+            "\"C:/Program Files/x.exe\" /a"
+        );
+    }
 
     #[test]
     fn two_baseline_copies_made_at_once_never_share_a_folder() {

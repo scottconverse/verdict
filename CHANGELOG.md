@@ -95,9 +95,58 @@ the project uses semantic versioning from 1.0.0.
 
 ### Fixed
 
-- The checkers module documentation said six checkers; there are seven (wiring was missing).
+- The checkers module documentation said six checkers; the registry has ten (wiring, baseline_diff,
+  regressions, tests_weakened, unfinished, exec, mutation, firstrun, release, claims_vs_code).
 - The hook-install cards on the session report page were a link only; each now has a button that
   installs the entries through the adapters and records the human's decision, with the link kept.
+
+### Fixed in the completion pass (audit findings F01–F30 and the original backlog)
+
+- **Fresh verification on the ordinary completion path.** The Stop hook and MCP `verdict_check` now
+  run the lane's checkers and desks before computing the verdict, and both persist the general
+  gate-result record (F01, F14). The Stop hook's budget is the policy's `gate.stop_timeout`; reading
+  the payload is bounded too, so a host that never closes stdin cannot hang the agent.
+- **A lane's desks are part of its verdict.** A standard-or-higher lane with a missing desk receipt
+  is PARTIAL, never clean; a desk receipt on other code is stale like any check (F02).
+- **Receipts are bound to the snapshot read.** The tree stamp is taken before the context caches
+  the tree, so a stamp can never be newer than the data a checker inspected (F03).
+- **First-run and browser evidence.** A web first run is `browsed` only with a real server start, a
+  page load and a configured browser screenshot whose hash is recorded; a project declares
+  `firstrun.web: false` for a CLI or library, and only then does `ran` satisfy the release bar. A
+  `browsed` exec command without its screenshot earns `ran` and reads as not established (F04–F06).
+- **Consent shows every command.** The approval card lists the exec commands, the mutation runner,
+  the first-run workflow and the release checks, all of which the approval hash covers (F07).
+- **Mutation cannot fake proof.** Not-required records `skipped_by_policy` with `unverified`; the
+  report is parsed strictly (an array of objects, numeric counts, a consistent total), a failing
+  command is not read as a report, documented success exit codes are configurable, and seeds are
+  kept in the finding (F08–F10).
+- **Provider identity, order and process I/O.** Receipts record the served vendor/model when the
+  provider states them, effective settings and usage; a builder-vendor answer on a cross-vendor run
+  is refused; `vendors.verifier_order` is followed; stdout, stderr, stdin and the wait run
+  concurrently with a bounded drain, so a chatty provider cannot deadlock the parent (F11–F13).
+- **Packet and exports.** Every claim is classified proven / failed / unproven / out of scope with
+  its evidence; a release packet carries the release and first-run records and every configured
+  asset's SHA-256; `vdt export --decisions` writes `decisions.jsonl` with the verdict in force at
+  each decision and the override's tree and findings (F15, F16).
+- **Policy semantics.** `gate.stop_timeout`, per-lane `bar`, `exec.shell`, the suite block and the
+  new first-run/mutation/release fields are implemented and in `policy/schema.json` (F17, B01).
+- **GUI.** The page can run the checkers or the desks, choose the plan file, withdraw a prompt,
+  waive words and register the MCP server, and it marks stale evidence; every action writes a human
+  decision (F18, F19).
+- **Desks.** Each desk gets the artifacts the design assigns it (wiring and exec for Engineer, the
+  README and release findings for Docs, exec/firstrun for QA, firstrun and wiring for UX,
+  regressions for Security, manifests and licenses for Legal, clean results to refute for the
+  Refuter); proposals are recorded and may be run with `desks.run_proposals`; disagreeing desk
+  findings are shown as DESK DISSENT rather than averaged (F20).
+- **Packaging.** One `release/package.sh` produces the archive layout the installers and CI both
+  consume; the binary's inner SHA-256 is shipped and a missing checksum refuses the install; the
+  Windows shortcut keeps the selected project (`serve --project`); the publish job has its checkout
+  and creates a draft release (F21–F24).
+- **Release checks.** The project's own checks run first; the version is read from the manifest's
+  package section; product name and lockfile pin, asset hashes, the saved published-release record,
+  README commands and suite-wide pins are checked (F26).
+- **Docs.** README, RELEASE, HOSTS, DSH and the decisions log now state the actual behaviour and
+  the remaining limits (F30).
 - A retried hooks install no longer leaves or duplicates a backup.
 - MCP claim and done-when text is redacted before it reaches the append-only ledger.
 

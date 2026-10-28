@@ -11,11 +11,28 @@ fn claude_payloads_become_session_prompt_tool_calls_and_a_final_message() {
     let p = Project::new();
     run_fixture(&p, "claude", CLAUDE);
     let recs = p.records();
+    // The adapter writes the session, prompt, tool calls and the final claim. The Stop hook then
+    // runs fresh verification, which appends check records, the verdict and the gate result
+    // (written by the core); those are not adapter records.
+    let adapter: Vec<String> = recs
+        .iter()
+        .filter(|s| s.writer == Writer::Adapter)
+        .map(|s| s.kind.as_str().to_string())
+        .collect();
     assert_eq!(
-        kinds(&recs),
+        adapter,
         ["session", "prompt", "tool_call", "tool_call", "claim"]
     );
-    assert!(recs.iter().all(|s| s.writer == Writer::Adapter));
+    assert!(
+        recs.iter()
+            .any(|s| matches!(&s.record, Record::Verdict { .. })),
+        "the Stop hook records a verdict"
+    );
+    assert!(
+        recs.iter()
+            .any(|s| matches!(&s.record, Record::Check { name, .. } if name == "gate")),
+        "the Stop hook records the general gate result"
+    );
     let sid = recs[0].session_id.clone().unwrap();
     assert!(recs.iter().all(|s| s.session_id.as_deref() == Some(&sid)));
 
@@ -96,8 +113,13 @@ fn codex_payloads_become_the_same_kinds_of_records() {
     let p = Project::new();
     run_fixture(&p, "codex", CODEX);
     let recs = p.records();
+    let adapter: Vec<String> = recs
+        .iter()
+        .filter(|s| s.writer == Writer::Adapter)
+        .map(|s| s.kind.as_str().to_string())
+        .collect();
     assert_eq!(
-        kinds(&recs),
+        adapter,
         ["session", "prompt", "tool_call", "tool_call", "claim"]
     );
     let Record::Session { agent, vendor, .. } = &recs[0].record else {
@@ -120,7 +142,11 @@ fn codex_payloads_become_the_same_kinds_of_records() {
 }
 
 fn normalized(p: &Project) -> Vec<(String, String, serde_json::Value)> {
-    let recs = p.records();
+    let recs: Vec<_> = p
+        .records()
+        .into_iter()
+        .filter(|s| s.writer == Writer::Adapter)
+        .collect();
     let sid = recs[0].session_id.clone().unwrap();
     recs.iter()
         .map(|s| {
@@ -165,9 +191,11 @@ fn block_finding(p: &Project, session: &str) {
         Writer::Checker,
         Some(session),
         Record::Finding(verdict_core::Finding {
-            id: "regressions:debugger.abc123".into(),
+            // A checker that does not run in this lane, so fresh verification cannot resolve it:
+            // this test is about the send-back mechanics, not about the checkers.
+            id: "release:test-blocker.abc123".into(),
             severity: verdict_core::Severity::Blocker,
-            title: "a leftover debugger statement".into(),
+            title: "a release blocker".into(),
             claim_seq: None,
             evidence: vec![verdict_core::EvidencePointer::command("cargo test", b"red")],
             tier: verdict_core::Tier::Static,
@@ -670,14 +698,17 @@ fn a_stdin_that_never_closes_is_abandoned_at_the_budget_and_recorded() {
         t.elapsed()
     );
     let reasons = only_unavailable(&p);
-    assert!(reasons[0].contains("did not finish"), "{reasons:?}");
+    assert!(reasons[0].contains("did not arrive"), "{reasons:?}");
 }
 
 #[test]
 fn the_stop_budget_plus_the_failure_record_fits_inside_twenty_seconds() {
     use verdict_adapters::hook::{OTHER_BUDGET, STOP_BUDGET, UNAVAILABLE_BUDGET};
-    assert!(STOP_BUDGET + UNAVAILABLE_BUDGET < Duration::from_secs(20));
+    // The Stop budget is the policy's gate.stop_timeout (default 20s) and covers reading the
+    // payload, the work and the failure record; it is not a fixed constant plus extra.
+    assert!(STOP_BUDGET <= Duration::from_secs(20));
     assert!(OTHER_BUDGET < STOP_BUDGET);
+    assert!(UNAVAILABLE_BUDGET < STOP_BUDGET);
 }
 
 #[test]
@@ -729,8 +760,11 @@ fn secrets_in_prompts_commands_and_final_messages_never_reach_the_ledger() {
             "{secret} reached the ledger: {dump}"
         );
     }
-    assert_eq!(
-        kinds(&p.records()),
-        ["session", "prompt", "tool_call", "claim"]
-    );
+    let adapter: Vec<String> = p
+        .records()
+        .into_iter()
+        .filter(|s| s.writer == Writer::Adapter)
+        .map(|s| s.kind.as_str().to_string())
+        .collect();
+    assert_eq!(adapter, ["session", "prompt", "tool_call", "claim"]);
 }

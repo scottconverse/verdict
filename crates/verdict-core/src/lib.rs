@@ -35,6 +35,7 @@ pub mod project;
 pub mod report;
 pub mod report_head;
 pub mod session;
+pub mod sha256;
 pub mod timefmt;
 pub mod verdict;
 pub mod verify;

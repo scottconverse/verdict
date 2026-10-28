@@ -111,6 +111,9 @@ fn latest_prompt_names(ledger: &Ledger, session: &str, target: &str) -> bool {
 pub struct Options {
     /// Folder holding `.verdict/policy.json`; `None` means the user's home folder.
     pub home: Option<PathBuf>,
+    /// When this event's work must be done (the hook's own budget, minus a reserve). Fresh
+    /// verification is bounded by it so the hook can still record why it stopped.
+    pub deadline: Option<std::time::Instant>,
 }
 
 fn now_ms() -> u64 {
@@ -272,62 +275,98 @@ pub fn record_event(ev: &HookEvent, opts: &Options) -> Result<HookReply, String>
                     );
                 }
             }
-            // Enforce mode: send the agent back with the findings, at most the policy's number of
-            // times. After that the agent is released and the human is told through the ledger.
-            if enforce_mode(&ledger, &root, opts.home.as_deref())
-                && let Ok(live) = verdict_core::verdict::compute_live(
-                    &root,
-                    &ledger,
-                    &ledger_sid,
-                    opts.home.as_deref(),
-                )
-                && live.word == verdict_core::VerdictWord::Failed
-            {
-                let policy = policy_for(&root, opts.home.as_deref());
-                let max = policy
-                    .value
-                    .pointer("/gate/max_sendbacks")
-                    .and_then(serde_json::Value::as_u64)
-                    .unwrap_or(2) as u32;
-                if st.sendbacks < max {
-                    st.sendbacks += 1;
-                    dirty = true;
-                    let report = verdict_core::report::render_report_with(
-                        &ledger,
-                        Some(&ledger_sid),
-                        Some(&live),
-                    )
-                    .unwrap_or_else(|_| {
-                        "VERDICT: FAILED (the report could not be rendered)".into()
-                    });
-                    reply = HookReply::SendBack(bounded(
-                        format!(
-                            "Verdict found a blocking finding (send-back {} of {max}). Fix it, then say done again.\n\n{report}",
-                            st.sendbacks
-                        ),
-                        12_000,
-                    ));
-                } else {
-                    let detail = format!(
-                        "send-back limit reached ({max}); the agent was released and the human was told. The verdict stays FAILED."
-                    );
-                    let tree = verdict_core::baseline::tree_state_of_ledger(&ledger);
+            // The ordinary completion path starts fresh verification: this is the design's Stop
+            // sequence (final claim, then verdict_check, then the gate reply). A verification that
+            // cannot run leaves a `check_unavailable` record, never a clean result.
+            let policy = policy_for(&root, opts.home.as_deref());
+            // Leave a little of the hook's own budget for writing the records.
+            let mut budget = verdict_engine::stop_timeout(&policy, Duration::from_secs(18))
+                .saturating_sub(Duration::from_secs(2))
+                .max(Duration::from_secs(1));
+            if let Some(deadline) = opts.deadline {
+                let left = deadline.saturating_duration_since(std::time::Instant::now());
+                budget = budget.min(left.max(Duration::from_millis(200)));
+            }
+            let verified = verdict_engine::verify(
+                &root,
+                &mut ledger,
+                &ledger_sid,
+                opts.home.as_deref(),
+                &verdict_engine::VerifyOptions {
+                    budget: Some(budget),
+                    reason: Some("stop hook".into()),
+                },
+            );
+            match verified {
+                Err(reason) => {
                     ledger
                         .append(
                             Writer::Core,
                             Some(&ledger_sid),
-                            Record::Check {
-                                name: "sendbacks".into(),
-                                tier: verdict_core::Tier::Judgment,
-                                inputs_hash: String::new(),
-                                started_at: verdict_core::timefmt::now_rfc3339(),
-                                finished_at: verdict_core::timefmt::now_rfc3339(),
-                                outcome: verdict_core::CheckOutcome::Ran,
-                                detail: Some(detail),
-                                tree_state: tree,
+                            Record::CheckUnavailable {
+                                component: "verification".into(),
+                                reason: format!(
+                                    "fresh verification could not run at Stop: {reason}"
+                                ),
                             },
                         )
-                        .map_err(|e| format!("cannot record the send-back limit: {e}"))?;
+                        .map_err(|e| format!("cannot record the failed verification: {e}"))?;
+                }
+                Ok(v) => {
+                    // Enforce mode: send the agent back with the findings, at most the policy's
+                    // number of times. After that the agent is released and the human is told
+                    // through the ledger.
+                    if enforce_mode(&ledger, &root, opts.home.as_deref())
+                        && v.computed.word == verdict_core::VerdictWord::Failed
+                    {
+                        let max = policy
+                            .value
+                            .pointer("/gate/max_sendbacks")
+                            .and_then(serde_json::Value::as_u64)
+                            .unwrap_or(2) as u32;
+                        if st.sendbacks < max {
+                            st.sendbacks += 1;
+                            dirty = true;
+                            let report = verdict_core::report::render_report_with(
+                                &ledger,
+                                Some(&ledger_sid),
+                                Some(&v.computed),
+                            )
+                            .unwrap_or_else(|_| {
+                                "VERDICT: FAILED (the report could not be rendered)".into()
+                            });
+                            reply = HookReply::SendBack(bounded(
+                                format!(
+                                    "Verdict found a blocking finding (send-back {} of {max}). Fix it, then say done again.\n\n{report}",
+                                    st.sendbacks
+                                ),
+                                12_000,
+                            ));
+                        } else {
+                            let detail = format!(
+                                "send-back limit reached ({max}); the agent was released and the human was told. The verdict stays FAILED (gate record {}).",
+                                v.gate_seq
+                            );
+                            ledger
+                                .append(
+                                    Writer::Core,
+                                    Some(&ledger_sid),
+                                    Record::Check {
+                                        name: "sendbacks".into(),
+                                        tier: verdict_core::Tier::Judgment,
+                                        inputs_hash: String::new(),
+                                        started_at: verdict_core::timefmt::now_rfc3339(),
+                                        finished_at: verdict_core::timefmt::now_rfc3339(),
+                                        outcome: verdict_core::CheckOutcome::Ran,
+                                        detail: Some(detail),
+                                        tree_state: verdict_core::baseline::tree_state_of_ledger(
+                                            &ledger,
+                                        ),
+                                    },
+                                )
+                                .map_err(|e| format!("cannot record the send-back limit: {e}"))?;
+                        }
+                    }
                 }
             }
         }

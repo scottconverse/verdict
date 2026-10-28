@@ -56,6 +56,7 @@ impl Project {
     pub fn opts(&self) -> Options {
         Options {
             home: Some(self.home.path().to_path_buf()),
+            deadline: None,
         }
     }
     pub fn ledger(&self) -> Ledger {

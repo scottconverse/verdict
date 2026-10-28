@@ -36,6 +36,9 @@ pub struct RunOptions {
     pub lane: Lane,
     /// The time limit for the run.
     pub timeout: Duration,
+    /// When the whole run must be done. A runner uses it to record checkers that could not start
+    /// as unavailable (the Stop hook's budget).
+    pub deadline: Option<std::time::Instant>,
 }
 
 /// What one checker reports back. The checker has already written its `check` and `finding`
@@ -315,6 +318,7 @@ pub fn run_pre_commit(
         &RunOptions {
             lane,
             timeout: default_timeout(&policy),
+            deadline: None,
         },
     )?;
 
@@ -418,6 +422,15 @@ pub fn run_pre_commit(
         text.push_str("\nNOT ESTABLISHED\n");
         for s in &computed.not_established {
             text.push_str(&format!("  - {s}\n"));
+        }
+    }
+    if let Ok(a) = analyze(&ledger, &session) {
+        let tension = crate::verdict::dissent(&a);
+        if !tension.is_empty() {
+            text.push_str("\nDESK DISSENT (both findings stay)\n");
+            for (i, s) in tension.iter().enumerate() {
+                text.push_str(&format!("  {}. {s}\n", i + 1));
+            }
         }
     }
     text.push_str(&format!("\n{gate_line}\n"));
@@ -550,6 +563,7 @@ pub fn run_verdict(
     root: &Path,
     home: Option<&Path>,
     session: Option<&str>,
+    lane: Option<crate::model::Lane>,
     runner: Option<&dyn CheckRunner>,
 ) -> Result<(Computed, u64), LedgerError> {
     let mut ledger = Ledger::open(root)?;
@@ -559,8 +573,22 @@ pub fn run_verdict(
                 .into(),
         ));
     };
-    let live = live_input(root, &ledger, &session, home)?;
+    let mut live = live_input(root, &ledger, &session, home)?;
     record_lane_unavailable(&mut ledger, &session, &live)?;
+    // A lane the human named on the command line for this run, never lower than what the diff
+    // implies. Nothing is written; the verdict records the lane it was computed in.
+    if let Some(chosen) = lane
+        && chosen > live.input.implied_lane
+    {
+        live.input.lane_reasons.insert(
+            0,
+            format!(
+                "you chose the {} lane for this run",
+                crate::lane::lane_name(chosen)
+            ),
+        );
+        live.input.implied_lane = chosen;
+    }
     if let Some(runner) = runner {
         let lane = crate::lane::effective_lane(&ledger, &session, live.input.implied_lane)?;
         let checkers = live
@@ -578,6 +606,7 @@ pub fn run_verdict(
             &RunOptions {
                 lane,
                 timeout: default_timeout(&live.policy),
+                deadline: None,
             },
         )?;
         let desks = catch_unwind(AssertUnwindSafe(|| {

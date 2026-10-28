@@ -30,6 +30,7 @@ use crate::{St, deny, error_page, esc, not_found, page};
 #[derive(Deserialize, Default)]
 pub(crate) struct RecordedQuery {
     recorded: Option<u64>,
+    ran: Option<u64>,
 }
 
 fn now_ms() -> i64 {
@@ -101,6 +102,7 @@ fn session_html(
     token: &str,
     id: &str,
     recorded: Option<u64>,
+    ran: Option<u64>,
 ) -> Result<Option<String>, LedgerError> {
     let Some(l) = Ledger::open_existing(root)? else {
         return Ok(None);
@@ -119,9 +121,30 @@ fn session_html(
         "<p><a href=\"/\">Back to the sessions list</a> &nbsp; \
          <a href=\"/session/{id}/log\">Record log for this session</a> &nbsp; \
          <a href=\"/session/{id}/packet\">Download the acceptance packet</a> &nbsp; \
-         <a href=\"/session/{id}/sarif\">Download SARIF</a></p>",
+         <a href=\"/session/{id}/sarif\">Download SARIF</a> &nbsp; \
+         <a href=\"/decisions.jsonl\">Download decisions.jsonl</a></p>",
         id = esc(id)
     );
+    // Running the checks is a page action (it writes checks and a verdict, never a decision).
+    body.push_str(&format!(
+        "<div class=\"card\"><h3>Run the checks now</h3>\
+         <p>The Stop hook and the agent's verdict_check already run the lane's checkers and desks. \
+         This button runs them again on the code as it stands, then recomputes the verdict.</p>\
+         <form method=\"post\" action=\"/session/{id}/check\" style=\"display:inline\">\
+         <input type=\"hidden\" name=\"token\" value=\"{token}\">\
+         <button type=\"submit\">Run the checkers now</button></form> \
+         <form method=\"post\" action=\"/session/{id}/desks\" style=\"display:inline\">\
+         <input type=\"hidden\" name=\"token\" value=\"{token}\">\
+         <button type=\"submit\">Run the desks now</button></form></div>",
+        id = esc(id),
+        token = esc(token)
+    ));
+    if let Some(seq) = ran {
+        body.push_str(&format!(
+            "<div class=\"note\">You ran the checks. The gate result is record {seq}; the verdict \
+             below was worked out again from the ledger.</div>"
+        ));
+    }
 
     if let Some(seq) = recorded
         && let Some(s) = l.get(seq)?
@@ -184,7 +207,13 @@ fn session_html(
             .finding
             .evidence
             .iter()
-            .map(|e| esc(&e.describe()))
+            .map(|e| {
+                let mut text = e.describe();
+                if let verdict_core::PointerStatus::Stale(why) = e.check(root) {
+                    text.push_str(&format!(" (STALE: {why})"));
+                }
+                esc(&text)
+            })
             .collect::<Vec<_>>()
             .join(", ");
         body.push_str(&card(
@@ -392,6 +421,138 @@ fn session_html(
             _ => {}
         }
     }
+    // The plan is the human's to name when the policy lists more than one candidate.
+    let plans: Vec<String> = live
+        .policy
+        .value
+        .pointer("/plans")
+        .and_then(serde_json::Value::as_array)
+        .map(|a| {
+            a.iter()
+                .filter_map(serde_json::Value::as_str)
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default();
+    let plan_chosen = l.records()?.iter().any(|s| {
+        matches!(
+            &s.record,
+            Record::Decision {
+                decision: DecisionKind::PlanFile,
+                who: Writer::Human,
+                ..
+            }
+        )
+    });
+    if plans.len() > 1 && !plan_chosen {
+        waiting += 1;
+        let options: String = plans
+            .iter()
+            .map(|p| format!("<option value=\"{}\">{}</option>", esc(p), esc(p)))
+            .collect();
+        body.push_str(&card(
+            "Which file is the plan?",
+            &format!(
+                "<p>More than one plan candidate is configured. Pick the one this session was \
+                 working from, or leave it: the checks run plan-less and say so.</p>{}",
+                form(
+                    token,
+                    id,
+                    "plan_file",
+                    &format!(
+                        "<label for=\"plan\">The plan file</label><select id=\"plan\" name=\"value\">{options}</select>"
+                    ),
+                    "Use this plan",
+                    false
+                )
+            ),
+        ));
+    }
+    // Withdraw a prompt the human cancelled.
+    let prompts: Vec<(u32, String)> = l
+        .records_for_session(id)?
+        .into_iter()
+        .filter_map(|s| match s.record {
+            Record::Prompt { ordinal, text, .. } => Some((ordinal, text)),
+            _ => None,
+        })
+        .collect();
+    if let Some((ordinal, text)) = prompts.last() {
+        waiting += 1;
+        body.push_str(&card(
+            "Withdraw a prompt you cancelled",
+            &format!(
+                "<p>The latest prompt of this session is #{ordinal}:</p>\
+                 <blockquote class=\"claim\">{}</blockquote>\
+                 <p>Withdrawing it records that you cancelled it; it stays in the ledger and stays \
+                 out of what is still asked for.</p>{}",
+                esc(text),
+                form(
+                    token,
+                    id,
+                    "withdraw_prompt",
+                    &format!("<input type=\"hidden\" name=\"value\" value=\"{ordinal}\">"),
+                    "Withdraw this prompt",
+                    false
+                )
+            ),
+        ));
+    }
+    // Waive words no check can cover.
+    body.push_str(&card(
+        "Waive words no check can cover",
+        &format!(
+            "<p>If a prompt asked for something like \"faster\" or \"nicer\", no check can settle \
+             it. Naming the words here records your decision; they stop blocking the report.</p>{}",
+            form(
+                token,
+                id,
+                "waive_words",
+                "<label for=\"words\">Words to waive</label><input id=\"words\" name=\"value\" size=\"40\" placeholder=\"faster, nicer\">",
+                "Waive these words",
+                false
+            )
+        ),
+    ));
+    // Register the MCP server (human only, like the hooks).
+    let mcp_answered: Vec<String> = l
+        .records()?
+        .into_iter()
+        .filter_map(|s| match &s.record {
+            Record::Decision {
+                decision: DecisionKind::McpInstall,
+                choice,
+                who: Writer::Human,
+                ..
+            } => Some(choice.clone()),
+            _ => None,
+        })
+        .collect();
+    let mut mcp_buttons = String::new();
+    for host in ["claude", "cursor", "codex", "dsh", "antigravity"] {
+        if mcp_answered.iter().any(|h| h == host) {
+            mcp_buttons.push_str(&format!("<p class=\"ok\">Registered with {host}.</p>"));
+        } else {
+            mcp_buttons.push_str(&format!(
+                "<form method=\"post\" action=\"/mcp-install\" style=\"display:inline\">\
+                 <input type=\"hidden\" name=\"host\" value=\"{host}\">\
+                 <input type=\"hidden\" name=\"session\" value=\"{}\">\
+                 <input type=\"hidden\" name=\"token\" value=\"{}\">\
+                 <button type=\"submit\">Register with {host}</button></form> ",
+                esc(id),
+                esc(token)
+            ));
+        }
+    }
+    waiting += 1;
+    body.push_str(&card(
+        "Register Verdict's MCP server",
+        &format!(
+            "<p>The agent reads the ledger and records claims through this server. Registering it \
+             writes the host's own config file; press a button below when you want that.</p>{mcp_buttons}"
+        ),
+    ));
+
     if waiting == 0 {
         body.push_str("<div class=\"note\">Nothing is waiting for you.</div>");
     }
@@ -573,7 +734,7 @@ pub(crate) async fn session_page(
 ) -> Response {
     let (root, home, token) = (st.root.clone(), st.home.clone(), st.token.clone());
     let r = tokio::task::spawn_blocking(move || {
-        session_html(&root, home.as_deref(), &token, &id, q.recorded)
+        session_html(&root, home.as_deref(), &token, &id, q.recorded, q.ran)
     })
     .await;
     match r {
@@ -615,6 +776,15 @@ fn parse_action(f: &DecideForm) -> Result<Action, String> {
             reason: f.reason.clone(),
             tree: None,
         },
+        "plan_file" => Action::SelectPlan(f.value.clone()),
+        "withdraw_prompt" => Action::WithdrawPrompt(
+            f.value
+                .trim()
+                .parse()
+                .map_err(|_| format!("{:?} is not a prompt number", f.value))?,
+        ),
+        "waive_words" => Action::WaiveWords(f.value.clone()),
+        "mcp_install" => Action::McpInstall(f.value.clone()),
         other => return Err(format!("{other:?} is not something this page can record")),
     })
 }
@@ -657,6 +827,212 @@ pub(crate) async fn decide(State(st): State<St>, Form(form): Form<DecideForm>) -
             StatusCode::BAD_REQUEST,
             &format!("Nothing was recorded. {why}"),
         ),
+        Ok(Err(e)) => error_page(&e),
+        Err(e) => error_page(&LedgerError::Invalid(e.to_string())),
+    }
+}
+
+// ---------------------------------------------------------------- page-run actions
+
+#[derive(Deserialize)]
+pub(crate) struct TokenForm {
+    #[serde(default)]
+    token: String,
+}
+
+/// `POST /session/<id>/check`: run the lane's checkers and desks now and record the result.
+pub(crate) async fn run_check(
+    State(st): State<St>,
+    Path(id): Path<String>,
+    Form(form): Form<TokenForm>,
+) -> Response {
+    if form.token != st.token {
+        return deny(
+            StatusCode::FORBIDDEN,
+            "Refused: the page token is missing or wrong. Reload the page and press the button again.",
+        );
+    }
+    let (root, home) = (st.root.clone(), st.home.clone());
+    let wanted = id.clone();
+    let r = tokio::task::spawn_blocking(move || -> Result<Option<u64>, LedgerError> {
+        let mut l = Ledger::open(&root)?;
+        let Some(session) = resolve_session(&l, Some(&wanted)).ok().flatten() else {
+            return Ok(None);
+        };
+        let home = home.as_deref();
+        match verdict_engine::verify(
+            &root,
+            &mut l,
+            &session,
+            home,
+            &verdict_engine::VerifyOptions {
+                budget: None,
+                reason: Some("the page's Run the checkers button".into()),
+            },
+        ) {
+            Ok(v) => Ok(Some(v.gate_seq)),
+            Err(reason) => {
+                // The run could not even start; say so in the ledger, never as a pass.
+                l.append(
+                    Writer::Core,
+                    Some(&session),
+                    Record::CheckUnavailable {
+                        component: "verification".into(),
+                        reason: format!("the page's run failed: {reason}"),
+                    },
+                )?;
+                Ok(Some(0))
+            }
+        }
+    })
+    .await;
+    match r {
+        Ok(Ok(Some(seq))) if seq > 0 => {
+            Redirect::to(&format!("/session/{id}?ran={seq}")).into_response()
+        }
+        Ok(Ok(Some(_))) => Redirect::to(&format!("/session/{id}")).into_response(),
+        Ok(Ok(None)) => deny(
+            StatusCode::BAD_REQUEST,
+            "Nothing ran: there is no such session. Nothing was recorded as checked.",
+        ),
+        Ok(Err(e)) => error_page(&e),
+        Err(e) => error_page(&LedgerError::Invalid(e.to_string())),
+    }
+}
+
+/// `POST /session/<id>/desks`: dispatch only the lane's desks.
+pub(crate) async fn run_desks(
+    State(st): State<St>,
+    Path(id): Path<String>,
+    Form(form): Form<TokenForm>,
+) -> Response {
+    if form.token != st.token {
+        return deny(
+            StatusCode::FORBIDDEN,
+            "Refused: the page token is missing or wrong. Reload the page and press the button again.",
+        );
+    }
+    let (root, home) = (st.root.clone(), st.home.clone());
+    let wanted = id.clone();
+    let r = tokio::task::spawn_blocking(move || -> Result<bool, LedgerError> {
+        let mut l = Ledger::open(&root)?;
+        let Some(session) = resolve_session(&l, Some(&wanted)).ok().flatten() else {
+            return Ok(false);
+        };
+        let live = live_input(&root, &l, &session, home.as_deref())?;
+        let lane = verdict_core::lane::effective_lane(&l, &session, live.input.implied_lane)?;
+        let runner = verdict_engine::RealRunner::with_home(home.clone());
+        match verdict_core::gate::CheckRunner::run_desks(&runner, &mut l, &root, &session, lane) {
+            Ok(()) => Ok(true),
+            Err(reason) => {
+                l.append(
+                    Writer::Core,
+                    Some(&session),
+                    Record::CheckUnavailable {
+                        component: "desks".into(),
+                        reason,
+                    },
+                )?;
+                Ok(false)
+            }
+        }
+    })
+    .await;
+    match r {
+        Ok(Ok(_)) => Redirect::to(&format!("/session/{id}")).into_response(),
+        Ok(Err(e)) => error_page(&e),
+        Err(e) => error_page(&LedgerError::Invalid(e.to_string())),
+    }
+}
+
+/// `GET /decisions.jsonl`: the project's human decisions as JSON lines.
+pub(crate) async fn decisions_download(State(st): State<St>) -> Response {
+    let root = st.root.clone();
+    let r = tokio::task::spawn_blocking(move || -> Result<Option<String>, LedgerError> {
+        let Some(l) = Ledger::open_existing(&root)? else {
+            return Ok(None);
+        };
+        verdict_core::export::decisions_jsonl(&l).map(Some)
+    })
+    .await;
+    match r {
+        Ok(Ok(Some(text))) => crate::download(
+            text,
+            "application/x-ndjson; charset=utf-8",
+            "decisions.jsonl",
+        ),
+        Ok(Ok(None)) => not_found("There is no ledger in this project yet."),
+        Ok(Err(e)) => error_page(&e),
+        Err(e) => error_page(&LedgerError::Invalid(e.to_string())),
+    }
+}
+
+#[derive(Deserialize)]
+pub(crate) struct McpForm {
+    #[serde(default)]
+    token: String,
+    #[serde(default)]
+    session: String,
+    #[serde(default)]
+    host: String,
+}
+
+/// `POST /mcp-install`: register Verdict's MCP server with one host (a human action).
+pub(crate) async fn mcp_install(State(st): State<St>, Form(form): Form<McpForm>) -> Response {
+    if form.token != st.token {
+        return deny(
+            StatusCode::FORBIDDEN,
+            "Refused: the page token is missing or wrong. Reload the page and press the button again.",
+        );
+    }
+    let Some(host) = verdict_adapters::McpHost::parse(&form.host) else {
+        return deny(StatusCode::BAD_REQUEST, "Unknown host.");
+    };
+    let (root, home, session) = (st.root.clone(), st.home.clone(), form.session.clone());
+    let r = tokio::task::spawn_blocking(
+        move || -> Result<Result<(u64, String), String>, LedgerError> {
+            let req = verdict_adapters::McpRequest {
+                host,
+                project: Some(root.clone()),
+                vdt_path: Some("vdt".into()),
+                codex_home: home.as_ref().map(|h| h.join(".codex")),
+                i_am_the_human: true,
+            };
+            let mut out = Vec::new();
+            let code = verdict_adapters::mcp_command(&req, &root, &mut out)
+                .map_err(LedgerError::Invalid)?;
+            let text = String::from_utf8_lossy(&out).to_string();
+            if code != 0 {
+                return Ok(Err(text));
+            }
+            let mut l = Ledger::open(&root)?;
+            let id = resolve_session(&l, Some(&session)).ok().flatten();
+            let a = l.append(
+                Writer::Human,
+                id.as_deref(),
+                Record::Decision {
+                    decision: DecisionKind::McpInstall,
+                    choice: form.host.clone(),
+                    reason: None,
+                    who: Writer::Human,
+                },
+            )?;
+            Ok(Ok((a.seq, text)))
+        },
+    )
+    .await;
+    match r {
+        Ok(Ok(Ok((seq, text)))) => Html(page(
+            "Recorded: register the MCP server",
+            &format!(
+                "<div class=\"note\"><strong>Your decision is recorded</strong> as record {seq} \
+                 (written by: human).</div><pre>{}</pre>\
+                 <p><a href=\"/\">Back to the sessions list</a></p>",
+                esc(&text)
+            ),
+        ))
+        .into_response(),
+        Ok(Ok(Err(why))) => deny(StatusCode::BAD_REQUEST, &why),
         Ok(Err(e)) => error_page(&e),
         Err(e) => error_page(&LedgerError::Invalid(e.to_string())),
     }

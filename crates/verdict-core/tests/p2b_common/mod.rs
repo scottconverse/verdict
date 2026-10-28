@@ -247,6 +247,14 @@ pub fn run_all_required(l: &mut Ledger, lane: Lane) {
         };
         ran(l, &name, tier);
     }
+    ran_desks(l, lane);
+}
+
+/// Record a `ran` receipt for every desk the lane requires, on the tree the checks saw.
+pub fn ran_desks(l: &mut Ledger, lane: Lane) {
+    for desk in input(lane).lane_desks[&lane].clone() {
+        ran(l, &format!("desk:{desk}"), Tier::Judgment);
+    }
 }
 
 pub fn report_with(l: &Ledger, c: &Computed) -> String {
@@ -365,6 +373,37 @@ impl CheckRunner for FakeRunner {
             });
         }
         Ok(out)
+    }
+
+    /// The fake desks record a `ran` receipt for every desk the lane requires, so a fake-runner
+    /// test still exercises the lane's desk requirement rather than silently skipping it.
+    fn run_desks(
+        &self,
+        ledger: &mut Ledger,
+        _root: &Path,
+        session: &str,
+        lane: Lane,
+    ) -> Result<(), String> {
+        let policy = Policy::builtin().unwrap();
+        for desk in verdict_core::lane::lane_desks(&policy, lane) {
+            ledger
+                .append(
+                    Writer::Core,
+                    Some(session),
+                    Record::Check {
+                        name: format!("desk:{desk}"),
+                        tier: Tier::Judgment,
+                        inputs_hash: "h".into(),
+                        started_at: "2026-10-26T12:00:00.000Z".into(),
+                        finished_at: "2026-10-26T12:00:01.000Z".into(),
+                        outcome: CheckOutcome::Ran,
+                        detail: Some("fake desk".into()),
+                        tree_state: Some(TEST_TREE.into()),
+                    },
+                )
+                .map_err(|e| e.to_string())?;
+        }
+        Ok(())
     }
 }
 

@@ -126,3 +126,63 @@ fn unknown_names_and_lanes_are_reported_not_hidden() {
     );
     assert_eq!(bad.status.code(), Some(1));
 }
+
+#[test]
+fn a_one_run_policy_file_overrides_the_project_file_and_writes_nothing() {
+    let dir = Tmp::new();
+    std::fs::write(
+        dir.0.as_path().join("verdict.json"),
+        r#"{"version":1,"lanes":{"low":{"checkers":["regressions"],"desks":[]}}}"#,
+    )
+    .unwrap();
+    std::fs::write(
+        dir.0.as_path().join("override.json"),
+        r#"{"version":1,"lanes":{"low":{"checkers":["unfinished"],"desks":[]}}}"#,
+    )
+    .unwrap();
+    let run = |args: &[&str]| {
+        std::process::Command::new(env!("CARGO_BIN_EXE_vdt"))
+            .args(args)
+            .current_dir(dir.0.as_path())
+            .output()
+            .unwrap()
+    };
+    let plain = run(&["check", "--lane", "low", "--checkers", "*"]);
+    assert!(plain.status.success());
+    let plain = String::from_utf8_lossy(&plain.stdout).to_string();
+    let line = |text: &str, name: &str| {
+        text.lines()
+            .find(|l| l.trim_start().starts_with(name))
+            .unwrap_or("")
+            .to_string()
+    };
+    assert!(line(&plain, "regressions").contains("ran"), "{plain}");
+    assert!(
+        line(&plain, "unfinished").contains("skipped by policy"),
+        "{plain}"
+    );
+
+    let overridden = run(&[
+        "--policy",
+        "override.json",
+        "check",
+        "--lane",
+        "low",
+        "--checkers",
+        "*",
+    ]);
+    assert!(overridden.status.success());
+    let overridden = String::from_utf8_lossy(&overridden.stdout).to_string();
+    assert!(
+        line(&overridden, "unfinished").contains("ran"),
+        "{overridden}"
+    );
+    assert!(
+        line(&overridden, "regressions").contains("skipped by policy"),
+        "{overridden}"
+    );
+    // The project's own file is untouched by the one-run override.
+    let project = std::fs::read_to_string(dir.0.as_path().join("verdict.json")).unwrap();
+    assert!(project.contains("regressions"));
+    assert!(!project.contains("unfinished"));
+}

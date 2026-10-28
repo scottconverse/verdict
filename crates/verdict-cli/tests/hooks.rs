@@ -153,7 +153,7 @@ fn a_stdin_that_never_closes_ends_at_the_budget_with_exit_zero_and_a_record() {
     assert!(start.elapsed() < Duration::from_secs(10));
     let (_, text) = vdt_text(&t.0, &h.0, &["ledger", "export", "--jsonl"]);
     assert!(text.contains("check_unavailable"), "{text}");
-    assert!(text.contains("did not finish"), "{text}");
+    assert!(text.contains("did not arrive"), "{text}");
 }
 
 #[test]
@@ -163,10 +163,9 @@ fn a_recorded_claude_session_shows_in_vdt_report_as_unverified_and_not_establish
     let (code, report) = vdt_text(&t.0, &h.0, &["report"]);
     assert_eq!(code, 0, "{report}");
     println!("{report}");
-    assert!(
-        report.contains("VERDICT: UNVERIFIED - nothing was checked"),
-        "{report}"
-    );
+    // The Stop hook ran fresh verification, so this is PARTIAL (a required desk could not run),
+    // never clean. The point of the test is the same: nothing was proven.
+    assert!(report.contains("VERDICT: PARTIAL"), "{report}");
     assert!(
         report.contains("builder: claude/claude-sonnet-5-5 [anthropic]"),
         "{report}"

@@ -14,6 +14,15 @@ use serde_json::Value;
 use crate::model::Tier;
 use crate::policy::Policy;
 
+/// Browser evidence for a command registered at the `browsed` tier.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BrowserProof {
+    /// A screenshot the command wrote (path relative to the project).
+    pub screenshot: String,
+    /// The page that was loaded, when the project names it.
+    pub url: Option<String>,
+}
+
 /// One command from the policy's `exec.commands`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExecCommand {
@@ -23,6 +32,8 @@ pub struct ExecCommand {
     pub tier: Tier,
     /// What it needs, for example `server`.
     pub needs: Option<String>,
+    /// The browser evidence a `browsed` command must produce.
+    pub browser: Option<BrowserProof>,
 }
 
 /// Read the policy's `exec.commands`.
@@ -48,6 +59,16 @@ pub fn policy_commands(policy: &Policy) -> Vec<ExecCommand> {
                         run,
                         tier,
                         needs: c.get("needs").and_then(Value::as_str).map(str::to_string),
+                        browser: c.get("browser").and_then(|b| {
+                            let screenshot = b.get("screenshot")?.as_str()?.trim();
+                            if screenshot.is_empty() {
+                                return None;
+                            }
+                            Some(BrowserProof {
+                                screenshot: screenshot.to_string(),
+                                url: b.get("url").and_then(Value::as_str).map(str::to_string),
+                            })
+                        }),
                     })
                 })
                 .collect()
@@ -90,7 +111,7 @@ pub fn is_powershell_script(cmd: &str) -> bool {
     first.to_ascii_lowercase().ends_with(".ps1")
 }
 
-/// The shell a command runs in on this platform.
+/// The shell a command runs in when the project does not declare one.
 pub fn shell_for(cmd: &str) -> &'static str {
     if is_powershell_script(cmd) {
         "pwsh-or-powershell -File"
@@ -98,6 +119,113 @@ pub fn shell_for(cmd: &str) -> &'static str {
         "cmd /D /S /C"
     } else {
         "sh -c"
+    }
+}
+
+/// The shell a project declares for its approved commands (`exec.shell`). The design requires the
+/// declared **native** shell; a project that names one gets exactly that, and a named shell that is
+/// missing is an honest failure, never a silent fallback to a different one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Shell {
+    /// The platform's native shell (`cmd` on Windows, `sh` elsewhere; `.ps1` through PowerShell).
+    #[default]
+    Native,
+    /// `cmd /D /S /C`.
+    Cmd,
+    /// `pwsh -NoProfile -Command`.
+    Pwsh,
+    /// `powershell -NoProfile -Command`.
+    Powershell,
+    /// `sh -c`.
+    Sh,
+    /// `bash -c`.
+    Bash,
+    /// `zsh -c`.
+    Zsh,
+}
+
+impl Shell {
+    /// Stable name, as the policy writes it.
+    pub fn name(self) -> &'static str {
+        match self {
+            Shell::Native => "native",
+            Shell::Cmd => "cmd",
+            Shell::Pwsh => "pwsh",
+            Shell::Powershell => "powershell",
+            Shell::Sh => "sh",
+            Shell::Bash => "bash",
+            Shell::Zsh => "zsh",
+        }
+    }
+
+    /// Parse a declared shell name.
+    pub fn parse(s: &str) -> Option<Shell> {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "native" | "" => Some(Shell::Native),
+            "cmd" | "cmd.exe" => Some(Shell::Cmd),
+            "pwsh" => Some(Shell::Pwsh),
+            "powershell" | "powershell.exe" => Some(Shell::Powershell),
+            "sh" => Some(Shell::Sh),
+            "bash" => Some(Shell::Bash),
+            "zsh" => Some(Shell::Zsh),
+            _ => None,
+        }
+    }
+}
+
+/// The shell the policy declares, or why the declaration cannot be used. A project that declares a
+/// shell this build does not know must not silently run its commands somewhere else.
+pub fn policy_shell(policy: &Policy) -> Result<Shell, String> {
+    match policy.value.pointer("/exec/shell") {
+        None | Some(Value::Null) => Ok(Shell::Native),
+        Some(Value::String(s)) => Shell::parse(s)
+            .ok_or_else(|| format!("exec.shell is {s:?}, which is not a shell this build runs")),
+        Some(other) => Err(format!("exec.shell must be a string, not {other}")),
+    }
+}
+
+/// The program and leading arguments that run `cmd` in `shell` (before `cmd` itself is added).
+/// The first element is the program name. Used by the exec runner and by the first-run server
+/// launcher, so both speak the same shell.
+pub fn shell_invocation(cmd: &str, shell: Shell) -> (String, Vec<String>) {
+    match shell {
+        Shell::Native => {
+            if is_powershell_script(cmd) {
+                let mut args = vec![
+                    "-NoProfile".to_string(),
+                    "-NonInteractive".to_string(),
+                    "-ExecutionPolicy".to_string(),
+                    "Bypass".to_string(),
+                    "-File".to_string(),
+                ];
+                // A script path followed by arguments: split on whitespace, keep quotes simple.
+                args.extend(cmd.split_whitespace().map(str::to_string));
+                return ("pwsh".to_string(), args);
+            }
+            if cfg!(windows) {
+                (
+                    "cmd".to_string(),
+                    vec!["/D".into(), "/S".into(), "/C".into(), format!("\"{cmd}\"")],
+                )
+            } else {
+                ("sh".to_string(), vec!["-c".into(), cmd.to_string()])
+            }
+        }
+        Shell::Cmd => (
+            "cmd".to_string(),
+            vec!["/D".into(), "/S".into(), "/C".into(), format!("\"{cmd}\"")],
+        ),
+        Shell::Pwsh => (
+            "pwsh".to_string(),
+            vec!["-NoProfile".into(), "-Command".into(), cmd.to_string()],
+        ),
+        Shell::Powershell => (
+            "powershell".to_string(),
+            vec!["-NoProfile".into(), "-Command".into(), cmd.to_string()],
+        ),
+        Shell::Sh => ("sh".to_string(), vec!["-c".into(), cmd.to_string()]),
+        Shell::Bash => ("bash".to_string(), vec!["-c".into(), cmd.to_string()]),
+        Shell::Zsh => ("zsh".to_string(), vec!["-c".into(), cmd.to_string()]),
     }
 }
 
@@ -114,6 +242,17 @@ pub fn tool_commands(policy: &Policy) -> Vec<(&'static str, String)> {
         let c = c.trim();
         if !c.is_empty() {
             out.push(("mutation", c.to_string()));
+        }
+    }
+    for (kind, pointer) in [
+        ("firstrun-server", "/firstrun/server/command"),
+        ("firstrun-browser", "/firstrun/browser/command"),
+    ] {
+        if let Some(c) = policy.value.pointer(pointer).and_then(Value::as_str) {
+            let c = c.trim();
+            if !c.is_empty() {
+                out.push((kind, c.to_string()));
+            }
         }
     }
     for key in ["/firstrun/commands", "/release/checks"] {
@@ -142,6 +281,13 @@ pub fn tool_commands(policy: &Policy) -> Vec<(&'static str, String)> {
 /// This is what gets hashed, and it is also a readable summary.
 pub fn config_text(policy: &Policy) -> String {
     let mut out = String::from("verdict-exec-approval-v1\n");
+    // The declared shell changes what a command means, so it is part of what the human approves.
+    out.push_str(&format!(
+        "shell\t{}\n",
+        policy_shell(policy)
+            .map(|s| s.name().to_string())
+            .unwrap_or_else(|_| "unusable".to_string())
+    ));
     for c in policy_commands(policy) {
         out.push_str(&format!(
             "command\t{}\ttier={}\tneeds={}\tshell={}\n",
@@ -210,15 +356,28 @@ pub fn parse_choice(choice: &str) -> ApprovalChoice {
     }
 }
 
-/// The commands as plain lines for a person to read before approving.
+/// The commands as plain lines for a person to read before approving. Every command the approval
+/// covers is listed, including the mutation runner, the first-run workflow and the release checks:
+/// a person can only approve what they can see.
 pub fn describe_commands(policy: &Policy) -> Vec<String> {
-    policy_commands(policy)
+    let mut out: Vec<String> = policy_commands(policy)
         .into_iter()
         .map(|c| match &c.needs {
             Some(n) => format!("{}   (needs a {n}; not run by Verdict)", c.run),
             None => c.run,
         })
-        .collect()
+        .collect();
+    for (kind, command) in tool_commands(policy) {
+        let label = match kind {
+            "mutation" => "mutation runner",
+            "firstrun" => "first-run command",
+            "firstrun-server" => "first-run server",
+            "firstrun-browser" => "first-run browser",
+            _ => "release check",
+        };
+        out.push(format!("{command}   ({label})"));
+    }
+    out
 }
 
 #[cfg(test)]
@@ -276,5 +435,46 @@ mod tests {
         assert!(is_powershell_script(r#".\scripts\check.ps1 -Fast"#));
         assert!(is_powershell_script(r#""a b\check.PS1" -x"#));
         assert!(!is_powershell_script("npm test"));
+    }
+
+    #[test]
+    fn the_approval_card_lists_every_command_the_approval_covers() {
+        let mut p = Policy::builtin().unwrap();
+        p.value["exec"]["commands"] = json!([{"run":"npm test","tier":"ran"}]);
+        p.value["mutation"] = json!({"command":"mutate --json"});
+        p.value["firstrun"] = json!({"commands":["first-run.sh"]});
+        p.value["release"] = json!({"checks":["release-truth.sh"]});
+        let listed = describe_commands(&p);
+        for expected in [
+            "npm test",
+            "mutate --json",
+            "first-run.sh",
+            "release-truth.sh",
+        ] {
+            assert!(
+                listed.iter().any(|l| l.contains(expected)),
+                "{expected} is approved but not shown: {listed:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_declared_shell_is_part_of_the_approval_and_an_unknown_one_is_refused() {
+        let mut p = Policy::builtin().unwrap();
+        assert_eq!(policy_shell(&p).unwrap(), Shell::Native);
+        p.value["exec"]["shell"] = json!("bash");
+        assert_eq!(policy_shell(&p).unwrap(), Shell::Bash);
+        let with_bash = commands_hash(&p);
+        p.value["exec"]["shell"] = json!("native");
+        assert_ne!(
+            with_bash,
+            commands_hash(&p),
+            "the shell is part of the hash"
+        );
+        p.value["exec"]["shell"] = json!("fish");
+        assert!(
+            policy_shell(&p).is_err(),
+            "a shell this build cannot start is refused"
+        );
     }
 }

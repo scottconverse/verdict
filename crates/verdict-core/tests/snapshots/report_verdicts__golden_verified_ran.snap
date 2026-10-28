@@ -4,7 +4,7 @@ expression: "render(&l, Lane::Standard)"
 ---
 VERDICT: VERIFIED (ran)  (lane: standard, policy v1, builder: claude/model-x [anthropic], verifier: none)
 read from code: done  |  your build and tests: ran, passed  |  your real app: not run
-session s-test000001, started 2026-10-26T12:00:00.000Z  |  ledger: intact, 13 records  |  baseline bbbbbbbbbbbb (not a git repository)
+session s-test000001, started 2026-10-26T12:00:00.000Z  |  ledger: intact, 15 records  |  baseline bbbbbbbbbbbb (not a git repository)
 
 FIX FIRST
   (none proven wrong)
@@ -13,10 +13,10 @@ YOURS TO SETTLE
   (nothing recorded for you to settle)
 
 CLOSED FINDINGS
-  [Major] problem wiring:old (record 12): accepted as not real by you (decision record 13)
+  [Major] problem wiring:old (record 14): accepted as not real by you (decision record 15)
 
 DECISIONS BY THE HUMAN
-  record 13: accept_finding_not_real = wiring:old
+  record 15: accept_finding_not_real = wiring:old
 
 PROMPTS (1)
   1. add a login page
@@ -35,7 +35,9 @@ CHECKS
   claims_vs_code: Ran, tier static (record 9)
   unfinished: Ran, tier static (record 10)
   exec: Ran, tier ran (record 11)
-  7 of 7 checks ran.
+  desk:engineer: Ran, tier judgment (record 12)
+  desk:qa: Ran, tier judgment (record 13)
+  9 of 9 checks ran.
 
 NOT ESTABLISHED
   - whether your real app works: no page was loaded

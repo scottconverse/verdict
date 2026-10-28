@@ -5,6 +5,7 @@ members = [
     "crates/verdict-extract",
     "crates/verdict-checkers",
     "crates/verdict-desks",
+    "crates/verdict-engine",
     "crates/verdict-adapters",
     "crates/verdict-mcp",
     "crates/verdict-gui",

@@ -1910,6 +1910,7 @@ dependencies = [
  "serde",
  "serde_json",
  "verdict-core",
+ "verdict-engine",
 ]
 
 [[package]]
@@ -1952,6 +1953,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "verdict-engine"
+version = "1.0.0"
+dependencies = [
+ "serde_json",
+ "tempfile",
+ "verdict-checkers",
+ "verdict-core",
+ "verdict-desks",
+]
+
+[[package]]
 name = "verdict-extract"
 version = "1.0.0"
 dependencies = [
@@ -1978,6 +1990,7 @@ dependencies = [
  "verdict-checkers",
  "verdict-core",
  "verdict-desks",
+ "verdict-engine",
  "verdict-generate",
  "verdict-gui",
  "verdict-mcp",
@@ -2004,6 +2017,7 @@ dependencies = [
  "tokio",
  "verdict-adapters",
  "verdict-core",
+ "verdict-engine",
 ]
 
 [[package]]
@@ -2016,6 +2030,7 @@ dependencies = [
  "verdict-adapters",
  "verdict-checkers",
  "verdict-core",
+ "verdict-engine",
 ]
 
 [[package]]

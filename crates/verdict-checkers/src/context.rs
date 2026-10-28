@@ -110,6 +110,7 @@ pub struct CheckContext {
     exec_tail: RefCell<Option<String>>,
     unestablished: RefCell<Vec<String>>,
     receipts: RefCell<Vec<Receipt>>,
+    skipped: RefCell<Option<String>>,
 }
 
 impl CheckContext {
@@ -198,6 +199,7 @@ impl CheckContext {
             exec_tail: RefCell::new(None),
             unestablished: RefCell::new(Vec::new()),
             receipts: RefCell::new(Vec::new()),
+            skipped: RefCell::new(None),
         })
     }
 
@@ -454,6 +456,18 @@ impl CheckContext {
         *self.exec_tail.borrow_mut() = None;
         self.unestablished.borrow_mut().clear();
         self.receipts.borrow_mut().clear();
+        *self.skipped.borrow_mut() = None;
+    }
+
+    /// Say that policy did not require this check in this run. The runner records
+    /// `skipped_by_policy`, never `ran`: not being required is not execution proof.
+    pub fn skipped(&self, reason: impl Into<String>) {
+        *self.skipped.borrow_mut() = Some(reason.into());
+    }
+
+    /// The reason [`CheckContext::skipped`] recorded, if any.
+    pub fn skip_reason(&self) -> Option<String> {
+        self.skipped.borrow().clone()
     }
 
     /// Say that a lookup could not be established (a search that was cut short, a file that could

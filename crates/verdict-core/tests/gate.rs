@@ -555,7 +555,14 @@ fn vdt_verdict_computes_writes_and_names_the_session() {
     let r = repo();
     let runner = FakeRunner::new();
     runner.set_all_static(&["wiring", "regressions", "claims_vs_code", "unfinished"]);
-    let (c, seq) = run_verdict(r.repo.path(), Some(r.home.path()), None, Some(&runner)).unwrap();
+    let (c, seq) = run_verdict(
+        r.repo.path(),
+        Some(r.home.path()),
+        None,
+        None,
+        Some(&runner),
+    )
+    .unwrap();
     assert_eq!(c.session, r.sid);
     assert_eq!(c.label(), "VERIFIED (static)");
     assert!(matches!(
@@ -566,9 +573,18 @@ fn vdt_verdict_computes_writes_and_names_the_session() {
         }
     ));
     // Without a runner it computes from what is there.
-    let (c, _) = run_verdict(r.repo.path(), Some(r.home.path()), Some(&r.sid), None).unwrap();
+    let (c, _) = run_verdict(r.repo.path(), Some(r.home.path()), Some(&r.sid), None, None).unwrap();
     assert_eq!(c.word, VerdictWord::Verified);
-    assert!(run_verdict(r.repo.path(), Some(r.home.path()), Some("s-nope"), None).is_err());
+    assert!(
+        run_verdict(
+            r.repo.path(),
+            Some(r.home.path()),
+            Some("s-nope"),
+            None,
+            None
+        )
+        .is_err()
+    );
 }
 
 #[test]

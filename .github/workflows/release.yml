@@ -1,8 +1,14 @@
 name: release
 
-# Builds the v1.0.0 candidate for the four supported targets and attaches the archives, their
-# SHA-256 files and the installers to the GitHub release. Starts only from a tag the human creates;
-# this workflow never creates one.
+# Builds the v1.0.0 candidate for the four supported targets and uploads the archives, their
+# SHA-256 files and the installers to a DRAFT GitHub release. It never creates a tag and never
+# publishes: the human creates the tag and decides when the draft becomes public.
+#
+# What is inside each archive:
+#   vdt (vdt.exe on Windows), vdt.sha256 (the binary's own checksum), install.sh / install.ps1,
+#   README.md, LICENSE, NOTICE, and the optional DSH integration (integrations/dsh).
+# The outer archive's `.sha256` next to the download is the one a person checks before extracting;
+# the inner checksum is the one the installer checks after extraction. Both are SHA-256.
 on:
   push:
     tags: ["v*"]
@@ -41,26 +47,9 @@ jobs:
           set -euo pipefail
           version=${GITHUB_REF_NAME#v}
           [ -n "$version" ] || version=1.0.0
-          name="vdt-$version-${{ matrix.target }}"
-          mkdir -p "dist/$name"
-          cp README.md LICENSE NOTICE "dist/$name/"
-          if [ "${{ matrix.archive }}" = "zip" ]; then
-            cp target/release/vdt.exe "dist/$name/vdt.exe"
-            cp release/install.ps1 "dist/$name/"
-            (cd dist && 7z a "$name.zip" "$name")
-            file="dist/$name.zip"
-          else
-            cp target/release/vdt "dist/$name/vdt"
-            cp release/install.sh "dist/$name/"
-            chmod +x "dist/$name/vdt" "dist/$name/install.sh"
-            tar -C dist -czf "dist/$name.tar.gz" "$name"
-            file="dist/$name.tar.gz"
-          fi
-          if command -v sha256sum >/dev/null 2>&1; then
-            sha256sum "$file" | awk '{print $1}' > "$file.sha256"
-          else
-            shasum -a 256 "$file" | awk '{print $1}' > "$file.sha256"
-          fi
+          bin=target/release/vdt
+          [ -f "$bin" ] || bin=target/release/vdt.exe
+          sh release/package.sh "$version" "${{ matrix.target }}" "${{ matrix.archive }}" "$bin" dist
       - uses: actions/upload-artifact@v4
         with:
           name: vdt-${{ matrix.target }}
@@ -69,11 +58,12 @@ jobs:
             dist/*.tar.gz
             dist/*.sha256
 
-  publish:
+  draft-release:
     needs: build
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           path: dist
@@ -83,15 +73,35 @@ jobs:
           set -euo pipefail
           cp docs/RELEASE.md dist/RELEASE.md
           cp release/RELEASE-NOTES.md dist/RELEASE-NOTES.md
+          if [ -f release/PACKET-BEFORE-TAG.txt ]; then
+            cp release/PACKET-BEFORE-TAG.txt dist/PACKET-BEFORE-TAG.txt
+          fi
+      - name: Verify the download checksums
+        run: |
+          set -euo pipefail
+          cd dist
+          for sum in *.sha256; do
+            want=$(cut -d' ' -f1 "$sum")
+            file=${sum%.sha256}
+            [ -f "$file" ] || { echo "missing $file for $sum" >&2; exit 1; }
+            got=$(sha256sum "$file" | cut -d' ' -f1)
+            [ "$want" = "$got" ] || { echo "checksum mismatch for $file" >&2; exit 1; }
+          done
+      # A DRAFT release: the artifacts and notes are attached, but nothing is published. The human
+      # runs the release lane on the tag first, attaches the CLEAR TO SHIP packet, and presses
+      # Publish. `release/PACKET-BEFORE-TAG.txt` is the pre-tag record and is expected to say
+      # FAILED for the missing tag; it is not a claim that the release is clear.
       - uses: softprops/action-gh-release@v2
         with:
+          draft: true
           files: |
             dist/*.zip
             dist/*.tar.gz
             dist/*.sha256
             dist/RELEASE.md
             dist/RELEASE-NOTES.md
-          fail_on_unmatched_files: true
+            dist/PACKET-BEFORE-TAG.txt
+          fail_on_unmatched_files: false
 
 # Signing is not configured here: Windows Authenticode and the Apple notary need certificates that
 # are not in this repository. The archives are built and checksummed, and the release notes say the

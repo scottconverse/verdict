@@ -47,6 +47,14 @@ pub enum Action {
         /// The tree hash, when the human names one; else the current staged tree.
         tree: Option<String>,
     },
+    /// Which file is the plan (a path relative to the project).
+    SelectPlan(String),
+    /// Withdraw the prompt with this ordinal (the human cancelled it).
+    WithdrawPrompt(u32),
+    /// Waive words no check can cover ("faster", "nicer").
+    WaiveWords(String),
+    /// Register Verdict's MCP server with a host (human only, like installing hooks).
+    McpInstall(String),
 }
 
 /// Parse a pause duration: a whole number then `s`, `m`, `h` or `d`. Returns seconds.
@@ -318,6 +326,43 @@ pub fn apply(
                 plan.encode(),
                 Some(reason.trim().to_string()),
             )
+        }
+        Action::SelectPlan(path) => {
+            let path = path.trim().replace('\\', "/");
+            if path.is_empty() {
+                return Err("choose a plan file (or answer that there is none)".into());
+            }
+            let joined = root.join(&path);
+            if !joined.is_file() {
+                return Err(format!("{path} is not a file in this project"));
+            }
+            (DecisionKind::PlanFile, path, None)
+        }
+        Action::WithdrawPrompt(ordinal) => {
+            let exists =
+                ledger.records().map_err(|e| e.to_string())?.iter().any(
+                    |s| matches!(&s.record, Record::Prompt { ordinal: n, .. } if n == ordinal),
+                );
+            if !exists {
+                return Err(format!(
+                    "there is no prompt {ordinal} in this project's ledger"
+                ));
+            }
+            (DecisionKind::WithdrawPrompt, ordinal.to_string(), None)
+        }
+        Action::WaiveWords(words) => {
+            let words = words.trim();
+            if words.is_empty() {
+                return Err("name at least one word to waive".into());
+            }
+            (DecisionKind::WaiveWords, words.to_string(), None)
+        }
+        Action::McpInstall(host) => {
+            let host = host.trim().to_ascii_lowercase();
+            if !["claude", "cursor", "codex", "dsh", "antigravity"].contains(&host.as_str()) {
+                return Err(format!("{host:?} is not a supported host"));
+            }
+            (DecisionKind::McpInstall, host, None)
         }
     };
     let appended = ledger

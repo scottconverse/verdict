@@ -16,6 +16,7 @@ fn opts() -> RunOptions {
     RunOptions {
         lane: Lane::Standard,
         timeout: Duration::from_secs(60),
+        deadline: None,
     }
 }
 
@@ -620,4 +621,138 @@ fn every_command_that_ran_keeps_its_own_receipt() {
         .next_back()
         .unwrap();
     assert_eq!(last.seq, out[0].check_seq);
+}
+
+// ---------------------------------------------------- mutation applicability and browser proof
+
+#[test]
+fn mutation_is_skipped_when_no_named_reason_applies_and_runs_when_one_does() {
+    let mut p = project(&[("src/a.rs", "fn a() -> i32 { 1 }\n")], true);
+    p.write(
+        "verdict.json",
+        r#"{"version":1,"lanes":{"standard":{"checkers":["mutation"],"desks":[]}},"mutation":{"require_when":["test_sensitivity_uncertain"],"report":"mutation.json"}}"#,
+    );
+    p.write(
+        "mutation.json",
+        r#"{"survivors":[{"seed":7,"file":"src/a.rs","line":1,"description":"changed 1 to 2"}],"killed":0,"total":1}"#,
+    );
+    // A logic change, but the project has not declared the test-sensitivity reason.
+    p.write("src/a.rs", "fn a() -> i32 { 2 }\n");
+    let out = run(&mut p, &["mutation"]);
+    assert_eq!(out[0].outcome, CheckOutcome::SkippedByPolicy, "{out:?}");
+    let checks = records_of(&p.ledger, &p.session, RecordKind::Check);
+    let Record::Check { tier, outcome, .. } = &checks.last().unwrap().record else {
+        panic!()
+    };
+    assert_eq!(*tier, Tier::Unverified, "a skip is not execution proof");
+    assert_eq!(*outcome, CheckOutcome::SkippedByPolicy);
+
+    // Now the project declares the reason: the same report runs and its seed is kept.
+    p.write(
+        "verdict.json",
+        r#"{"version":1,"lanes":{"standard":{"checkers":["mutation"],"desks":[]}},"mutation":{"require_when":["test_sensitivity_uncertain"],"test_sensitivity_uncertain":true,"report":"mutation.json"}}"#,
+    );
+    let out = run(&mut p, &["mutation"]);
+    assert_eq!(out[0].outcome, CheckOutcome::Ran, "{out:?}");
+    assert_eq!(out[0].findings, 1);
+    let findings = records_of(&p.ledger, &p.session, RecordKind::Finding);
+    let Record::Finding(f) = &findings.last().unwrap().record else {
+        panic!()
+    };
+    assert!(f.title.contains("seed 7"), "{}", f.title);
+}
+
+#[test]
+fn a_browsed_exec_command_without_its_screenshot_earns_ran_not_browsed() {
+    let mut p = project(
+        &[
+            ("src/a.rs", "fn a() {}\n"),
+            (
+                "verdict.json",
+                r#"{"version":1,"exec":{"commands":[{"run":"echo hello","tier":"browsed","browser":{"screenshot":"shot.png","url":"http://127.0.0.1/"}}]}}"#,
+            ),
+        ],
+        true,
+    );
+    p.approve();
+    let out = run(&mut p, &["exec"]);
+    // The command passed, but the browser evidence is missing, so the check is not established.
+    assert_eq!(out[0].outcome, CheckOutcome::FailedToRun, "{out:?}");
+    let detail = records_of(&p.ledger, &p.session, RecordKind::Check)
+        .into_iter()
+        .rev()
+        .find_map(|s| match s.record {
+            Record::Check {
+                name,
+                detail: Some(d),
+                ..
+            } if name == "exec" => Some(d),
+            _ => None,
+        })
+        .unwrap_or_default();
+    assert!(detail.contains("browser evidence"), "{detail}");
+
+    // With the screenshot the same command is attested at the browsed tier, with its hash.
+    std::fs::write(p.root().join("shot.png"), b"a screenshot").unwrap();
+    let out = run(&mut p, &["exec"]);
+    assert_eq!(out[0].outcome, CheckOutcome::Ran, "{out:?}");
+    let checks = records_of(&p.ledger, &p.session, RecordKind::Check);
+    let last_exec = checks
+        .iter()
+        .rev()
+        .find(|s| matches!(&s.record, Record::Check { name, .. } if name == "exec"))
+        .unwrap();
+    let Record::Check { tier, detail, .. } = &last_exec.record else {
+        panic!()
+    };
+    assert_eq!(*tier, Tier::Browsed);
+    assert!(
+        detail.as_deref().unwrap_or("").contains("blake3"),
+        "{detail:?}"
+    );
+}
+
+#[test]
+fn suite_members_that_pin_a_shared_dependency_differently_are_reported() {
+    let mut p = project(
+        &[(
+            "Cargo.toml",
+            "[package]\nname = \"app\"\nversion = \"1.0.0\"\n",
+        )],
+        true,
+    );
+    p.write(
+        "member-a/Cargo.lock",
+        "[[package]]\nname = \"shared\"\nversion = \"1.0.0\"\n",
+    );
+    p.write(
+        "member-b/Cargo.lock",
+        "[[package]]\nname = \"shared\"\nversion = \"1.2.0\"\n",
+    );
+    p.write(
+        "verdict.json",
+        r#"{"version":1,
+            "lanes":{"standard":{"checkers":["release"],"desks":[]}},
+            "release":{"tag":"v1.0.0","version":"1.0.0","version_files":["Cargo.toml"]},
+            "suite":{"members":[
+                {"path":"member-a","dependency_files":["Cargo.lock"]},
+                {"path":"member-b","dependency_files":["Cargo.lock"]}]}}"#,
+    );
+    let out = run(&mut p, &["release"]);
+    assert_eq!(out[0].outcome, CheckOutcome::Ran, "{out:?}");
+    let findings = records_of(&p.ledger, &p.session, RecordKind::Finding);
+    assert!(
+        findings.iter().any(|s| matches!(
+            &s.record,
+            Record::Finding(f) if f.title.contains("pin shared at different versions")
+        )),
+        "{:?}",
+        findings
+            .iter()
+            .filter_map(|s| match &s.record {
+                Record::Finding(f) => Some(f.title.clone()),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+    );
 }

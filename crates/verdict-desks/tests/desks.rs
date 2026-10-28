@@ -430,3 +430,161 @@ fn a_decision_is_not_something_a_desk_writes() {
     );
     assert!(r.is_err());
 }
+
+// ---------------------------------------------------- provider order, identity and pipes
+
+#[test]
+fn the_policy_verifier_order_decides_which_provider_serves_the_first_desk() {
+    let policy_json = r#"{"version":1,"vendors":{"verifier_order":["openai"]}}"#;
+    let (dir, home, sid) = project("order", Some(policy_json));
+    let policy = Policy::load(dir.path(), Some(home.path())).unwrap();
+    let mut l = Ledger::open(dir.path()).unwrap();
+    // Alphabetically "aaa-google" comes first; the policy prefers the openai vendor.
+    let providers = vec![
+        provider("aaa-google", "google", &["--record", "2"]),
+        provider("zeta-openai", "openai", &["--record", "2"]),
+    ];
+    let out = run(
+        &mut l,
+        dir.path(),
+        &sid,
+        &policy,
+        &DeskOptions {
+            lane: Lane::Standard,
+            timeout: Duration::from_secs(20),
+        },
+        &providers,
+    )
+    .unwrap();
+    let Outcome::Ran { receipts, .. } = out else {
+        panic!("the desks should have run: {out:?}");
+    };
+    assert_eq!(receipts[0].desk, "engineer");
+    assert_eq!(
+        receipts[0].vendor, "openai",
+        "verifier_order must be followed, not alphabetical order: {receipts:?}"
+    );
+}
+
+#[test]
+fn a_served_vendor_that_is_the_builder_is_refused_not_counted() {
+    let (dir, home, sid) = project("identity", None);
+    let policy = Policy::load(dir.path(), Some(home.path())).unwrap();
+    let mut l = Ledger::open(dir.path()).unwrap();
+    let providers = vec![provider(
+        "fake-openai",
+        "openai",
+        &["--record", "2", "--served-vendor", "anthropic"],
+    )];
+    let out = run(
+        &mut l,
+        dir.path(),
+        &sid,
+        &policy,
+        &DeskOptions {
+            lane: Lane::Standard,
+            timeout: Duration::from_secs(20),
+        },
+        &providers,
+    )
+    .unwrap();
+    let Outcome::Ran { receipts, .. } = out else {
+        panic!("the desks should have run: {out:?}");
+    };
+    assert_eq!(receipts[0].outcome, "failed");
+    assert_eq!(receipts[0].identity, "mismatch");
+    assert_eq!(receipts[0].served_vendor.as_deref(), Some("anthropic"));
+    // The answer's findings were not counted: the run wrote no finding for that desk.
+    assert_eq!(receipts[0].findings, 0);
+    let findings = l
+        .records()
+        .unwrap()
+        .into_iter()
+        .filter(|s| matches!(s.record, Record::Finding(_)))
+        .count();
+    assert_eq!(findings, 0);
+}
+
+#[test]
+fn a_provider_with_a_large_answer_cannot_deadlock_the_parent() {
+    let (dir, home, sid) = project("chatty", None);
+    let policy = Policy::load(dir.path(), Some(home.path())).unwrap();
+    let mut l = Ledger::open(dir.path()).unwrap();
+    // 300 KB of leading whitespace: far more than a pipe buffer. The answer is still valid JSON.
+    let providers = vec![provider(
+        "chatty",
+        "openai",
+        &["--record", "2", "--pad", "300000"],
+    )];
+    let started = std::time::Instant::now();
+    let out = run(
+        &mut l,
+        dir.path(),
+        &sid,
+        &policy,
+        &DeskOptions {
+            lane: Lane::Standard,
+            timeout: Duration::from_secs(30),
+        },
+        &providers,
+    )
+    .unwrap();
+    assert!(started.elapsed() < Duration::from_secs(20));
+    let Outcome::Ran { receipts, .. } = out else {
+        panic!("the desks should have run: {out:?}");
+    };
+    assert_eq!(receipts[0].outcome, "ran");
+    assert!(receipts[0].findings >= 1);
+}
+
+#[test]
+fn served_settings_and_usage_are_kept_in_the_receipt_and_the_check_detail() {
+    let (dir, home, sid) = project("settings", None);
+    let policy = Policy::load(dir.path(), Some(home.path())).unwrap();
+    let mut l = Ledger::open(dir.path()).unwrap();
+    let providers = vec![provider(
+        "p",
+        "openai",
+        &[
+            "--record",
+            "2",
+            "--served-vendor",
+            "openai",
+            "--model",
+            "served-1",
+        ],
+    )];
+    let out = run(
+        &mut l,
+        dir.path(),
+        &sid,
+        &policy,
+        &DeskOptions {
+            lane: Lane::Standard,
+            timeout: Duration::from_secs(20),
+        },
+        &providers,
+    )
+    .unwrap();
+    let Outcome::Ran { receipts, .. } = out else {
+        panic!("the desks should have run: {out:?}");
+    };
+    let r = &receipts[0];
+    assert_eq!(r.identity, "confirmed");
+    assert_eq!(r.served_vendor.as_deref(), Some("openai"));
+    assert_eq!(r.returned_model.as_deref(), Some("served-1"));
+    assert!(r.settings.is_some(), "effective settings are recorded");
+    assert!(r.usage.is_some(), "usage is recorded");
+    let detail = l
+        .records()
+        .unwrap()
+        .into_iter()
+        .find_map(|s| match s.record {
+            Record::Check { name, detail, .. } if name == "desk:engineer" => detail,
+            _ => None,
+        })
+        .unwrap_or_default();
+    assert!(detail.contains("served vendor"), "{detail}");
+    assert!(detail.contains("settings"), "{detail}");
+    assert!(detail.contains("usage"), "{detail}");
+}

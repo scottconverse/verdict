@@ -16,6 +16,7 @@ serde_json = "1.0.154"
 tokio = { version = "1.54.1", features = ["rt-multi-thread", "net", "macros"] }
 verdict-adapters = { version = "1.0.0", path = "../verdict-adapters" }
 verdict-core = { version = "1.0.0", path = "../verdict-core" }
+verdict-engine = { version = "1.0.0", path = "../verdict-engine" }
 
 [dev-dependencies]
 serde_json = "1.0.154"

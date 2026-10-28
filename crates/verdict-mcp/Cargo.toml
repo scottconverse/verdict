@@ -15,3 +15,4 @@ tokio = { version = "1.54.1", features = ["rt-multi-thread", "macros"] }
 verdict-adapters = { version = "1.0.0", path = "../verdict-adapters" }
 verdict-checkers = { version = "1.0.0", path = "../verdict-checkers" }
 verdict-core = { version = "1.0.0", path = "../verdict-core" }
+verdict-engine = { version = "1.0.0", path = "../verdict-engine" }

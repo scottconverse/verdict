@@ -14,9 +14,10 @@
 //! * A finding with no citation that resolves against the ledger or the tree is stored as a
 //!   hypothesis, never as a finding.
 
-use std::io::Write;
+use std::io::{Read, Write};
 use std::path::Path;
 use std::process::{Command, Stdio};
+use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
 use serde::Deserialize;
@@ -106,6 +107,7 @@ impl DeskProvider for CommandProvider {
 }
 
 fn ask_command(p: &CommandProvider, prompt: &str, timeout: Duration) -> Result<String, String> {
+    let started = Instant::now();
     let mut cmd = Command::new(&p.command);
     cmd.args(&p.args)
         .stdin(Stdio::piped())
@@ -114,51 +116,90 @@ fn ask_command(p: &CommandProvider, prompt: &str, timeout: Duration) -> Result<S
     let mut child = cmd
         .spawn()
         .map_err(|e| format!("provider {} could not start: {e}", p.name))?;
-    {
-        let mut stdin = child
-            .stdin
-            .take()
-            .ok_or("provider stdin was not available")?;
-        let request = json!({
-            "protocol": "verdict-desk/1",
-            "model": p.model,
-            "prompt": prompt,
-        });
-        stdin
-            .write_all(request.to_string().as_bytes())
-            .map_err(|e| format!("provider {} could not be given the prompt: {e}", p.name))?;
-    }
-    let started = Instant::now();
+    let mut stdin = child
+        .stdin
+        .take()
+        .ok_or("provider stdin was not available")?;
+    let mut stdout = child
+        .stdout
+        .take()
+        .ok_or("provider stdout was not available")?;
+    let mut stderr = child
+        .stderr
+        .take()
+        .ok_or("provider stderr was not available")?;
+    let request = json!({
+        "protocol": "verdict-desk/1",
+        "model": p.model,
+        "prompt": prompt,
+    })
+    .to_string();
+    // The request, both output streams and the wait all run at the same time. Waiting for exit
+    // before reading the pipes is how a chatty provider deadlocks its parent.
+    let writer = std::thread::spawn(move || {
+        let _ = stdin.write_all(request.as_bytes());
+        // Dropping stdin closes it, so a provider that reads to end sees EOF.
+    });
+    let (out_tx, out_rx) = mpsc::channel::<Vec<u8>>();
+    let (err_tx, err_rx) = mpsc::channel::<Vec<u8>>();
+    std::thread::spawn(move || {
+        let mut buf = Vec::new();
+        let _ = stdout.read_to_end(&mut buf);
+        let _ = out_tx.send(buf);
+    });
+    std::thread::spawn(move || {
+        let mut buf = Vec::new();
+        let _ = stderr.read_to_end(&mut buf);
+        let _ = err_tx.send(buf);
+    });
+    let mut timed_out = false;
+    let mut status = None;
     loop {
-        if let Some(status) = child
-            .try_wait()
-            .map_err(|e| format!("provider {} could not be waited for: {e}", p.name))?
-        {
-            let out = child
-                .wait_with_output()
-                .map_err(|e| format!("provider {} output could not be read: {e}", p.name))?;
-            if !status.success() {
-                let err = String::from_utf8_lossy(&out.stderr);
-                return Err(format!(
-                    "provider {} exited with {}: {}",
-                    p.name,
-                    status,
-                    err.lines().next().unwrap_or("")
-                ));
+        match child.try_wait() {
+            Ok(Some(s)) => {
+                status = Some(s);
+                break;
             }
-            return Ok(String::from_utf8_lossy(&out.stdout).to_string());
+            Ok(None) => {}
+            Err(e) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(format!("provider {} could not be waited for: {e}", p.name));
+            }
         }
         if started.elapsed() > timeout {
+            timed_out = true;
             let _ = child.kill();
             let _ = child.wait();
-            return Err(format!(
-                "provider {} did not answer within {} seconds",
-                p.name,
-                timeout.as_secs()
-            ));
+            break;
         }
         std::thread::sleep(Duration::from_millis(20));
     }
+    let _ = writer.join();
+    // The pipes close once the provider (and anything it started) is gone. Keep that bounded too.
+    let grace = Duration::from_secs(5);
+    let out = out_rx.recv_timeout(grace);
+    let err = err_rx.recv_timeout(grace);
+    if timed_out {
+        return Err(format!(
+            "provider {} did not answer within {} seconds",
+            p.name,
+            timeout.as_secs()
+        ));
+    }
+    let out = out.map_err(|_| format!("provider {} output could not be read", p.name))?;
+    let err = err.map_err(|_| format!("provider {} error output could not be read", p.name))?;
+    let status = status.ok_or_else(|| format!("provider {} ended without a status", p.name))?;
+    if !status.success() {
+        let text = String::from_utf8_lossy(&err);
+        return Err(format!(
+            "provider {} exited with {}: {}",
+            p.name,
+            status,
+            text.lines().next().unwrap_or("")
+        ));
+    }
+    Ok(String::from_utf8_lossy(&out).to_string())
 }
 
 /// The providers a policy configures. A policy with none is valid: the desks then cannot run and
@@ -208,10 +249,17 @@ pub struct Receipt {
     pub provider: String,
     /// The vendor that served it.
     pub vendor: String,
+    /// The vendor the answer says served it, when the provider says.
+    pub served_vendor: Option<String>,
     /// The model asked for.
     pub requested_model: String,
     /// The model the answer says served it, when the provider says.
     pub returned_model: Option<String>,
+    /// Effective settings the answer reports (temperature, effort, and so on).
+    pub settings: Option<Value>,
+    /// `confirmed` (a served vendor was stated), `not_stated`, or `mismatch` when a stated vendor
+    /// was the builder's on a run that required another vendor.
+    pub identity: String,
     /// Findings written.
     pub findings: usize,
     /// Hypotheses written.
@@ -245,16 +293,33 @@ pub enum Outcome {
     },
 }
 
+#[derive(Debug, Deserialize, Clone)]
+struct ServedInfo {
+    #[serde(default)]
+    vendor: Option<String>,
+    #[serde(default)]
+    model: Option<String>,
+    #[serde(default)]
+    settings: Option<Value>,
+}
+
 #[derive(Debug, Deserialize)]
 struct RawAnswer {
     #[serde(default)]
     findings: Vec<RawFinding>,
     #[serde(default)]
     hypotheses: Vec<String>,
+    /// A desk may propose a checker run (a mutation cell or a firstrun cell). The desk never runs
+    /// code itself; the proposal is recorded and the core may run a configured checker for it.
+    #[serde(default)]
+    proposals: Vec<Value>,
     #[serde(default)]
     usage: Option<Value>,
     #[serde(default)]
     model: Option<String>,
+    /// What the provider says actually served the answer (the design's served identity).
+    #[serde(default)]
+    served: Option<ServedInfo>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -446,16 +511,187 @@ fn outcome_str(o: CheckOutcome) -> &'static str {
     }
 }
 
-/// The prompt handed to a desk: its rubric, the policy facts that bound the answer, and the
-/// ledger view.
-pub fn desk_prompt(desk: &str, rubric_text: &str, lane: Lane, view: &str) -> String {
+/// The prompt handed to a desk: its rubric, the policy facts that bound the answer, the ledger
+/// view, and the artifacts the design assigns to that desk.
+pub fn desk_prompt(desk: &str, rubric_text: &str, lane: Lane, view: &str, focus: &str) -> String {
     format!(
         "You are the {desk} desk.\n\n{rubric_text}\n\n## This run\n\nLane: {}. You may report at \
          most five findings in the report body; anything else becomes a hypothesis. Cite ledger \
          records as {{\"record\": N}} and code as {{\"file\": \"path\", \"line\": N}}. Answer with \
-         one JSON object and nothing else.\n\n## The ledger\n\n{view}\n",
+         one JSON object and nothing else.\n\n## What this desk reads\n\n{focus}\n\n## The ledger\n\n{view}\n",
         lane_name(lane)
     )
+}
+
+/// The desk-specific artifacts the design assigns, read from the ledger and the project. The
+/// generic ledger view is the same for every desk; this is what makes each desk's input targeted.
+pub fn desk_focus(
+    desk: &str,
+    ledger: &Ledger,
+    session: &str,
+    root: &Path,
+) -> Result<String, String> {
+    let records = ledger
+        .records_for_session(session)
+        .map_err(|e| e.to_string())?;
+    let mut out = String::new();
+    let findings_with = |prefixes: &[&str], out: &mut String| {
+        for s in &records {
+            if let Record::Finding(f) | Record::Hypothesis(f) = &s.record
+                && prefixes.iter().any(|p| f.id.starts_with(p))
+            {
+                out.push_str(&format!(
+                    "- {} {} [{}]: {} (record {})\n",
+                    if f.evidence.is_empty() {
+                        "HYPOTHESIS"
+                    } else {
+                        "FINDING"
+                    },
+                    severity_name(f.severity),
+                    f.tier.as_str(),
+                    f.title,
+                    s.seq
+                ));
+            }
+        }
+    };
+    let checks_named = |names: &[&str], out: &mut String| {
+        for s in &records {
+            if let Record::Check {
+                name,
+                outcome,
+                tier,
+                detail,
+                ..
+            } = &s.record
+                && names.contains(&name.as_str())
+            {
+                out.push_str(&format!(
+                    "- CHECK {name} ({}, {}): {} (record {})\n",
+                    outcome_str(*outcome),
+                    tier.as_str(),
+                    detail.as_deref().unwrap_or("no detail"),
+                    s.seq
+                ));
+            }
+        }
+    };
+    match desk {
+        "engineer" => {
+            out.push_str("What you read: the tree, wiring findings and exec output hashes.\n");
+            findings_with(&["wiring:"], &mut out);
+            checks_named(&["exec"], &mut out);
+            let manifests = manifests_in(root);
+            out.push_str(&format!(
+                "- Manifests and dependency files: {}\n",
+                manifests.join(", ")
+            ));
+        }
+        "docs" => {
+            out.push_str("What you read: the README and other docs, claims_vs_code findings, release findings.\n");
+            findings_with(&["claims_vs_code:", "release:"], &mut out);
+            checks_named(&["release"], &mut out);
+            out.push_str(&format!("- README excerpt:\n{}\n", readme_excerpt(root)));
+        }
+        "qa" => {
+            out.push_str("What you read: exec and firstrun records, tests_weakened findings.\n");
+            findings_with(&["tests_weakened:", "exec:", "firstrun:"], &mut out);
+            checks_named(&["exec", "firstrun"], &mut out);
+        }
+        "ux" => {
+            out.push_str("What you read: firstrun screenshot/log evidence and wiring paths.\n");
+            findings_with(&["wiring:", "firstrun:"], &mut out);
+            checks_named(&["firstrun"], &mut out);
+        }
+        "security" => {
+            out.push_str("What you read: regressions findings, dependency files and the tree.\n");
+            findings_with(&["regressions:", "unfinished:"], &mut out);
+            out.push_str(&format!(
+                "- Dependency and license files: {}\n",
+                manifests_in(root).join(", ")
+            ));
+        }
+        "legal" => {
+            out.push_str("What you read: package manifests, LICENSE files and release findings.\n");
+            for f in ["LICENSE", "NOTICE", "COPYING", "LICENSE.md"] {
+                out.push_str(&format!(
+                    "- {f}: {}\n",
+                    if root.join(f).exists() {
+                        "present"
+                    } else {
+                        "absent"
+                    }
+                ));
+            }
+            out.push_str(&format!(
+                "- Dependency manifests: {}\n",
+                manifests_in(root).join(", ")
+            ));
+            findings_with(&["release:"], &mut out);
+        }
+        "refuter" => {
+            out.push_str(
+                "What you read: the full ledger. Refute, do not confirm: try to break every \
+                 CONNECTED wiring result and every clean exec result.\n",
+            );
+            for s in &records {
+                if let Record::Check {
+                    name,
+                    tier,
+                    outcome,
+                    ..
+                } = &s.record
+                    && *outcome == CheckOutcome::Ran
+                    && matches!(tier, Tier::Ran | Tier::Browsed | Tier::Static)
+                {
+                    out.push_str(&format!(
+                        "- CLEAN RESULT TO REFUTE: {name} at {} (record {})\n",
+                        tier.as_str(),
+                        s.seq
+                    ));
+                }
+            }
+        }
+        _ => out.push_str("What you read: the ledger.\n"),
+    }
+    if out.len() > 12_000 {
+        let cut = out.char_indices().nth(12_000).map_or(out.len(), |(i, _)| i);
+        out.truncate(cut);
+        out.push_str("...\n");
+    }
+    Ok(out)
+}
+
+/// Dependency and license files in the project root (single folder, no walk).
+fn manifests_in(root: &Path) -> Vec<String> {
+    const NAMES: [&str; 8] = [
+        "Cargo.toml",
+        "Cargo.lock",
+        "package.json",
+        "package-lock.json",
+        "pnpm-lock.yaml",
+        "pyproject.toml",
+        "requirements.txt",
+        "go.mod",
+    ];
+    let mut out: Vec<String> = NAMES
+        .iter()
+        .filter(|n| root.join(n).exists())
+        .map(|n| n.to_string())
+        .collect();
+    if out.is_empty() {
+        out.push("(none found in the project root)".into());
+    }
+    out
+}
+
+fn readme_excerpt(root: &Path) -> String {
+    for name in ["README.md", "README", "readme.md"] {
+        if let Ok(text) = std::fs::read_to_string(root.join(name)) {
+            return bounded(text, 4000);
+        }
+    }
+    "(no README in the project root)".into()
 }
 
 fn desk_hash(desk: &str, title: &str, evidence: &[EvidencePointer]) -> String {
@@ -559,8 +795,34 @@ pub fn run(
         == Some("warn");
 
     let mut order: Vec<&Box<dyn DeskProvider>> = providers.iter().collect();
-    // A different vendor first, always; same-vendor only when the policy permits it.
-    order.sort_by_key(|p| (p.vendor() == builder_vendor, p.name().to_string()));
+    // The policy's `vendors.verifier_order` is a preference list of vendors (or provider names);
+    // then a different vendor, then the provider name, for determinism.
+    let preferred: Vec<String> = policy
+        .value
+        .pointer("/vendors/verifier_order")
+        .and_then(Value::as_array)
+        .map(|a| {
+            a.iter()
+                .filter_map(Value::as_str)
+                .map(|s| s.trim().to_ascii_lowercase())
+                .collect()
+        })
+        .unwrap_or_default();
+    let preference = |vendor: &str, name: &str| -> usize {
+        let vendor = vendor.to_ascii_lowercase();
+        let name = name.to_ascii_lowercase();
+        preferred
+            .iter()
+            .position(|n| *n == vendor || *n == name)
+            .unwrap_or(usize::MAX)
+    };
+    order.sort_by_key(|p| {
+        (
+            preference(p.vendor(), p.name()),
+            p.vendor() != builder_vendor,
+            p.name().to_string(),
+        )
+    });
     let candidates: Vec<&Box<dyn DeskProvider>> = if cross_required {
         order
             .iter()
@@ -622,8 +884,11 @@ pub fn run(
                 desk: desk.clone(),
                 provider: String::new(),
                 vendor: String::new(),
+                served_vendor: None,
                 requested_model: String::new(),
                 returned_model: None,
+                settings: None,
+                identity: "not_stated".into(),
                 findings: 0,
                 hypotheses: 0,
                 outcome: "failed".into(),
@@ -633,7 +898,8 @@ pub fn run(
             });
             continue;
         };
-        let prompt = desk_prompt(desk, rubric_text, opts.lane, &view);
+        let focus = desk_focus(desk, ledger, session, root)?;
+        let prompt = desk_prompt(desk, rubric_text, opts.lane, &view, &focus);
         let started_at = verdict_core::timefmt::now_rfc3339();
         let started = Instant::now();
         let timeout = provider
@@ -646,6 +912,9 @@ pub fn run(
         let mut hypotheses = 0;
         let mut usage = None;
         let mut returned_model = None;
+        let mut served_vendor: Option<String> = None;
+        let mut settings: Option<Value> = None;
+        let mut identity = "not_stated";
         let (outcome, error) = match answer.and_then(|t| parse_answer(&t)) {
             Err(e) => {
                 ledger
@@ -663,56 +932,44 @@ pub fn run(
             Ok(raw) => {
                 usage = raw.usage.clone();
                 returned_model = raw.model.clone();
-                for h in &raw.hypotheses {
-                    hypotheses += 1;
+                if let Some(s) = &raw.served {
+                    served_vendor = s.vendor.clone();
+                    settings = s.settings.clone();
+                    if s.model.is_some() {
+                        returned_model = s.model.clone();
+                    }
+                }
+                identity = if served_vendor.is_some() {
+                    "confirmed"
+                } else {
+                    "not_stated"
+                };
+                // A stated served vendor that is the builder's cannot be independent verification
+                // on a run that requires another vendor. Refuse that answer's findings.
+                if cross_required
+                    && served_vendor
+                        .as_deref()
+                        .is_some_and(|v| v.eq_ignore_ascii_case(&builder_vendor))
+                {
+                    identity = "mismatch";
+                    let why = format!(
+                        "the provider says the answer was served by {served_vendor:?}, which is the \
+                         builder's vendor; this run requires another vendor, so the answer was not \
+                         counted"
+                    );
                     ledger
                         .append(
                             Writer::Desk,
                             Some(session),
-                            Record::Hypothesis(Finding {
-                                id: format!(
-                                    "desk:{desk}.h{hypotheses}.{}",
-                                    desk_hash(desk, h, &[])
-                                ),
-                                severity: Severity::Minor,
-                                title: h.clone(),
-                                claim_seq: None,
-                                evidence: Vec::new(),
-                                tier: Tier::Judgment,
-                                blast: Some(opts.lane),
-                                judgment: true,
-                                fix_hint: None,
-                            }),
+                            Record::CheckUnavailable {
+                                component: format!("desk:{desk}"),
+                                reason: why.clone(),
+                            },
                         )
                         .map_err(|e| e.to_string())?;
-                }
-                for f in &raw.findings {
-                    // Every citation must resolve; an answer whose citations do not is a
-                    // hypothesis, not a finding.
-                    let mut evidence = Vec::new();
-                    let mut bad = None;
-                    for e in &f.evidence {
-                        match e {
-                            RawEvidence::Record { record } => {
-                                match record_evidence(ledger, *record) {
-                                    Some(p) => evidence.push(p),
-                                    None => {
-                                        bad = Some(format!(
-                                            "it cites ledger record {record}, which is not in this ledger"
-                                        ))
-                                    }
-                                }
-                            }
-                            RawEvidence::FileLine { file, line } => {
-                                match EvidencePointer::file_line(root, file, *line) {
-                                    Ok(p) => evidence.push(p),
-                                    Err(e) => bad = Some(format!("it cites {file}:{line}: {e}")),
-                                }
-                            }
-                        }
-                    }
-                    if evidence.is_empty() {
-                        let why = bad.unwrap_or_else(|| "it cites nothing".into());
+                    ("failed".to_string(), Some(why))
+                } else {
+                    for h in &raw.hypotheses {
                         hypotheses += 1;
                         ledger
                             .append(
@@ -721,12 +978,84 @@ pub fn run(
                                 Record::Hypothesis(Finding {
                                     id: format!(
                                         "desk:{desk}.h{hypotheses}.{}",
-                                        desk_hash(desk, &f.title, &[])
+                                        desk_hash(desk, h, &[])
                                     ),
-                                    severity: f.severity,
-                                    title: format!("{} ({why})", f.title),
+                                    severity: Severity::Minor,
+                                    title: h.clone(),
                                     claim_seq: None,
                                     evidence: Vec::new(),
+                                    tier: Tier::Judgment,
+                                    blast: Some(opts.lane),
+                                    judgment: true,
+                                    fix_hint: None,
+                                }),
+                            )
+                            .map_err(|e| e.to_string())?;
+                    }
+                    for f in &raw.findings {
+                        // Every citation must resolve; an answer whose citations do not is a
+                        // hypothesis, not a finding.
+                        let mut evidence = Vec::new();
+                        let mut bad = None;
+                        for e in &f.evidence {
+                            match e {
+                                RawEvidence::Record { record } => {
+                                    match record_evidence(ledger, *record) {
+                                        Some(p) => evidence.push(p),
+                                        None => {
+                                            bad = Some(format!(
+                                                "it cites ledger record {record}, which is not in this ledger"
+                                            ))
+                                        }
+                                    }
+                                }
+                                RawEvidence::FileLine { file, line } => {
+                                    match EvidencePointer::file_line(root, file, *line) {
+                                        Ok(p) => evidence.push(p),
+                                        Err(e) => {
+                                            bad = Some(format!("it cites {file}:{line}: {e}"))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        if evidence.is_empty() {
+                            let why = bad.unwrap_or_else(|| "it cites nothing".into());
+                            hypotheses += 1;
+                            ledger
+                                .append(
+                                    Writer::Desk,
+                                    Some(session),
+                                    Record::Hypothesis(Finding {
+                                        id: format!(
+                                            "desk:{desk}.h{hypotheses}.{}",
+                                            desk_hash(desk, &f.title, &[])
+                                        ),
+                                        severity: f.severity,
+                                        title: format!("{} ({why})", f.title),
+                                        claim_seq: None,
+                                        evidence: Vec::new(),
+                                        tier: Tier::Judgment,
+                                        blast: Some(opts.lane),
+                                        judgment: true,
+                                        fix_hint: f.fix.clone(),
+                                    }),
+                                )
+                                .map_err(|e| e.to_string())?;
+                            continue;
+                        }
+                        findings += 1;
+                        let id = format!("desk:{desk}.{}", desk_hash(desk, &f.title, &evidence));
+                        ledger
+                            .append(
+                                Writer::Desk,
+                                Some(session),
+                                Record::Finding(Finding {
+                                    id,
+                                    severity: f.severity,
+                                    title: f.title.clone(),
+                                    claim_seq: None,
+                                    evidence,
                                     tier: Tier::Judgment,
                                     blast: Some(opts.lane),
                                     judgment: true,
@@ -734,38 +1063,69 @@ pub fn run(
                                 }),
                             )
                             .map_err(|e| e.to_string())?;
-                        continue;
                     }
-                    findings += 1;
-                    let id = format!("desk:{desk}.{}", desk_hash(desk, &f.title, &evidence));
-                    ledger
-                        .append(
-                            Writer::Desk,
-                            Some(session),
-                            Record::Finding(Finding {
-                                id,
-                                severity: f.severity,
-                                title: f.title.clone(),
-                                claim_seq: None,
-                                evidence,
-                                tier: Tier::Judgment,
-                                blast: Some(opts.lane),
-                                judgment: true,
-                                fix_hint: f.fix.clone(),
-                            }),
-                        )
-                        .map_err(|e| e.to_string())?;
+                    // Proposals: a desk may ask the core to run a configured mutation or firstrun
+                    // cell. It never runs code itself; the proposal is recorded as a hypothesis (it
+                    // never moves the verdict) and `verdict-engine` may run the configured checker.
+                    for (pi, p) in raw.proposals.iter().enumerate() {
+                        let (checker, reason) = match p {
+                            Value::String(s) => (s.trim().to_string(), String::new()),
+                            Value::Object(o) => (
+                                o.get("checker")
+                                    .and_then(Value::as_str)
+                                    .unwrap_or("")
+                                    .trim()
+                                    .to_string(),
+                                o.get("reason")
+                                    .and_then(Value::as_str)
+                                    .unwrap_or("")
+                                    .to_string(),
+                            ),
+                            _ => continue,
+                        };
+                        if checker.is_empty() {
+                            continue;
+                        }
+                        hypotheses += 1;
+                        let title = format!(
+                            "PROPOSAL: {checker} — {reason} (the desk did not run any code)"
+                        );
+                        ledger
+                            .append(
+                                Writer::Desk,
+                                Some(session),
+                                Record::Hypothesis(Finding {
+                                    id: format!(
+                                        "desk:{desk}.proposal.{pi}.{}",
+                                        desk_hash(desk, &title, &[])
+                                    ),
+                                    severity: Severity::Nit,
+                                    title,
+                                    claim_seq: None,
+                                    evidence: Vec::new(),
+                                    tier: Tier::Judgment,
+                                    blast: Some(opts.lane),
+                                    judgment: true,
+                                    fix_hint: None,
+                                }),
+                            )
+                            .map_err(|e| e.to_string())?;
+                    }
+                    ("ran".to_string(), None)
                 }
-                ("ran".to_string(), None)
             }
         };
         let detail = format!(
             "desk {desk}; provider {:?} (vendor {}, requested model {:?}, returned model {:?}); \
-             lane {}; policy v{policy_version}; {} finding(s), {} hypothesis(ies); {} ms",
+             served vendor {:?} ({identity}); settings {:?}; usage {:?}; lane {}; policy v{policy_version}; \
+             {} finding(s), {} hypothesis(ies); {} ms",
             provider.name(),
             provider.vendor(),
             provider.model(),
             returned_model,
+            served_vendor,
+            settings,
+            usage,
             lane_name(opts.lane),
             findings,
             hypotheses,
@@ -796,8 +1156,11 @@ pub fn run(
             desk: desk.clone(),
             provider: provider.name().to_string(),
             vendor: provider.vendor().to_string(),
+            served_vendor,
             requested_model: provider.model().to_string(),
             returned_model,
+            settings,
+            identity: identity.to_string(),
             findings,
             hypotheses,
             outcome,
@@ -822,6 +1185,17 @@ pub fn receipt_line(r: &Receipt) -> String {
         && m != &r.requested_model
     {
         s.push_str(&format!(" (served {m})"));
+    }
+    if let Some(v) = &r.served_vendor {
+        s.push_str(&format!("; served by {v} ({})", r.identity));
+    } else {
+        s.push_str(&format!(
+            "; served vendor {} ({})",
+            "not stated", r.identity
+        ));
+    }
+    if let Some(settings) = &r.settings {
+        s.push_str(&format!("; settings {settings}"));
     }
     s.push_str(&format!(
         ": {} finding(s), {} hypothesis(ies)",
@@ -863,10 +1237,17 @@ mod tests {
 
     #[test]
     fn a_prompt_carries_the_rubric_the_lane_and_the_ledger_view() {
-        let p = desk_prompt("qa", "RUBRIC TEXT", Lane::High, "CLAIM 1 [plan_line]: x");
+        let p = desk_prompt(
+            "qa",
+            "RUBRIC TEXT",
+            Lane::High,
+            "CLAIM 1 [plan_line]: x",
+            "FOCUS TEXT",
+        );
         assert!(p.contains("RUBRIC TEXT"));
         assert!(p.contains("Lane: high"));
         assert!(p.contains("CLAIM 1"));
+        assert!(p.contains("FOCUS TEXT"));
         assert!(p.contains("{\"record\": N}"));
     }
 

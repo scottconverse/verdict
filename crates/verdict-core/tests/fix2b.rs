@@ -45,10 +45,13 @@ fn tier_of(name: &str) -> Tier {
     }
 }
 
-/// Every checker of `lane`, in `sid`, recorded as having seen `tree`.
+/// Every checker and required desk of `lane`, in `sid`, recorded as having seen `tree`.
 fn run_lane_in(l: &mut Ledger, sid: &str, lane: Lane, tree: Option<&str>) {
     for name in input(lane).lane_checkers[&lane].clone() {
         check_in(l, sid, &name, tier_of(&name), tree);
+    }
+    for desk in input(lane).lane_desks[&lane].clone() {
+        check_in(l, sid, &format!("desk:{desk}"), Tier::Judgment, tree);
     }
 }
 
@@ -549,8 +552,8 @@ fn an_unreadable_diff_classifies_at_release_and_the_verdict_is_never_clean() {
     drop(l);
 
     // `vdt verdict` records it as check_unavailable for lane classification, once.
-    run_verdict(root, Some(home.path()), Some(&sid), None).unwrap();
-    run_verdict(root, Some(home.path()), Some(&sid), None).unwrap();
+    run_verdict(root, Some(home.path()), Some(&sid), None, None).unwrap();
+    run_verdict(root, Some(home.path()), Some(&sid), None, None).unwrap();
     let l = Ledger::open(root).unwrap();
     let lane_records: Vec<String> = l
         .records()

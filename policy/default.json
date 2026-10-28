@@ -3,6 +3,7 @@
   "plans": [],
   "exec": {
     "timeout": "3m",
+    "shell": "native",
     "commands": []
   },
   "lanes": {
@@ -17,10 +18,15 @@
   },
   "mutation": {
     "require_when": ["critical_logic_changed", "test_sensitivity_uncertain"],
-    "never_merely_for": ["lane_label", "file_count", "release"]
+    "never_merely_for": ["lane_label", "file_count", "release"],
+    "success_exit_codes": [0]
   },
   "firstrun": {
+    "web": true,
     "commands": []
+  },
+  "desks": {
+    "run_proposals": false
   },
   "release": {
     "version_files": [],

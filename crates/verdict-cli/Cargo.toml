@@ -17,6 +17,7 @@ clap = { version = "4.6.7", features = ["derive"] }
 verdict-adapters = { version = "1.0.0", path = "../verdict-adapters" }
 verdict-checkers = { version = "1.0.0", path = "../verdict-checkers" }
 verdict-core = { version = "1.0.0", path = "../verdict-core" }
+verdict-engine = { version = "1.0.0", path = "../verdict-engine" }
 verdict-desks = { version = "1.0.0", path = "../verdict-desks" }
 verdict-generate = { version = "1.0.0", path = "../verdict-generate" }
 verdict-gui = { version = "1.0.0", path = "../verdict-gui" }

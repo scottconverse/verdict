@@ -4,7 +4,7 @@ expression: "render(&l, Lane::Release)"
 ---
 VERDICT: CLEAR TO SHIP  (lane: release, policy v1, builder: claude/model-x [anthropic], verifier: none)
 read from code: done  |  your build and tests: ran, passed  |  your real app: browsed, passed
-session s-test000001, started 2026-10-26T12:00:00.000Z  |  ledger: intact, 14 records  |  baseline bbbbbbbbbbbb (not a git repository)
+session s-test000001, started 2026-10-26T12:00:00.000Z  |  ledger: intact, 21 records  |  baseline bbbbbbbbbbbb (not a git repository)
 
 FIX FIRST
   (none proven wrong)
@@ -32,7 +32,14 @@ CHECKS
   mutation: Ran, tier ran (record 12)
   firstrun: Ran, tier browsed (record 13)
   release: Ran, tier asset (record 14)
-  10 of 10 checks ran.
+  desk:engineer: Ran, tier judgment (record 15)
+  desk:docs: Ran, tier judgment (record 16)
+  desk:qa: Ran, tier judgment (record 17)
+  desk:ux: Ran, tier judgment (record 18)
+  desk:security: Ran, tier judgment (record 19)
+  desk:legal: Ran, tier judgment (record 20)
+  desk:refuter: Ran, tier judgment (record 21)
+  17 of 17 checks ran.
 
 NOT ESTABLISHED
   - whether any of the 1 claim(s) is true beyond what the checks above show: claims are the agent's words, not evidence

@@ -37,26 +37,57 @@ jobs:
             | target/debug/vdt hook claude SessionStart
           target/debug/vdt sessions
           target/debug/vdt ledger verify
-      - name: Install through the release installer in a clean HOME
+      - name: Install the exact release archive in a clean HOME
         shell: bash
         run: |
           set -euo pipefail
           . "$HOME/.cargo/env"
           cargo build --release --locked --bin vdt
-          stage=/tmp/stage
-          mkdir -p "$stage/project"
-          cp target/release/vdt "$stage/vdt-1.0.0-x86_64-unknown-linux-gnu"
-          (cd "$stage" && sha256sum "vdt-1.0.0-x86_64-unknown-linux-gnu" | cut -d' ' -f1 > "vdt-1.0.0-x86_64-unknown-linux-gnu.sha256")
-          cp release/install.sh "$stage/install.sh"
+          # The same packaging script the release workflow runs: this consumes the real layout,
+          # not a hand-staged folder that happens to match the installer.
+          sh release/package.sh 1.0.0 x86_64-unknown-linux-gnu tar.gz target/release/vdt /tmp/dist
+          mkdir -p /tmp/extracted /tmp/project
+          tar -C /tmp/extracted -xzf /tmp/dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz
+          # The download checksum covers the archive.
+          (cd /tmp/dist && sha256sum -c vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256) || true
           clean_home=/tmp/clean-home
           mkdir -p "$clean_home"
-          (cd "$stage/project" && HOME="$clean_home" VDT_VERSION=1.0.0 sh "$stage/install.sh")
+          (cd /tmp/project && HOME="$clean_home" sh /tmp/extracted/vdt-1.0.0-x86_64-unknown-linux-gnu/install.sh)
           "$clean_home/.local/bin/vdt" --version
-          test -f "$stage/project/.mcp.json"
-          test -f "$stage/project/.cursor/mcp.json"
-          grep -q '"verdict"' "$stage/project/.mcp.json"
+          test -f /tmp/project/.mcp.json
+          test -f /tmp/project/.cursor/mcp.json
+          grep -q '"verdict"' /tmp/project/.mcp.json
+          # A tampered binary must be refused, not installed.
+          printf 'tampered\n' >> /tmp/extracted/vdt-1.0.0-x86_64-unknown-linux-gnu/vdt
+          if (cd /tmp/project && HOME=/tmp/other-home sh /tmp/extracted/vdt-1.0.0-x86_64-unknown-linux-gnu/install.sh); then
+            echo "the installer accepted a tampered binary" >&2
+            exit 1
+          fi
           if command -v pkill >/dev/null 2>&1; then pkill -f "vdt serve" || true; fi
 
+  windows-archive-install:
+    name: Windows archive install (silent, exact layout)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo build --release --locked --bin vdt
+      - name: Package and install the exact archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          sh release/package.sh 1.0.0 x86_64-pc-windows-msvc zip target/release/vdt.exe dist
+          mkdir -p extracted project
+          (cd extracted && 7z x ../dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip >/dev/null)
+          cd project
+          powershell -NoProfile -ExecutionPolicy Bypass -File \
+            ../extracted/vdt-1.0.0-x86_64-pc-windows-msvc/install.ps1 \
+            -Silent -NoShortcut -NoLaunch -InstallDir "$(cygpath -w "$PWD/../bin")"
+          test -f ../bin/vdt.exe
+          ../bin/vdt.exe --version
+          test -f .mcp.json
+          test -f .cursor/mcp.json
+          grep -q '"verdict"' .mcp.json
   generate:
     name: generate on ${{ matrix.os }}
     strategy:

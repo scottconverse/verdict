@@ -30,6 +30,8 @@ CHECKS
   required: claims_vs_code did not run
   required: unfinished did not run
   required: exec did not run
+  required: desk:engineer did not run
+  required: desk:qa did not run
 
 NOT ESTABLISHED
   - wiring: did not run
@@ -39,6 +41,8 @@ NOT ESTABLISHED
   - claims_vs_code: did not run
   - unfinished: did not run
   - exec: did not run
+  - desk:engineer: did not run
+  - desk:qa: did not run
   - whether the work does what the prompts asked: no checker has run
   - whether your build and tests pass: nothing was run
   - whether your real app works: no page was loaded

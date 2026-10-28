@@ -9,10 +9,10 @@ use serde_json::{Value, json};
 
 use crate::lane::lane_name;
 use crate::ledger::{Ledger, LedgerError};
-use crate::model::{Record, Severity, Tier};
+use crate::model::{Lane, Record, Severity, Tier};
 use crate::pointer::EvidencePointer;
 use crate::report::render_report_with;
-use crate::verdict::{Computed, FindingStatus, analyze, compute_live};
+use crate::verdict::{Computed, FindingStatus, analyze, compute_live, word_label};
 
 /// SARIF level for a severity.
 fn sarif_level(s: Severity) -> &'static str {
@@ -161,6 +161,7 @@ pub fn packet(root: &Path, ledger: &Ledger, session: &str) -> Result<String, Led
 
     out.push_str("CLAIMS\n------\n");
     let records = ledger.records_for_session(session)?;
+    let a = analyze(ledger, session)?;
     let mut claims = 0;
     for s in &records {
         if let Record::Claim {
@@ -171,10 +172,16 @@ pub fn packet(root: &Path, ledger: &Ledger, session: &str) -> Result<String, Led
         } = &s.record
         {
             claims += 1;
+            let (status, why) = classify_claim(s.seq, names, &a, &live);
             out.push_str(&format!(
-                "{claims}. [{}] {}\n   names: {}\n   record {}\n",
+                "{claims}. [{}] {}\n   status: {status}{}\n   names: {}\n   record {}\n",
                 source.as_str(),
                 text,
+                if why.is_empty() {
+                    String::new()
+                } else {
+                    format!(" ({why})")
+                },
                 if names.is_empty() {
                     "nothing".into()
                 } else {
@@ -182,6 +189,23 @@ pub fn packet(root: &Path, ledger: &Ledger, session: &str) -> Result<String, Led
                 },
                 s.seq
             ));
+            for f in a
+                .findings
+                .iter()
+                .filter(|f| f.finding.claim_seq == Some(s.seq))
+            {
+                out.push_str(&format!(
+                    "   bearing finding: [{}] {} ({}, record {}, {})\n",
+                    severity_name(f.finding.severity),
+                    f.finding.title,
+                    f.finding.tier.as_str(),
+                    f.seq,
+                    status_name(&f.status)
+                ));
+                for e in &f.finding.evidence {
+                    out.push_str(&format!("      evidence: {}\n", e.describe()));
+                }
+            }
         }
     }
     if claims == 0 {
@@ -190,7 +214,6 @@ pub fn packet(root: &Path, ledger: &Ledger, session: &str) -> Result<String, Led
     out.push('\n');
 
     out.push_str("FINDINGS\n--------\n");
-    let a = analyze(ledger, session)?;
     if a.findings.is_empty() {
         out.push_str("(none)\n");
     }
@@ -266,6 +289,9 @@ pub fn packet(root: &Path, ledger: &Ledger, session: &str) -> Result<String, Led
             }
         ));
     }
+    if live.lane == Lane::Release {
+        out.push_str(&release_evidence(root, ledger, session, &live, &a));
+    }
     out.push_str("\nNOT ESTABLISHED\n---------------\n");
     if live.not_established.is_empty() && live.lane_reasons.is_empty() {
         out.push_str("(none recorded)\n");
@@ -282,6 +308,273 @@ pub fn packet(root: &Path, ledger: &Ledger, session: &str) -> Result<String, Led
     out.push_str("\nTHE REPORT AS PRINTED\n---------------------\n");
     out.push_str(&report);
     Ok(out)
+}
+
+/// How a claim stands, for the acceptance document.
+fn classify_claim(
+    seq: u64,
+    names: &[String],
+    a: &crate::verdict::Analysis,
+    live: &Computed,
+) -> (&'static str, String) {
+    if names.is_empty() {
+        return (
+            "out of scope",
+            "it names no URL, file or symbol, so no check can look it up".into(),
+        );
+    }
+    let bearing: Vec<_> = a
+        .findings
+        .iter()
+        .filter(|f| f.finding.claim_seq == Some(seq))
+        .collect();
+    if bearing
+        .iter()
+        .any(|f| f.is_open() && crate::verdict::is_blocking(f, live.lane))
+    {
+        return ("failed", "a blocking finding bears on it".into());
+    }
+    if bearing.iter().any(|f| f.is_open()) {
+        return (
+            "unproven",
+            "an open finding bears on it; nothing proves it and nothing proves it wrong".into(),
+        );
+    }
+    let proof_checks = ["wiring", "claims_vs_code", "exec", "firstrun", "release"];
+    if let Some((name, tier, record)) = proof_checks.iter().find_map(|n| match a.checks.get(*n) {
+        Some(crate::verdict::CheckState::Ran { tier, seq, .. }) => Some((*n, *tier, *seq)),
+        _ => None,
+    }) {
+        return (
+            "proven",
+            format!(
+                "{} ran at the {} tier (record {record}) and reported no open finding about it",
+                name,
+                tier.as_str()
+            ),
+        );
+    }
+    (
+        "unproven",
+        "no check that could establish it has run; nothing was proven".into(),
+    )
+}
+
+/// Release-level evidence: the release and firstrun check records, the version, and every
+/// configured asset's SHA-256. This is what a release packet needs beyond one session's checks.
+fn release_evidence(
+    root: &Path,
+    ledger: &Ledger,
+    session: &str,
+    live: &Computed,
+    a: &crate::verdict::Analysis,
+) -> String {
+    let mut out = String::from("\nRELEASE EVIDENCE\n----------------\n");
+    for name in ["release", "firstrun"] {
+        match a.checks.get(name) {
+            Some(crate::verdict::CheckState::Ran { tier, seq, tree: _ }) => {
+                let detail = ledger
+                    .records_for_session(session)
+                    .unwrap_or_default()
+                    .into_iter()
+                    .find(|s| s.seq == *seq)
+                    .and_then(|s| match s.record {
+                        Record::Check { detail, .. } => detail,
+                        _ => None,
+                    })
+                    .unwrap_or_default();
+                out.push_str(&format!(
+                    "- {name}: ran at the {} tier (record {seq}){}\n",
+                    tier.as_str(),
+                    if detail.is_empty() {
+                        String::new()
+                    } else {
+                        format!(": {}", one_line_detail(&detail))
+                    }
+                ));
+            }
+            Some(crate::verdict::CheckState::Skipped { detail, .. }) => {
+                out.push_str(&format!("- {name}: skipped by policy ({detail})\n"));
+            }
+            Some(crate::verdict::CheckState::Unavailable { reason, .. }) => {
+                out.push_str(&format!("- {name}: could not run ({reason})\n"));
+            }
+            None => out.push_str(&format!("- {name}: no record\n")),
+        }
+    }
+    let firstrun_ok = matches!(
+        a.checks.get("firstrun"),
+        Some(crate::verdict::CheckState::Ran {
+            tier: Tier::Browsed,
+            ..
+        })
+    );
+    out.push_str(&format!(
+        "- firstrun at the browsed tier: {}\n- release coherence ran: {}\n- open commit-anyway override: {}\n",
+        if firstrun_ok { "yes" } else { "no" },
+        matches!(
+            a.checks.get("release"),
+            Some(crate::verdict::CheckState::Ran { .. })
+        ),
+        if live.override_open { "yes" } else { "no" }
+    ));
+    if let Ok((policy, _)) = crate::verdict::load_policy(root, None) {
+        if let Some(version) = policy
+            .value
+            .pointer("/release/version")
+            .and_then(Value::as_str)
+        {
+            out.push_str(&format!("- release version: {version}\n"));
+        }
+        let assets: Vec<String> = policy
+            .value
+            .pointer("/release/assets")
+            .and_then(Value::as_array)
+            .map(|a| {
+                a.iter()
+                    .filter_map(Value::as_str)
+                    .map(str::to_string)
+                    .collect()
+            })
+            .unwrap_or_default();
+        for pattern in assets {
+            let files = expand_asset(root, &pattern);
+            if files.is_empty() {
+                out.push_str(&format!("- asset {pattern}: (no file matched)\n"));
+                continue;
+            }
+            for rel in files {
+                match std::fs::read(root.join(&rel)) {
+                    Ok(bytes) => out.push_str(&format!(
+                        "- asset {rel}: {} bytes, SHA-256 {}\n",
+                        bytes.len(),
+                        crate::sha256::hex(&bytes)
+                    )),
+                    Err(e) => out.push_str(&format!("- asset {rel}: cannot be read ({e})\n")),
+                }
+            }
+        }
+    }
+    out
+}
+
+fn one_line_detail(text: &str) -> String {
+    let t = text.replace(['\n', '\r'], " ");
+    if t.len() > 400 {
+        let mut cut = t;
+        cut.truncate(400);
+        cut.push_str("...");
+        cut
+    } else {
+        t
+    }
+}
+
+/// `decisions.jsonl`: the project's human decisions as JSON lines, for cross-machine continuity.
+/// The ledger itself is never committed; this export is the part a project may track in git.
+pub fn decisions_jsonl(ledger: &Ledger) -> Result<String, LedgerError> {
+    let all = ledger.records()?;
+    let mut out = String::new();
+    for (i, s) in all.iter().enumerate() {
+        let Record::Decision {
+            decision,
+            choice,
+            reason,
+            who: crate::model::Writer::Human,
+        } = &s.record
+        else {
+            continue;
+        };
+        // The verdict in force when the human decided, for the overrides that went past FAILED.
+        let verdict_at = all[..i].iter().rev().find_map(|p| match &p.record {
+            Record::Verdict {
+                word, highest_tier, ..
+            } => Some(word_label(*word, *highest_tier)),
+            _ => None,
+        });
+        let mut extra = serde_json::Map::new();
+        if *decision == crate::model::DecisionKind::CommitAnyway {
+            let c = crate::verdict::CommitAnywayChoice::decode(choice);
+            extra.insert("tree".into(), Value::String(c.tree));
+            extra.insert("findings".into(), json!(c.finding_ids));
+        }
+        let mut line = json!({
+            "seq": s.seq,
+            "time": s.ts,
+            "session": s.session_id,
+            "decision": decision.as_str(),
+            "choice": choice,
+            "reason": reason,
+            "who": "human",
+            "verdict_at_decision": verdict_at,
+        });
+        if let Some(obj) = line.as_object_mut() {
+            for (k, v) in extra {
+                obj.insert(k, v);
+            }
+        }
+        out.push_str(&serde_json::to_string(&line).unwrap_or_default());
+        out.push('\n');
+    }
+    Ok(out)
+}
+
+/// Every file a configured release asset names: an exact path, a folder, or a simple glob
+/// (`dist/*.zip`). Used for the packet's asset hashes, so a pattern is not printed unverified.
+fn expand_asset(root: &Path, pattern: &str) -> Vec<String> {
+    let pattern = pattern.trim_start_matches("./").replace('\\', "/");
+    if !pattern.contains('*') && !pattern.contains('?') {
+        if pattern.ends_with('/') {
+            let Ok(entries) = std::fs::read_dir(root.join(pattern.trim_end_matches('/'))) else {
+                return Vec::new();
+            };
+            return entries
+                .filter_map(Result::ok)
+                .filter(|e| e.file_type().map(|t| t.is_file()).unwrap_or(false))
+                .map(|e| {
+                    e.path()
+                        .strip_prefix(root)
+                        .unwrap_or(&e.path())
+                        .to_string_lossy()
+                        .replace('\\', "/")
+                })
+                .collect();
+        }
+        return root
+            .join(&pattern)
+            .exists()
+            .then_some(pattern)
+            .into_iter()
+            .collect();
+    }
+    let literal = pattern.split(['*', '?']).next().unwrap_or("");
+    let dir = literal.rsplit_once('/').map(|(d, _)| d).unwrap_or("");
+    let Ok(entries) = std::fs::read_dir(if dir.is_empty() {
+        root.to_path_buf()
+    } else {
+        root.join(dir)
+    }) else {
+        return Vec::new();
+    };
+    let Ok(glob) = globset::GlobBuilder::new(&pattern)
+        .literal_separator(true)
+        .build()
+    else {
+        return Vec::new();
+    };
+    let matcher = glob.compile_matcher();
+    entries
+        .filter_map(Result::ok)
+        .filter(|e| e.file_type().map(|t| t.is_file()).unwrap_or(false))
+        .map(|e| {
+            e.path()
+                .strip_prefix(root)
+                .unwrap_or(&e.path())
+                .to_string_lossy()
+                .replace('\\', "/")
+        })
+        .filter(|rel| matcher.is_match(rel))
+        .collect()
 }
 
 fn builder_text(ledger: &Ledger, session: &str) -> String {

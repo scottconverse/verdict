@@ -6,9 +6,10 @@
 //! * `verdict_claim`: record one checkable line naming a URL, file or symbol (writer `agent`).
 //! * `verdict_done_when`: for a vague prompt, how the human will know it is done. A condition that
 //!   cannot be wrong is refused.
-//! * `verdict_check`: returns the verdict the core computes from the ledger (the agent cannot
-//!   write or change it) and the same report `vdt report` prints. It does not run checkers; what
-//!   has not run reads NOT ESTABLISHED, never clean.
+//! * `verdict_check`: runs the lane's checkers and desks now (the same fresh verification the Stop
+//!   hook runs), then returns the verdict the core computes from the ledger (the agent cannot
+//!   write or change it) and the same report `vdt report` prints. What has not run reads NOT
+//!   ESTABLISHED, never clean.
 //! * `verdict_scan`: the scan `vdt scan` runs (wiring, regressions and unfinished over the whole
 //!   tree, no session, no claims). It writes nothing to the ledger; unread stacks read unverified.
 //! * `verdict_decisions`: read only. Lists the human's open decisions.
@@ -31,7 +32,6 @@ use serde_json::{Map, Value, json};
 use verdict_core::part1c::{
     check_claim_line, check_done_when, current_mode, open_decisions, resolve_session,
 };
-use verdict_core::verdict::compute_and_record;
 use verdict_core::{
     ClaimSource, DecisionKind, Finding, Ledger, LedgerError, Record, Severity, Tier, VerdictWord,
     Writer, render_report_with,
@@ -298,9 +298,9 @@ fn done_when(root: &Path, args: &Map<String, Value>) -> Result<ToolOutcome, Ledg
     )))
 }
 
-/// `verdict_check`: the verdict, computed by the core from the ledger, plus the report. The agent
-/// cannot write or change it; this tool does not run checkers (the pre-commit gate and
-/// `vdt verdict` do), so a required checker that has not run reads as not established.
+/// `verdict_check`: run the lane's checkers and desks now, then return the verdict the core
+/// computed from the ledger and the report. The agent cannot write or change a verdict; the fresh
+/// run is the ordinary completion path, not an optional extra.
 fn check_tool(root: &Path, args: &Map<String, Value>) -> Result<ToolOutcome, LedgerError> {
     let Some(mut ledger) = Ledger::open_existing(root)? else {
         return Ok(ToolOutcome::ok(
@@ -314,13 +314,31 @@ fn check_tool(root: &Path, args: &Map<String, Value>) -> Result<ToolOutcome, Led
              This is not a pass.",
         ));
     };
-    let (computed, _) = compute_and_record(root, &mut ledger, &session, None, true)?;
+    let verified = match verdict_engine::verify(
+        root,
+        &mut ledger,
+        &session,
+        None,
+        &verdict_engine::VerifyOptions {
+            budget: None,
+            reason: Some("verdict_check".into()),
+        },
+    ) {
+        Ok(v) => v,
+        Err(reason) => {
+            return Ok(ToolOutcome::refused(format!(
+                "Verdict could not run the checks: {reason}. The failure was recorded; this is not a pass."
+            )));
+        }
+    };
+    let computed = verified.computed;
     let report = render_report_with(&ledger, Some(&session), Some(&computed))?;
     Ok(ToolOutcome::ok(format!(
-        "verdict_check: the verdict is {}. The core computed it from the ledger; an agent cannot write \
-         or change a verdict. This tool does not run the checkers (the pre-commit gate and `vdt verdict` \
-         do), so anything that has not run is listed under NOT ESTABLISHED. It is not a pass unless \
-         the word says so. This is the same report `vdt report` prints:\n\n{report}",
+        "verdict_check: ran the lane's checkers and desks now (gate result record {}), then computed the \
+         verdict from the ledger. The verdict is {}. An agent cannot write or change a verdict. Anything \
+         that has not been checked is listed under NOT ESTABLISHED. This is the same report `vdt report` \
+         prints:\n\n{report}",
+        verified.gate_seq,
         computed.label()
     )))
 }
