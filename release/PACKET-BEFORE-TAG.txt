@@ -1,8 +1,8 @@
 VERDICT ACCEPTANCE PACKET
 =========================
 
-Session: s-ae9ff05c58
-Lane: low (policy v1)
+Session: s-7cbc4c1eb7
+Lane: release (policy v1)
 Builder: claude/unknown [anthropic]
 Verdict: FAILED
 Ledger: intact
@@ -13,7 +13,7 @@ CLAIMS
 
 FINDINGS
 --------
-- [blocker] the release candidate is not tagged v1.0.0 (tags on HEAD: none) (asset, record 279, open)
+- [blocker] the release candidate is not tagged v1.0.0 (tags on HEAD: none) (asset, record 306, open)
     evidence: command `git tag --points-at HEAD (v1.0.0)`
 
 HYPOTHESES (move nothing)
@@ -28,13 +28,34 @@ OVERRIDES
 ---------
 (none)
 
+RELEASE EVIDENCE
+----------------
+- release: ran at the ran tier (record 307): 1 finding(s); release check passed: cargo test --workspace --locked (output blake3 584500919670d6d81785a3a9a45b531c662c7ea24712f1e4025eae17a56f44fe); release tags on HEAD: none; release asset dist/*.zip: dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip; release asset dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip sha256 5fe18e97101803a3e5b33460cdd5560e1c6478f038291fdb2ed41ea2cc35fd9a matches dist/vdt-1.0.0-x8...
+- firstrun: ran at the ran tier (record 305): 0 finding(s); first-run command 1 ran and passed: cargo build --workspace --locked; first-run command 2 ran and passed: target/debug/vdt --version
+- firstrun at the browsed tier: no
+- release coherence ran: true
+- open commit-anyway override: no
+- release version: 1.0.0
+- asset dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip: 6327583 bytes, SHA-256 5fe18e97101803a3e5b33460cdd5560e1c6478f038291fdb2ed41ea2cc35fd9a
+- asset dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz: 6629510 bytes, SHA-256 ad4147264680a6239a72338d6c5cb8b9a354215f2c0696558adb1f4210aeef33
+- asset dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip.sha256: 65 bytes, SHA-256 6c6dff039f937037899c4a06ab950f4d01cb14b16e3117747318f1a980102934
+- asset dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256: 65 bytes, SHA-256 6cbe6bc8c4469e783b04a47e0ea77dd397e5640ee801bb613c05a58352499006
+
 NOT ESTABLISHED
 ---------------
+- lane: you chose the release lane for this packet
 - lane: no changed files found
 - wiring: could not run: no claim, plan line or done-when item of this session names a URL, file or symbol to trace
-- claims_vs_code: could not run: this session has no final-message, commit-message or notes-file claims to look up
 - baseline_diff: could not run: this session has no prompt from the human and no claim the human accepted, so nothing says what was asked for
+- claims_vs_code: could not run: this session has no final-message, commit-message or notes-file claims to look up
 - mutation: could not run: no mutation runner is configured (set mutation.command or mutation.report)
+- desk:engineer: did not run
+- desk:docs: did not run
+- desk:qa: did not run
+- desk:ux: did not run
+- desk:security: did not run
+- desk:legal: did not run
+- desk:refuter: did not run
 - desk:engineer: could not run: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor
 - desk:docs: could not run: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor
 - desk:qa: could not run: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor
@@ -44,37 +65,37 @@ NOT ESTABLISHED
 - desk:refuter: could not run: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor
 - desks: could not run: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor
 - whether your real app works: no page was loaded
-- desk:engineer: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 283)
-- desk:docs: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 284)
-- desk:qa: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 285)
-- desk:ux: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 286)
-- desk:security: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 287)
-- desk:legal: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 288)
-- desk:refuter: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 289)
-- desks: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 290)
+- desk:engineer: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 310)
+- desk:docs: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 311)
+- desk:qa: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 312)
+- desk:ux: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 313)
+- desk:security: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 314)
+- desk:legal: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 315)
+- desk:refuter: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 316)
+- desks: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 317)
 
 THE REPORT AS PRINTED
 ---------------------
 VERDICT: FAILED  (lane: release, policy v1, builder: claude/unknown [anthropic], verifier: none)
 read from code: done  |  your build and tests: ran, passed  |  your real app: not run
-session s-ae9ff05c58, started 2026-10-28T06:27:12.944Z  |  ledger: intact, 291 records  |  baseline 35c704f2cfc3
+session s-7cbc4c1eb7, started 2026-10-28T06:49:09.142Z  |  ledger: intact, 318 records  |  baseline f5e51944faa1
 
 FIX FIRST
-  1. [Blocker] the release candidate is not tagged v1.0.0 (tags on HEAD: none) (asset, command `git tag --points-at HEAD (v1.0.0)`; record 279)
+  1. [Blocker] the release candidate is not tagged v1.0.0 (tags on HEAD: none) (asset, command `git tag --points-at HEAD (v1.0.0)`; record 306)
 
 YOURS TO SETTLE
-  1. check unavailable: wiring: no claim, plan line or done-when item of this session names a URL, file or symbol to trace (record 266)
-  2. check unavailable: baseline_diff: this session has no prompt from the human and no claim the human accepted, so nothing says what was asked for (record 268)
-  3. check unavailable: mutation: no mutation runner is configured (set mutation.command or mutation.report) (record 276)
-  4. check unavailable: claims_vs_code: this session has no final-message, commit-message or notes-file claims to look up (record 281)
-  5. check unavailable: desk:engineer: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 283)
-  6. check unavailable: desk:docs: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 284)
-  7. check unavailable: desk:qa: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 285)
-  8. check unavailable: desk:ux: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 286)
-  9. check unavailable: desk:security: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 287)
-  10. check unavailable: desk:legal: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 288)
-  11. check unavailable: desk:refuter: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 289)
-  12. check unavailable: desks: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 290)
+  1. check unavailable: wiring: no claim, plan line or done-when item of this session names a URL, file or symbol to trace (record 293)
+  2. check unavailable: baseline_diff: this session has no prompt from the human and no claim the human accepted, so nothing says what was asked for (record 295)
+  3. check unavailable: mutation: no mutation runner is configured (set mutation.command or mutation.report) (record 303)
+  4. check unavailable: claims_vs_code: this session has no final-message, commit-message or notes-file claims to look up (record 308)
+  5. check unavailable: desk:engineer: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 310)
+  6. check unavailable: desk:docs: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 311)
+  7. check unavailable: desk:qa: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 312)
+  8. check unavailable: desk:ux: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 313)
+  9. check unavailable: desk:security: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 314)
+  10. check unavailable: desk:legal: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 315)
+  11. check unavailable: desk:refuter: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 316)
+  12. check unavailable: desks: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 317)
 
 PROMPTS (0)
   (none recorded)
@@ -86,18 +107,18 @@ TOOL CALLS (0)
   (none recorded)
 
 CHECKS
-  wiring: FailedToRun, tier honest_red: no claim, plan line or done-when item of this session names a URL, file or symbol to trace (record 267)
-  baseline_diff: FailedToRun, tier honest_red: this session has no prompt from the human and no claim the human accepted, so nothing says what was asked for (record 269)
-  regressions: Ran, tier static: 0 finding(s); unverified: only relative imports (JS/TS `./x`, Python `from .x`, Rust `mod x;`) are resolved; package and alias imports are not read until the tree-sitter extractor exists (record 270)
-  tests_weakened: Ran, tier static: 0 finding(s); unverified: block comments and docstrings around tests are not read; test frameworks are recognized by line patterns, not a parser (record 271)
-  unfinished: Ran, tier static: 0 finding(s) (record 272)
-  exec: Ran, tier ran: receipt: `cargo test --workspace --locked`; tier ran; exited with code 0; output hash e926763343908f5cf9377dc08a69283310d58866f9310a039948194a1e60a286; output tail: d877a644ae.exe) |      Running tests\decisions.rs (target\debug\deps\decisions-dee7ae963da0c31e.exe) |      Running tests\page.rs (target\debug\deps\page-2df393f8f1ab3a7e.exe) |      Running unittests src\lib.rs (target\debug\deps\verdict_mcp-e7af542554327875.exe) |      Running tests\commit_anyway.rs (target\debug\deps\commit_anyway-bdfe2914ab5da517.exe) |    Doc-tests verdict_adapters |    Doc-tests verdict_checkers |    Doc-tests verdict_core |    Doc-tests verdict_desks |    Doc-tests verdict_engine |    Doc-tests verdict_extract |    Doc-tests verdict_generate |    Doc-tests verdict_gui |    Doc-tests verdict_mcp | 0 filtered out; finished in 0.00s |  |  | running 0 tests |  | test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s |  |  | running 0 tests |  | test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s |  |  | running 0 tests |  | test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s |  |  | running 0 tests |  | test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s |  |  | running 0 tests |  | test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s |  | (record 273)
-  exec: Ran, tier ran: receipt: `cargo clippy --workspace --all-targets --locked -- -D warnings`; tier ran; exited with code 0; output hash 4cfa2183f68abd57a58d8e84c202e972509f32c7cfb1812fc76acbbba0e18c1c; output tail: Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.52s | (record 274)
-  exec: Ran, tier ran: 0 finding(s) (record 275)
-  mutation: FailedToRun, tier honest_red: no mutation runner is configured (set mutation.command or mutation.report) (record 277)
-  firstrun: Ran, tier ran: 0 finding(s); first-run command 1 ran and passed: cargo build --workspace --locked; first-run command 2 ran and passed: target/debug/vdt --version (record 278)
-  release: Ran, tier ran: 1 finding(s); release check passed: cargo test --workspace --locked (output blake3 74910d3ad989d766fd6527fe2c29fe80a5dba847d17257a1b738f5846cf548c7); release tags on HEAD: none; release asset dist/*.zip: dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip; release asset dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip sha256 533e346dc36215fc52ef5c844a29594e884fcb997fa15a98106aafc34246fb3e matches dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip.sha256; release asset dist/*.tar.gz: dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz; release asset dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz sha256 29febe3a4e120ed88c4634d0598c7298bf948cfc663c7e544cedb95e25d5e1fd matches dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256; release asset dist/*.sha256: dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip.sha256, dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256 (record 280)
-  claims_vs_code: FailedToRun, tier honest_red: this session has no final-message, commit-message or notes-file claims to look up (record 282)
+  wiring: FailedToRun, tier honest_red: no claim, plan line or done-when item of this session names a URL, file or symbol to trace (record 294)
+  baseline_diff: FailedToRun, tier honest_red: this session has no prompt from the human and no claim the human accepted, so nothing says what was asked for (record 296)
+  regressions: Ran, tier static: 0 finding(s); unverified: only relative imports (JS/TS `./x`, Python `from .x`, Rust `mod x;`) are resolved; package and alias imports are not read until the tree-sitter extractor exists (record 297)
+  tests_weakened: Ran, tier static: 0 finding(s); unverified: block comments and docstrings around tests are not read; test frameworks are recognized by line patterns, not a parser (record 298)
+  unfinished: Ran, tier static: 0 finding(s) (record 299)
+  exec: Ran, tier ran: receipt: `cargo test --workspace --locked`; tier ran; exited with code 0; output hash 42780a1257015118f77a9b77ca2c3e29588b114d89a81ee085416b67234aeea7; output tail: d877a644ae.exe) |      Running tests\decisions.rs (target\debug\deps\decisions-dee7ae963da0c31e.exe) |      Running tests\page.rs (target\debug\deps\page-2df393f8f1ab3a7e.exe) |      Running unittests src\lib.rs (target\debug\deps\verdict_mcp-e7af542554327875.exe) |      Running tests\commit_anyway.rs (target\debug\deps\commit_anyway-bdfe2914ab5da517.exe) |    Doc-tests verdict_adapters |    Doc-tests verdict_checkers |    Doc-tests verdict_core |    Doc-tests verdict_desks |    Doc-tests verdict_engine |    Doc-tests verdict_extract |    Doc-tests verdict_generate |    Doc-tests verdict_gui |    Doc-tests verdict_mcp | 0 filtered out; finished in 0.00s |  |  | running 0 tests |  | test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s |  |  | running 0 tests |  | test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s |  |  | running 0 tests |  | test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s |  |  | running 0 tests |  | test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s |  |  | running 0 tests |  | test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s |  | (record 300)
+  exec: Ran, tier ran: receipt: `cargo clippy --workspace --all-targets --locked -- -D warnings`; tier ran; exited with code 0; output hash 3239b082cafe1d9cc842de943f75d4e8ed1296b484be83f0c5d8d4543a6b04a4; output tail: Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.49s | (record 301)
+  exec: Ran, tier ran: 0 finding(s) (record 302)
+  mutation: FailedToRun, tier honest_red: no mutation runner is configured (set mutation.command or mutation.report) (record 304)
+  firstrun: Ran, tier ran: 0 finding(s); first-run command 1 ran and passed: cargo build --workspace --locked; first-run command 2 ran and passed: target/debug/vdt --version (record 305)
+  release: Ran, tier ran: 1 finding(s); release check passed: cargo test --workspace --locked (output blake3 584500919670d6d81785a3a9a45b531c662c7ea24712f1e4025eae17a56f44fe); release tags on HEAD: none; release asset dist/*.zip: dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip; release asset dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip sha256 5fe18e97101803a3e5b33460cdd5560e1c6478f038291fdb2ed41ea2cc35fd9a matches dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip.sha256; release asset dist/*.tar.gz: dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz; release asset dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz sha256 ad4147264680a6239a72338d6c5cb8b9a354215f2c0696558adb1f4210aeef33 matches dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256; release asset dist/*.sha256: dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip.sha256, dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256 (record 307)
+  claims_vs_code: FailedToRun, tier honest_red: this session has no final-message, commit-message or notes-file claims to look up (record 309)
   8 of 12 checks ran.
 
 NOT ESTABLISHED
