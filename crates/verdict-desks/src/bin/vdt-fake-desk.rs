@@ -22,6 +22,8 @@ struct Args {
     served_vendor: Option<String>,
     pad: usize,
     uncited: bool,
+    spawn_child: Option<String>,
+    spawn_early_child: Option<String>,
 }
 
 fn args() -> Args {
@@ -35,6 +37,8 @@ fn args() -> Args {
         served_vendor: None,
         pad: 0,
         uncited: false,
+        spawn_child: None,
+        spawn_early_child: None,
     };
     let mut it = std::env::args().skip(1);
     while let Some(flag) = it.next() {
@@ -48,14 +52,39 @@ fn args() -> Args {
             "--served-vendor" => a.served_vendor = it.next(),
             "--pad" => a.pad = it.next().and_then(|v| v.parse().ok()).unwrap_or(0),
             "--uncited" => a.uncited = true,
+            "--spawn-child" => a.spawn_child = it.next(),
+            "--spawn-early-child" => a.spawn_early_child = it.next(),
             _ => {}
         }
     }
     a
 }
 
+/// Start a long-lived copy of this program that holds the inherited output pipes, and record its
+/// pid so a test can prove it was ended too.
+fn spawn_helper(path: &str) {
+    let exe = std::env::current_exe().unwrap_or_default();
+    match std::process::Command::new(exe)
+        .args(["--sleep-ms", "600000"])
+        .stdin(std::process::Stdio::null())
+        .spawn()
+    {
+        Ok(child) => {
+            if let Err(e) = std::fs::write(path, child.id().to_string()) {
+                eprintln!("cannot write the helper pid: {e}");
+            }
+        }
+        Err(e) => eprintln!("cannot start the helper: {e}"),
+    }
+}
+
 fn main() {
     let a = args();
+    // A provider that starts a helper before it reads its request: on Windows the job object is
+    // assigned after spawn, so this helper can predate job membership. It must still be ended.
+    if let Some(path) = &a.spawn_early_child {
+        spawn_helper(path);
+    }
     let mut request = String::new();
     if std::io::stdin().read_to_string(&mut request).is_err() {
         std::process::exit(2);
@@ -71,6 +100,12 @@ fn main() {
     if !prompt.contains("Rubric") && !prompt.contains("rubric") {
         eprintln!("no rubric in the request");
         std::process::exit(2);
+    }
+    // A helper that outlives this process unless the runner ends the whole tree, holding the
+    // inherited output pipes exactly as a real provider's subprocess would. It is started after
+    // the request is read, like a real provider's helper would be.
+    if let Some(path) = &a.spawn_child {
+        spawn_helper(path);
     }
     if a.sleep_ms > 0 {
         std::thread::sleep(std::time::Duration::from_millis(a.sleep_ms));

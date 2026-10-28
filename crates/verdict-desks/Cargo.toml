@@ -14,6 +14,16 @@ serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
 verdict-core = { version = "1.0.0", path = "../verdict-core" }
 
+# A provider is started in its own process group on Unix so a timeout can end the provider's
+# whole tree, not only the direct child.
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+# On Windows the provider is placed in a Job Object for the same reason (the mechanism the checker
+# exec path already uses).
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security", "Win32_System_JobObjects", "Win32_System_Threading"] }
+
 [[bin]]
 name = "vdt-fake-desk"
 path = "src/bin/vdt-fake-desk.rs"

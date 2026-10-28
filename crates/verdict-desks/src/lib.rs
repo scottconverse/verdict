@@ -106,6 +106,92 @@ impl DeskProvider for CommandProvider {
     }
 }
 
+/// A Windows Job Object holding the provider, so a timeout ends the provider and everything it
+/// started. This is the same mechanism the checker exec path uses. If the job cannot be created or
+/// assigned, the timeout falls back to `taskkill /T` (see `kill_process_tree`).
+#[cfg(windows)]
+struct ProviderJob(windows_sys::Win32::Foundation::HANDLE);
+
+#[cfg(windows)]
+impl ProviderJob {
+    fn new(child: &std::process::Child) -> Option<ProviderJob> {
+        use std::os::windows::io::AsRawHandle;
+        use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
+        use windows_sys::Win32::System::JobObjects::{
+            AssignProcessToJobObject, CreateJobObjectW, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+            JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JobObjectExtendedLimitInformation,
+            SetInformationJobObject,
+        };
+        // SAFETY: plain Win32 calls on handles this function creates and owns; the structure is
+        // zero-initialised and fully sized.
+        unsafe {
+            let job = CreateJobObjectW(std::ptr::null(), std::ptr::null());
+            if job.is_null() {
+                return None;
+            }
+            let mut info: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = std::mem::zeroed();
+            info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+            let ok = SetInformationJobObject(
+                job,
+                JobObjectExtendedLimitInformation,
+                &info as *const _ as *const std::ffi::c_void,
+                std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+            );
+            if ok == 0 || AssignProcessToJobObject(job, child.as_raw_handle() as HANDLE) == 0 {
+                CloseHandle(job);
+                return None;
+            }
+            Some(ProviderJob(job))
+        }
+    }
+
+    fn end(&self) {
+        // SAFETY: a live job object this process created.
+        unsafe {
+            windows_sys::Win32::System::JobObjects::TerminateJobObject(self.0, 1);
+        }
+    }
+}
+
+#[cfg(windows)]
+impl Drop for ProviderJob {
+    fn drop(&mut self) {
+        // Closing the handle also ends whatever is left (KILL_ON_JOB_CLOSE); by then the provider
+        // has ended or was terminated.
+        unsafe {
+            windows_sys::Win32::Foundation::CloseHandle(self.0);
+        }
+    }
+}
+
+/// End a provider's whole process tree, best effort. The provider is already killed; this stops
+/// the helpers it started, which would otherwise keep the output pipes open past the deadline. The
+/// checker exec path owns its own Job Object for the project's commands; a provider is not that
+/// path, so this asks the OS to end the tree by the provider's pid.
+fn kill_process_tree(pid: u32) {
+    #[cfg(windows)]
+    {
+        let _ = Command::new("taskkill")
+            .args(["/PID", &pid.to_string(), "/T", "/F"])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status();
+    }
+    #[cfg(unix)]
+    {
+        // The provider was started in its own process group (see `ask_command`), whose id is its
+        // pid, so this ends the provider and everything it started.
+        unsafe {
+            libc::kill(-(pid as i32), libc::SIGKILL);
+        }
+    }
+    #[cfg(not(any(windows, unix)))]
+    {
+        let _ = pid;
+    }
+}
+
 fn ask_command(p: &CommandProvider, prompt: &str, timeout: Duration) -> Result<String, String> {
     let started = Instant::now();
     let mut cmd = Command::new(&p.command);
@@ -113,9 +199,26 @@ fn ask_command(p: &CommandProvider, prompt: &str, timeout: Duration) -> Result<S
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        unsafe {
+            // Own process group, so a timeout can end the provider and its helpers together.
+            cmd.pre_exec(|| {
+                if libc::setsid() == -1 {
+                    return Err(std::io::Error::last_os_error());
+                }
+                Ok(())
+            });
+        }
+    }
     let mut child = cmd
         .spawn()
         .map_err(|e| format!("provider {} could not start: {e}", p.name))?;
+    // Put the provider in a job object before it can start anything, so a timeout can end the
+    // whole tree; without a job the fallback is a taskkill of the tree.
+    #[cfg(windows)]
+    let job = ProviderJob::new(&child);
     let mut stdin = child
         .stdin
         .take()
@@ -162,6 +265,13 @@ fn ask_command(p: &CommandProvider, prompt: &str, timeout: Duration) -> Result<S
             }
             Ok(None) => {}
             Err(e) => {
+                // End the tree while the provider is still alive: a killed parent lets its
+                // descendants reparent and escape a `/T`-style tree walk.
+                #[cfg(windows)]
+                if let Some(job) = &job {
+                    job.end();
+                }
+                kill_process_tree(child.id());
                 let _ = child.kill();
                 let _ = child.wait();
                 return Err(format!("provider {} could not be waited for: {e}", p.name));
@@ -169,24 +279,36 @@ fn ask_command(p: &CommandProvider, prompt: &str, timeout: Duration) -> Result<S
         }
         if started.elapsed() > timeout {
             timed_out = true;
+            // End the whole tree first (job object, else a `/T` walk while the provider is still
+            // alive), then the direct child, so a provider's helpers cannot keep the pipes open
+            // past the deadline.
+            #[cfg(windows)]
+            if let Some(job) = &job {
+                job.end();
+            }
+            kill_process_tree(child.id());
             let _ = child.kill();
             let _ = child.wait();
             break;
         }
         std::thread::sleep(Duration::from_millis(20));
     }
-    let _ = writer.join();
-    // The pipes close once the provider (and anything it started) is gone. Keep that bounded too.
-    let grace = Duration::from_secs(5);
-    let out = out_rx.recv_timeout(grace);
-    let err = err_rx.recv_timeout(grace);
     if timed_out {
+        // The tree has been ended, so the reader threads and the writer end on EOF/EPIPE. Do not
+        // wait for them or for the pipe graces: the failure is already known and the run must stay
+        // bounded by the deadline.
         return Err(format!(
             "provider {} did not answer within {} seconds",
             p.name,
             timeout.as_secs()
         ));
     }
+    let _ = writer.join();
+    // The pipes close once the provider (and anything it started) is gone. Keep that bounded too,
+    // so a provider that leaves a helper behind cannot hold a successful call.
+    let grace = Duration::from_secs(5);
+    let out = out_rx.recv_timeout(grace);
+    let err = err_rx.recv_timeout(grace);
     let out = out.map_err(|_| format!("provider {} output could not be read", p.name))?;
     let err = err.map_err(|_| format!("provider {} error output could not be read", p.name))?;
     let status = status.ok_or_else(|| format!("provider {} ended without a status", p.name))?;

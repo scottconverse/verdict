@@ -42,6 +42,42 @@ fn provider(name: &str, vendor: &str, args: &[&str]) -> Box<dyn verdict_desks::D
     })
 }
 
+/// A provider whose own timeout is unset, so `DeskOptions.timeout` is the deadline the test means.
+fn provider_with_desk_timeout(args: &[&str]) -> Box<dyn verdict_desks::DeskProvider> {
+    Box::new(CommandProvider {
+        name: "slow-with-helper".into(),
+        vendor: "openai".into(),
+        model: "test-model-1".into(),
+        command: env!("CARGO_BIN_EXE_vdt-fake-desk").into(),
+        args: args.iter().map(|s| s.to_string()).collect(),
+        timeout_secs: None,
+    })
+}
+
+/// Whether a process id is still running. Used to prove a timed-out provider's child is gone.
+fn process_alive(pid: u32) -> bool {
+    #[cfg(windows)]
+    {
+        let filter = format!("PID eq {pid}");
+        match std::process::Command::new("tasklist")
+            .args(["/FI", &filter, "/NH"])
+            .output()
+        {
+            Ok(o) => String::from_utf8_lossy(&o.stdout).contains(&pid.to_string()),
+            Err(_) => false,
+        }
+    }
+    #[cfg(unix)]
+    {
+        std::path::Path::new(&format!("/proc/{pid}")).exists()
+    }
+    #[cfg(not(any(windows, unix)))]
+    {
+        let _ = pid;
+        false
+    }
+}
+
 /// A project with one session (builder vendor `anthropic`), one prompt, one claim and one check.
 fn project(label: &str, policy_json: Option<&str>) -> (Tmp, Tmp, String) {
     let dir = Tmp::new(label);
@@ -431,7 +467,119 @@ fn a_decision_is_not_something_a_desk_writes() {
     assert!(r.is_err());
 }
 
-// ---------------------------------------------------- provider order, identity and pipes
+#[test]
+fn an_early_helper_is_ended_by_the_tree_kill() {
+    // A provider that starts its helper before reading the request can predate Windows job
+    // membership. The timeout must still end that helper, not only the direct child.
+    let (dir, home, sid) = project("early-tree", None);
+    let policy = Policy::load(dir.path(), Some(home.path())).unwrap();
+    let mut l = Ledger::open(dir.path()).unwrap();
+    let pidfile = dir.path().join("early.pid");
+    let pid_path = pidfile.to_string_lossy().to_string();
+    let providers = vec![provider_with_desk_timeout(&[
+        "--sleep-ms",
+        "60000",
+        "--spawn-early-child",
+        &pid_path,
+    ])];
+    let started = std::time::Instant::now();
+    let out = run(
+        &mut l,
+        dir.path(),
+        &sid,
+        &policy,
+        &DeskOptions {
+            lane: Lane::Standard,
+            timeout: Duration::from_secs(1),
+        },
+        &providers,
+    )
+    .unwrap();
+    assert!(
+        started.elapsed() < Duration::from_secs(20),
+        "a timed-out provider must not hold the run past its deadline"
+    );
+    let Outcome::Ran { receipts, .. } = out else {
+        panic!("{out:?}");
+    };
+    assert!(receipts.iter().all(|r| r.outcome == "failed"));
+    let pid: u32 = std::fs::read_to_string(&pidfile)
+        .expect("the provider wrote its early helper's pid")
+        .trim()
+        .parse()
+        .expect("a pid");
+    let deadline = std::time::Instant::now() + Duration::from_secs(10);
+    while process_alive(pid) && std::time::Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(200));
+    }
+    assert!(
+        !process_alive(pid),
+        "the provider's early helper outlived the deadline (pid {pid})"
+    );
+}
+
+#[test]
+fn a_timed_out_provider_ends_its_whole_process_tree() {
+    // A provider that starts a helper which holds the inherited pipes. Killing only the direct
+    // child would leave the helper running and the run waiting on its pipes; the whole tree has
+    // to end, and the desk must read as failed rather than clean.
+    let (dir, home, sid) = project("tree", None);
+    let policy = Policy::load(dir.path(), Some(home.path())).unwrap();
+    let mut l = Ledger::open(dir.path()).unwrap();
+    let pidfile = dir.path().join("helper.pid");
+    let pid_path = pidfile.to_string_lossy().to_string();
+    let providers = vec![provider_with_desk_timeout(&[
+        "--sleep-ms",
+        "60000",
+        "--spawn-child",
+        &pid_path,
+    ])];
+    let started = std::time::Instant::now();
+    let out = run(
+        &mut l,
+        dir.path(),
+        &sid,
+        &policy,
+        &DeskOptions {
+            lane: Lane::Standard,
+            timeout: Duration::from_secs(1),
+        },
+        &providers,
+    )
+    .unwrap();
+    assert!(
+        started.elapsed() < Duration::from_secs(20),
+        "a timed-out provider must not hold the run past its deadline"
+    );
+    let Outcome::Ran { receipts, .. } = out else {
+        panic!("{out:?}");
+    };
+    assert!(
+        receipts.iter().all(|r| r.outcome == "failed"),
+        "a timed-out desk is a failed receipt: {receipts:?}"
+    );
+    assert!(
+        !l.records()
+            .unwrap()
+            .iter()
+            .any(|s| matches!(s.record, Record::Finding(_))),
+        "nothing a timed-out provider said may count"
+    );
+    // The helper process itself is gone.
+    let pid: u32 = std::fs::read_to_string(&pidfile)
+        .expect("the provider wrote its helper's pid")
+        .trim()
+        .parse()
+        .expect("a pid");
+    let deadline = std::time::Instant::now() + Duration::from_secs(10);
+    while process_alive(pid) && std::time::Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(200));
+    }
+    assert!(
+        !process_alive(pid),
+        "the provider's child outlived the deadline (pid {pid})"
+    );
+}
 
 #[test]
 fn a_critical_desk_finding_is_stored_as_critical_and_blocks_the_release_lane() {

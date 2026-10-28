@@ -223,27 +223,51 @@ fn ask(args: &Args, prompt: &str, requested_model: &str) -> Result<String, Strin
 
     let answer_text = std::fs::read_to_string(&last).unwrap_or_default();
     let _ = std::fs::remove_file(&last);
-    let mut answer = normalize_answer(extract_json(&answer_text)?);
+    let answer = normalize_answer(extract_json(&answer_text)?);
     let (observed_model, usage) = observed_from_events(&stdout);
+    Ok(apply_observation(answer, observed_model, usage).to_string())
+}
+
+/// Observation outranks the answer's own words. `model` and `served` hold what the CLI reported;
+/// anything the answer claimed about its identity is kept only under `claimed`, and when nothing
+/// was observed no served identity is asserted at all (the receipt then reads `not_stated`).
+fn apply_observation(
+    mut answer: serde_json::Value,
+    observed_model: Option<String>,
+    usage: Option<serde_json::Value>,
+) -> serde_json::Value {
     if let Some(obj) = answer.as_object_mut() {
-        if obj.get("usage").is_none_or(serde_json::Value::is_null)
-            && let Some(usage) = usage
-        {
+        let claimed_served = obj.get("served").filter(|v| v.is_object()).cloned();
+        let claimed_model = obj
+            .get("model")
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_string);
+        if claimed_served.is_some() || claimed_model.is_some() {
+            let mut claimed = serde_json::Map::new();
+            if let Some(m) = claimed_model {
+                claimed.insert("model".into(), serde_json::Value::String(m));
+            }
+            if let Some(s) = claimed_served {
+                claimed.insert("served".into(), s);
+            }
+            obj.insert("claimed".into(), serde_json::Value::Object(claimed));
+        }
+        obj.remove("served");
+        match &observed_model {
+            // Only an observed model is reported as served; no vendor is ever inferred.
+            Some(model) => {
+                obj.insert("model".into(), serde_json::Value::String(model.clone()));
+                obj.insert("served".into(), serde_json::json!({ "model": model }));
+            }
+            None => {
+                obj.remove("model");
+            }
+        }
+        if let Some(usage) = usage {
             obj.insert("usage".into(), usage);
         }
-        if obj.get("model").is_none_or(serde_json::Value::is_null)
-            && let Some(model) = &observed_model
-        {
-            obj.insert("model".into(), serde_json::Value::String(model.clone()));
-        }
-        // Only an observed model is reported as served; no vendor is ever inferred from config.
-        if obj.get("served").is_none_or(serde_json::Value::is_null)
-            && let Some(model) = observed_model
-        {
-            obj.insert("served".into(), serde_json::json!({ "model": model }));
-        }
     }
-    Ok(answer.to_string())
+    answer
 }
 
 /// The model and usage the CLI itself reported, if any. Never inferred.
@@ -461,6 +485,44 @@ mod tests {
             "findings": [{"severity": "catastrophic", "title": "t", "evidence": [{"record": 2}]}]
         }));
         assert_eq!(n["findings"][0]["severity"], "minor");
+    }
+
+    #[test]
+    fn an_answer_cannot_override_the_observed_identity() {
+        // The answer claims a model and a served vendor that the CLI's events do not report.
+        let answer = serde_json::json!({
+            "findings": [],
+            "model": "claimed-model",
+            "served": {"vendor": "someone-else", "model": "claimed-model"},
+            "usage": {"input_tokens": 1}
+        });
+        let out = apply_observation(
+            answer,
+            Some("gpt-observed".into()),
+            Some(serde_json::json!({"input_tokens": 9})),
+        );
+        assert_eq!(out["model"], "gpt-observed", "observation wins");
+        assert_eq!(out["served"]["model"], "gpt-observed");
+        assert!(
+            out["served"].get("vendor").is_none(),
+            "no vendor is observed"
+        );
+        assert_eq!(
+            out["claimed"]["model"], "claimed-model",
+            "the claim is kept, labelled"
+        );
+        assert_eq!(out["claimed"]["served"]["vendor"], "someone-else");
+        assert_eq!(out["usage"]["input_tokens"], 9, "observed usage wins");
+
+        // With nothing observed, the answer asserts no served identity at all.
+        let answer = serde_json::json!({"findings": [], "model": "claimed-model", "served": {"vendor": "x"}});
+        let out = apply_observation(answer, None, None);
+        assert!(
+            out.get("served").is_none(),
+            "nothing was served as far as we know"
+        );
+        assert!(out.get("model").is_none());
+        assert_eq!(out["claimed"]["model"], "claimed-model");
     }
 
     #[test]

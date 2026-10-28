@@ -1,0 +1,27 @@
+fix(desks): end a timed-out provider's whole tree and return at once
+
+A provider that starts a helper holds the inherited pipes, so killing only
+the direct child left the run waiting on its own grace periods. The timeout
+path now ends the tree first, while the provider is still alive - the
+Windows Job Object (KILL_ON_JOB_CLOSE, assigned before the request is
+written) or a `/T` walk, and on Unix the process group the provider is
+started in - then returns the timeout error immediately instead of joining
+the readers or waiting the pipe graces. A provider that predates job
+membership (it starts a helper before reading the request) is still ended
+by the tree walk.
+
+Regressions: a timed-out provider whose helper holds the pipes ends
+bounded (3.9 s for the two-desk run against a 1 s deadline), the receipt
+is failed and no finding counts; the early-helper variant is ended too.
+
+fix(provider): observation outranks the answer's identity claims
+
+apply_observation keeps model/served from the CLI's observed events only.
+Anything the answer claims about its model or served vendor is retained
+under `claimed`, and when nothing was observed no served identity is
+asserted at all, so the receipt reads not_stated rather than repeating the
+answer. Observed usage is recorded verbatim.
+
+Test: an answer claiming a model and vendor different from the observed
+events does not change model/served, keeps them under claimed, and an
+unobserved answer asserts no served identity.
