@@ -25,7 +25,7 @@
 
 use std::io::{Read, Write};
 use std::net::{TcpStream, ToSocketAddrs};
-use std::process::{Child, Command, Stdio};
+use std::process::Child;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -437,10 +437,10 @@ impl Server {
         #[cfg(windows)]
         {
             // Stop the shell and what it started while the shell is still there to own the tree.
-            let _ = Command::new("taskkill")
+            let _ = std::process::Command::new("taskkill")
                 .args(["/PID", &self.child.id().to_string(), "/T", "/F"])
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
                 .status();
         }
         let _ = self.child.kill();

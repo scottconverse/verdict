@@ -192,12 +192,8 @@ fn words(cmd: &str) -> Vec<String> {
 /// becomes the command `target` plus switches). A command that starts with a project-relative path
 /// therefore has its leading token's slashes normalized to backslashes. Only the first token is
 /// touched; arguments are left exactly as the project wrote them.
+#[cfg(windows)]
 fn windows_cmd_line(cmd: &str) -> String {
-    #[cfg(not(windows))]
-    {
-        cmd.to_string()
-    }
-    #[cfg(windows)]
     {
         let trimmed = cmd.trim_start();
         if trimmed.starts_with('-') || trimmed.starts_with('"') || !trimmed.contains('/') {
