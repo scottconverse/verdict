@@ -56,6 +56,23 @@ enum Command {
         #[command(subcommand)]
         action: HooksAction,
     },
+    /// Register the Verdict MCP server with a host (human-only, like installing hooks).
+    McpInstall {
+        /// The host: claude, cursor, codex, dsh or antigravity.
+        host: String,
+        /// Project folder (default: found from the current folder).
+        #[arg(long)]
+        project: Option<std::path::PathBuf>,
+        /// You, the human, are doing this. Without it vdt only prints what it would change.
+        #[arg(long = "i-am-the-human")]
+        i_am_the_human: bool,
+        /// Path to vdt to register (default: plain `vdt`, found on PATH).
+        #[arg(long)]
+        vdt_path: Option<String>,
+        /// Codex home folder (default: $CODEX_HOME, else ~/.codex).
+        #[arg(long)]
+        codex_home: Option<std::path::PathBuf>,
+    },
     /// Run the MCP server on standard input and output (for an agent to connect to).
     Mcp {
         /// Project folder (default: found from the current folder).
@@ -393,7 +410,10 @@ fn run(cli: Cli, cwd: &Path, out: &mut dyn Write) -> Result<u8, LedgerError> {
                 HooksAction::Uninstall(a) => (false, a),
             };
             let Some(host) = verdict_adapters::Host::parse(&a.host) else {
-                eprintln!("vdt: unknown host {:?} (use claude or codex)", a.host);
+                eprintln!(
+                    "vdt: unknown host {:?} (use claude, codex, cursor or antigravity)",
+                    a.host
+                );
                 return Ok(1);
             };
             let req = verdict_adapters::HooksRequest {
@@ -405,6 +425,34 @@ fn run(cli: Cli, cwd: &Path, out: &mut dyn Write) -> Result<u8, LedgerError> {
                 vdt_path: a.vdt_path.clone(),
             };
             return match verdict_adapters::hooks_command(&req, cwd, out) {
+                Ok(code) => Ok(code),
+                Err(e) => {
+                    eprintln!("vdt: {e}");
+                    Ok(1)
+                }
+            };
+        }
+        Command::McpInstall {
+            host,
+            project,
+            i_am_the_human,
+            vdt_path,
+            codex_home,
+        } => {
+            let Some(host) = verdict_adapters::McpHost::parse(host) else {
+                eprintln!(
+                    "vdt: unknown host {host:?} (use claude, cursor, codex, dsh or antigravity)"
+                );
+                return Ok(1);
+            };
+            let req = verdict_adapters::McpRequest {
+                host,
+                project: project.clone(),
+                vdt_path: vdt_path.clone(),
+                codex_home: codex_home.clone(),
+                i_am_the_human: *i_am_the_human,
+            };
+            return match verdict_adapters::mcp_command(&req, cwd, out) {
                 Ok(code) => Ok(code),
                 Err(e) => {
                     eprintln!("vdt: {e}");
@@ -430,7 +478,7 @@ fn run(cli: Cli, cwd: &Path, out: &mut dyn Write) -> Result<u8, LedgerError> {
                 "no sessions recorded yet (no ledger in {})",
                 root.display()
             )?,
-            Command::Hook { .. } | Command::Hooks { .. } => {}
+            Command::Hook { .. } | Command::Hooks { .. } | Command::McpInstall { .. } => {}
             Command::Ledger { .. } => writeln!(
                 out,
                 "no ledger in {} yet: nothing to verify",
@@ -492,7 +540,7 @@ fn run(cli: Cli, cwd: &Path, out: &mut dyn Write) -> Result<u8, LedgerError> {
             write!(out, "{text}")?;
             Ok(if ledger.verify()?.is_ok() { 0 } else { 2 })
         }
-        Command::Hook { .. } | Command::Hooks { .. } => Ok(0),
+        Command::Hook { .. } | Command::Hooks { .. } | Command::McpInstall { .. } => Ok(0),
         Command::Mcp { .. }
         | Command::Serve { .. }
         | Command::Scan { .. }

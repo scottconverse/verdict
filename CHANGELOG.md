@@ -63,8 +63,18 @@ the project uses semantic versioning from 1.0.0.
   that must stay quiet.
 - **Phase 5 — GUI and installer.** The page lists claims with the findings about each, the
   unplanned work, the decisions queue, mode, timed pause, commit-anyway and per-host hook install,
-  and downloads the acceptance packet and SARIF. `release/install.ps1` and `release/install.sh`
-  verify the checksum, install `vdt`, and open the page with no terminal step after.
+  and downloads the acceptance packet and SARIF. The Windows installer is a real window (project
+  folder, MCP registration, shortcut, open the page) with a silent path for tests; the POSIX
+  installer does the same for the current folder. Both verify the checksum and leave no terminal
+  step after.
+- **Phase 5 — MCP registration.** `vdt mcp-install <host>` registers the Verdict MCP server with
+  Claude Code and Cursor (project `.mcp.json` / `.cursor/mcp.json`, merged and backed up), delegates
+  Codex to `codex mcp add` in an isolated `CODEX_HOME`, and prints the exact DSH entry without
+  editing the harness. It is human-gated and records an `mcp_install` decision.
+- **Phase 5 — DeepSeek Harness native plugin.** `integrations/dsh/index.mjs` maps the harness's
+  `session/created`, `user/message`, `assistant/message`, `turn/end` and `tools/result` events to
+  the four hook payloads; `node --test integrations/dsh/test/plugin.test.mjs` proves it, and a live run against the real
+  `vdt` recorded an intact ledger. The harness configuration is not changed by Verdict.
 - **Phase 5 — release lane.** Version 1.0.0, `verdict.json` with the project's own release block,
   a tag-triggered `release` workflow that builds the four target archives with SHA-256 files and
   attaches them, a clean-container install job and a two-machine byte comparison of `vdt generate`

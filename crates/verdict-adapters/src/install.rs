@@ -528,7 +528,7 @@ fn read_json(path: &Path) -> Result<Option<Value>, String> {
     }
 }
 
-fn backup(path: &Path) -> Result<PathBuf, String> {
+pub(crate) fn backup(path: &Path) -> Result<PathBuf, String> {
     let digits: String = now_rfc3339().chars().filter(char::is_ascii_digit).collect();
     let stamp = format!("{}-{}", &digits[..8], &digits[8..14]);
     let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("file");
@@ -567,7 +567,7 @@ fn backup(path: &Path) -> Result<PathBuf, String> {
 /// Write `v` to `path` through a new temporary file beside it. The temporary file is created
 /// with `create_new`, so an existing file or link of that name is never truncated or followed;
 /// a name that is taken is skipped. The temporary file is removed if anything fails.
-fn write_json(path: &Path, v: &Value) -> Result<(), String> {
+pub(crate) fn write_json(path: &Path, v: &Value) -> Result<(), String> {
     if let Some(dir) = path.parent() {
         fs::create_dir_all(dir).map_err(|e| format!("cannot create {}: {e}", dir.display()))?;
     }

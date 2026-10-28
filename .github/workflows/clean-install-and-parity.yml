@@ -37,6 +37,25 @@ jobs:
             | target/debug/vdt hook claude SessionStart
           target/debug/vdt sessions
           target/debug/vdt ledger verify
+      - name: Install through the release installer in a clean HOME
+        shell: bash
+        run: |
+          set -euo pipefail
+          . "$HOME/.cargo/env"
+          cargo build --release --locked --bin vdt
+          stage=/tmp/stage
+          mkdir -p "$stage/project"
+          cp target/release/vdt "$stage/vdt-1.0.0-x86_64-unknown-linux-gnu"
+          (cd "$stage" && sha256sum "vdt-1.0.0-x86_64-unknown-linux-gnu" | cut -d' ' -f1 > "vdt-1.0.0-x86_64-unknown-linux-gnu.sha256")
+          cp release/install.sh "$stage/install.sh"
+          clean_home=/tmp/clean-home
+          mkdir -p "$clean_home"
+          (cd "$stage/project" && HOME="$clean_home" VDT_VERSION=1.0.0 sh "$stage/install.sh")
+          "$clean_home/.local/bin/vdt" --version
+          test -f "$stage/project/.mcp.json"
+          test -f "$stage/project/.cursor/mcp.json"
+          grep -q '"verdict"' "$stage/project/.mcp.json"
+          if command -v pkill >/dev/null 2>&1; then pkill -f "vdt serve" || true; fi
 
   generate:
     name: generate on ${{ matrix.os }}

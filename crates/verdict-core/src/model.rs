@@ -197,6 +197,8 @@ pub enum DecisionKind {
     RunProjectCommands,
     /// Install hooks in this project.
     InstallHooks,
+    /// Register Verdict's MCP server with a host.
+    McpInstall,
     /// Shadow or enforce (a mode switch).
     ModeSwitch,
     /// Accept a prompt translation about something the human did not type.
@@ -224,6 +226,7 @@ impl DecisionKind {
             DecisionKind::PlanFile => "plan_file",
             DecisionKind::RunProjectCommands => "run_project_commands",
             DecisionKind::InstallHooks => "install_hooks",
+            DecisionKind::McpInstall => "mcp_install",
             DecisionKind::ModeSwitch => "mode_switch",
             DecisionKind::AcceptPromptTranslation => "accept_prompt_translation",
             DecisionKind::WithdrawPrompt => "withdraw_prompt",
