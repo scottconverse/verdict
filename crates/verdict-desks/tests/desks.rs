@@ -54,6 +54,17 @@ fn provider_with_desk_timeout(args: &[&str]) -> Box<dyn verdict_desks::DeskProvi
     })
 }
 
+/// The pid the helper wrote in its own start marker (pid token).
+fn marker_pid(marker: &std::path::Path) -> u32 {
+    std::fs::read_to_string(marker)
+        .expect("the helper must write its own start marker")
+        .split_whitespace()
+        .next()
+        .expect("a marker pid")
+        .parse()
+        .expect("a numeric pid")
+}
+
 /// Whether a process id is still running. Used to prove a timed-out provider's child is gone.
 fn process_alive(pid: u32) -> bool {
     #[cfg(windows)]
@@ -510,11 +521,7 @@ fn an_early_helper_is_ended_by_the_tree_kill() {
         panic!("{out:?}");
     };
     assert!(receipts.iter().all(|r| r.outcome == "failed"));
-    let pid: u32 = std::fs::read_to_string(&pidfile)
-        .expect("the provider wrote its early helper's pid")
-        .trim()
-        .parse()
-        .expect("a pid");
+    let pid: u32 = marker_pid(&pidfile);
     let deadline = std::time::Instant::now() + Duration::from_secs(10);
     while process_alive(pid) && std::time::Instant::now() < deadline {
         std::thread::sleep(Duration::from_millis(200));
@@ -573,11 +580,7 @@ fn a_timed_out_provider_ends_its_whole_process_tree() {
         "nothing a timed-out provider said may count"
     );
     // The helper process itself is gone.
-    let pid: u32 = std::fs::read_to_string(&pidfile)
-        .expect("the provider wrote its helper's pid")
-        .trim()
-        .parse()
-        .expect("a pid");
+    let pid: u32 = marker_pid(&pidfile);
     let deadline = std::time::Instant::now() + Duration::from_secs(10);
     while process_alive(pid) && std::time::Instant::now() < deadline {
         std::thread::sleep(Duration::from_millis(200));

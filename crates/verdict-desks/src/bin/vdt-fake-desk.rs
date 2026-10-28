@@ -24,7 +24,7 @@ struct Args {
     uncited: bool,
     spawn_child: Option<String>,
     spawn_early_child: Option<String>,
-    helper: bool,
+    helper: Option<String>,
 }
 
 fn args() -> Args {
@@ -40,7 +40,7 @@ fn args() -> Args {
         uncited: false,
         spawn_child: None,
         spawn_early_child: None,
-        helper: false,
+        helper: None,
     };
     let mut it = std::env::args().skip(1);
     while let Some(flag) = it.next() {
@@ -56,28 +56,23 @@ fn args() -> Args {
             "--uncited" => a.uncited = true,
             "--spawn-child" => a.spawn_child = it.next(),
             "--spawn-early-child" => a.spawn_early_child = it.next(),
-            "--helper" => a.helper = true,
+            "--helper" => a.helper = it.next(),
             _ => {}
         }
     }
     a
 }
 
-/// Start a long-lived copy of this program that holds the inherited output pipes, and record its
-/// pid so a test can prove it was ended too.
+/// Start a long-lived copy of this program that holds the inherited output pipes. The helper itself
+/// writes the start marker, so a helper that died at startup leaves no marker.
 fn spawn_helper(path: &str) {
     let exe = std::env::current_exe().unwrap_or_default();
-    match std::process::Command::new(exe)
-        .args(["--helper"])
+    if let Err(e) = std::process::Command::new(exe)
+        .args(["--helper", path])
         .stdin(std::process::Stdio::null())
         .spawn()
     {
-        Ok(child) => {
-            if let Err(e) = std::fs::write(path, child.id().to_string()) {
-                eprintln!("cannot write the helper pid: {e}");
-            }
-        }
-        Err(e) => eprintln!("cannot start the helper: {e}"),
+        eprintln!("cannot start the helper: {e}");
     }
 }
 
@@ -85,7 +80,20 @@ fn main() {
     let a = args();
     // The pipe-holding helper: it never reads the request, it just stays alive holding the
     // inherited output pipes until the runner ends the tree.
-    if a.helper {
+    if let Some(marker) = &a.helper {
+        // Written only once the helper is running and holding the inherited pipes, so a helper
+        // that died at startup cannot look alive to a test.
+        let token = format!(
+            "{} {}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        );
+        if let Err(e) = std::fs::write(marker, token) {
+            eprintln!("cannot write the helper marker: {e}");
+        }
         std::thread::sleep(std::time::Duration::from_secs(600));
         return;
     }
