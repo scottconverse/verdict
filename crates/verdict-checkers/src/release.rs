@@ -775,7 +775,7 @@ fn lockfile_pins(text: &str, name: &str, version: &str) -> bool {
 
 /// Verify one asset file against a configured hash or an adjacent `<file>.sha256`.
 fn verify_asset_hash(ctx: &CheckContext, cfg: &Config, rel: &str, drafts: &mut Vec<Draft>) {
-    let Some(bytes) = std::fs::read(ctx.root.join(rel)).ok() else {
+    let Some(bytes) = ctx.read_asset_bytes(rel) else {
         return;
     };
     let actual = verdict_core::sha256::hex(&bytes);
@@ -783,7 +783,10 @@ fn verify_asset_hash(ctx: &CheckContext, cfg: &Config, rel: &str, drafts: &mut V
         Some(("release.asset_hashes".into(), want.clone()))
     } else {
         let sidecar = format!("{rel}.sha256");
-        ctx.read_text(&sidecar).and_then(|t| {
+        // A release asset and its checksum are build outputs, not source: the source snapshot's
+        // index deliberately excludes `dist`, so reading them goes to the disk. This is not the
+        // out-of-index source read the F03 rule refuses; an asset hash is about the packaged bytes.
+        ctx.read_asset(&sidecar).and_then(|t| {
             t.split_whitespace()
                 .next()
                 .filter(|h| h.len() == 64)

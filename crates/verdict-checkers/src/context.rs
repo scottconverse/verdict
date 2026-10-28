@@ -232,6 +232,22 @@ impl CheckContext {
         self.tree.get_or_init(|| TreeIndex::build(&self.root))
     }
 
+    /// Read a build asset (a packaged artifact or its checksum) directly from the disk. Assets are
+    /// not source: they are build outputs the snapshot index deliberately excludes (for example
+    /// `dist/`), so this read is not marked unestablished and is not bound to the source snapshot.
+    pub fn read_asset_bytes(&self, path: &str) -> Option<Vec<u8>> {
+        std::fs::read(self.root.join(path)).ok()
+    }
+
+    /// [`CheckContext::read_asset_bytes`] as text (`None` when missing or not text).
+    pub fn read_asset(&self, path: &str) -> Option<String> {
+        let bytes = self.read_asset_bytes(path)?;
+        if bytes.contains(&0) {
+            return None;
+        }
+        Some(String::from_utf8_lossy(&bytes).to_string())
+    }
+
     /// Read a working-tree file as text (`None` if missing or not text).
     ///
     /// Text the warmed index holds is exactly the snapshot's bytes. A read that the index cannot
