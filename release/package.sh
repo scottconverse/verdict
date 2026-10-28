@@ -65,6 +65,7 @@ case "$target" in
     mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
     cp "$binary" "$app/Contents/MacOS/vdt"
     cp "$binary" "$app/Contents/MacOS/vdt-setup"
+    cp "$dir/$exe.sha256" "$app/Contents/MacOS/$exe.sha256"
     chmod +x "$app/Contents/MacOS/vdt" "$app/Contents/MacOS/vdt-setup"
     cat > "$app/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
