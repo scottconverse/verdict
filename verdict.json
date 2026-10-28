@@ -49,7 +49,16 @@
   "vendors": {
     "cross_vendor_required_from_lane": "standard",
     "single_vendor": "refuse",
-    "providers": []
+    "verifier_order": ["openai"],
+    "providers": [
+      {
+        "name": "codex",
+        "vendor": "openai",
+        "command": "target/debug/vdt-provider-codex",
+        "args": [],
+        "timeout_secs": 300
+      }
+    ]
   },
   "gate": { "mode": "shadow", "max_sendbacks": 2, "stop_timeout": "20s" },
   "decisions_owner": "human",
