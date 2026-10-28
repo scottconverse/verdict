@@ -286,7 +286,12 @@ fn normalize_answer(v: serde_json::Value) -> serde_json::Value {
                 .get("severity")
                 .and_then(serde_json::Value::as_str)
                 .map(|s| s.to_ascii_lowercase())
-                .filter(|s| matches!(s.as_str(), "blocker" | "major" | "minor" | "nit"))
+                .filter(|s| {
+                    matches!(
+                        s.as_str(),
+                        "blocker" | "critical" | "major" | "minor" | "nit"
+                    )
+                })
                 .unwrap_or_else(|| "minor".into());
             let title = obj
                 .get("title")
@@ -402,6 +407,63 @@ mod tests {
         assert!(n["findings"][1].get("evidence").is_none());
         assert_eq!(n["hypotheses"].as_array().unwrap().len(), 2);
         assert_eq!(n["proposals"][0]["checker"], "mutation");
+    }
+
+    /// Regression for a Critical desk finding losing its severity in normalization. The desk
+    /// consumer deserializes `findings[].severity` straight into `Severity`
+    /// (crates/verdict-desks/src/lib.rs, `RawFinding`), and the core blocks it in the release lane,
+    /// so a downgrade to `minor` silently changes a release decision.
+    #[test]
+    fn a_critical_finding_keeps_its_severity_and_still_blocks_the_release_lane() {
+        use verdict_core::lane::Bar;
+        use verdict_core::model::{Finding, Lane, Severity, Tier};
+        use verdict_core::verdict::{FindingStatus, FindingView, is_blocking_with};
+
+        let n = normalize_answer(serde_json::json!({
+            "findings": [{
+                "severity": "CRITICAL",
+                "title": "the release artifact does not match its manifest",
+                "evidence": [{"record": 2}]
+            }]
+        }));
+        // The normalizer keeps the desk's severity instead of rewriting it to `minor`.
+        assert_eq!(n["findings"][0]["severity"], "critical");
+        // The consumer's exact deserialization: `RawFinding.severity: Severity`.
+        let severity: Severity = serde_json::from_value(n["findings"][0]["severity"].clone()).unwrap();
+        assert_eq!(severity, Severity::Critical);
+        // The stored finding the consumer writes (`Record::Finding`, judgment tier).
+        let view = FindingView {
+            seq: 3,
+            finding: Finding {
+                id: "desk:engineer.critical".into(),
+                severity,
+                title: n["findings"][0]["title"].as_str().unwrap().to_string(),
+                claim_seq: None,
+                evidence: Vec::new(),
+                tier: Tier::Judgment,
+                blast: Some(Lane::Release),
+                judgment: true,
+                fix_hint: None,
+            },
+            status: FindingStatus::Open,
+        };
+        assert!(
+            is_blocking_with(&view, Lane::Release, Bar::ZeroAboveNit),
+            "a Critical desk finding must block the release lane"
+        );
+        // The same finding downgraded to minor would not block: the bug really changed a decision.
+        let mut minor = view.clone();
+        minor.finding.severity = Severity::Minor;
+        assert!(!is_blocking_with(
+            &minor,
+            Lane::Release,
+            Bar::ZeroAboveNit
+        ));
+        // Unknown severities still fall back to `minor`; the fix widened the whitelist only.
+        let n = normalize_answer(serde_json::json!({
+            "findings": [{"severity": "catastrophic", "title": "t", "evidence": [{"record": 2}]}]
+        }));
+        assert_eq!(n["findings"][0]["severity"], "minor");
     }
 
     #[test]

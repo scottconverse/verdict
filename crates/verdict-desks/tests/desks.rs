@@ -434,6 +434,65 @@ fn a_decision_is_not_something_a_desk_writes() {
 // ---------------------------------------------------- provider order, identity and pipes
 
 #[test]
+fn a_critical_desk_finding_is_stored_as_critical_and_blocks_the_release_lane() {
+    // The desk protocol's severity is five levels, and `critical` is one of them. The consumer must
+    // not flatten it: in the release lane any open finding above minor fails the verdict.
+    let (dir, home, sid) = project("critical-severity", None);
+    let policy = Policy::load(dir.path(), Some(home.path())).unwrap();
+    let mut l = Ledger::open(dir.path()).unwrap();
+    let providers = vec![provider(
+        "fake-critical",
+        "openai",
+        &["--record", "2", "--severity", "critical"],
+    )];
+    let out = run(
+        &mut l,
+        dir.path(),
+        &sid,
+        &policy,
+        &DeskOptions {
+            lane: Lane::Standard,
+            timeout: Duration::from_secs(20),
+        },
+        &providers,
+    )
+    .unwrap();
+    let Outcome::Ran { receipts, .. } = out else {
+        panic!("the desks should have run: {out:?}");
+    };
+    assert_eq!(receipts[0].findings, 1);
+    let stored: Vec<_> = l
+        .records()
+        .unwrap()
+        .into_iter()
+        .filter_map(|s| match &s.record {
+            Record::Finding(f) if f.judgment => Some(verdict_core::verdict::FindingView {
+                seq: s.seq,
+                finding: f.clone(),
+                status: verdict_core::verdict::FindingStatus::Open,
+            }),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(stored.len(), 2, "one finding per standard-lane desk");
+    for v in &stored {
+        assert_eq!(
+            v.finding.severity,
+            verdict_core::model::Severity::Critical,
+            "a Critical desk finding must not be downgraded"
+        );
+        assert!(
+            verdict_core::verdict::is_blocking_with(
+                v,
+                Lane::Release,
+                verdict_core::lane::Bar::ZeroAboveNit
+            ),
+            "a Critical desk finding blocks the release lane"
+        );
+    }
+}
+
+#[test]
 fn the_policy_verifier_order_decides_which_provider_serves_the_first_desk() {
     let policy_json = r#"{"version":1,"vendors":{"verifier_order":["openai"]}}"#;
     let (dir, home, sid) = project("order", Some(policy_json));

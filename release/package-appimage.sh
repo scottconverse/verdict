@@ -53,10 +53,11 @@ APPRUN
 chmod +x "$appdir/AppRun"
 
 file="$outdir/Verdict-$version-x86_64.AppImage"
-# CI has no FUSE, so ask the AppImage runtime to extract and run the tool.
-if ! "$tool" --appimage-extract-and-run "$appdir" "$file" 2>/dev/null; then
-  "$tool" "$appdir" "$file"
-fi
+# appimagetool is itself shipped as an AppImage, and CI has no FUSE. The AppImage runtime's
+# supported answer is the APPIMAGE_EXTRACT_AND_RUN environment variable, which makes the runtime
+# extract the payload and run it instead of mounting it. No fallback to a FUSE mount: a broken tool
+# invocation must fail visibly here.
+APPIMAGE_EXTRACT_AND_RUN=1 "$tool" "$appdir" "$file"
 chmod +x "$file"
 if command -v sha256sum >/dev/null 2>&1; then
   ( cd "$outdir" && sha256sum "$(basename "$file")" | cut -d' ' -f1 > "$file.sha256" )
