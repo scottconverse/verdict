@@ -140,3 +140,9 @@ out, every red fixture has to go red, or the fixtures are not proving anything.
 
 Apache-2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE). Historical rubric sources may seed the
 packaged desk rubrics; their attribution lives in `NOTICE`.
+
+## Inside an editor
+
+The page is a local web app, so it also runs inside an editor: with `vdt serve` running, open
+`http://127.0.0.1:4717/` in VS Code's or Cursor's built-in Simple Browser panel. No extension is
+required, and the editor and a normal browser show the same ledger and the same buttons.
