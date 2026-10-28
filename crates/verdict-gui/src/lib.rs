@@ -22,7 +22,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use axum::{
-    Form, Router,
+    Form, Json, Router,
     extract::{Path, Request, State},
     http::{HeaderValue, Method, StatusCode, header},
     middleware::{self, Next},
@@ -96,6 +96,7 @@ fn shared(root: PathBuf, token: String, port: u16, home: Option<PathBuf>) -> St 
 fn router(state: St) -> Router {
     Router::new()
         .route("/", get(home))
+        .route("/readyz", get(readyz))
         .route("/session/{id}", get(decisions::session_page))
         .route("/session/{id}/log", get(log_page))
         .route("/session/{id}/packet", get(packet_download))
@@ -109,6 +110,17 @@ fn router(state: St) -> Router {
         .route("/decide", post(decisions::decide))
         .layer(middleware::from_fn_with_state(state.clone(), guard))
         .with_state(state)
+}
+
+/// Readiness for the installer: this app's identity, the project it serves and its pid. Guarded
+/// like every other route (loopback `Host` only); it exposes nothing else.
+async fn readyz(State(st): State<St>) -> Json<serde_json::Value> {
+    let project = std::fs::canonicalize(&st.root).unwrap_or_else(|_| st.root.clone());
+    Json(serde_json::json!({
+        "app": "verdict",
+        "project": project.to_string_lossy(),
+        "pid": std::process::id(),
+    }))
 }
 
 fn run_blocking(listener: StdListener, state: St) -> std::io::Result<()> {

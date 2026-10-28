@@ -185,6 +185,32 @@ fn origin(f: &Fixture) -> String {
 }
 
 #[test]
+fn the_readyz_route_says_which_app_and_project_this_is() {
+    // The installer only opens the page when this route says the server is Verdict and it serves
+    // the chosen project: an unrelated process on the port must not pass.
+    let f = fixture();
+    let reply = get(&f.page, "/readyz");
+    assert_eq!(reply.status, 200);
+    assert!(
+        reply
+            .headers
+            .to_ascii_lowercase()
+            .contains("content-type: application/json"),
+        "{}",
+        reply.headers
+    );
+    let json: serde_json::Value = serde_json::from_str(&reply.body).expect("readiness JSON");
+    assert_eq!(json["app"], "verdict");
+    let served = std::fs::canonicalize(&f.dir.0).unwrap();
+    assert_eq!(
+        json["project"].as_str().unwrap(),
+        served.to_string_lossy(),
+        "the canonical project root"
+    );
+    assert_eq!(json["pid"].as_u64().unwrap(), u64::from(std::process::id()));
+}
+
+#[test]
 fn the_packet_and_sarif_routes_serve_the_exports_as_downloads() {
     let f = fixture();
     let packet = get(&f.page, &format!("/session/{}/packet", f.session));

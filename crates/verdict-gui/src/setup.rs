@@ -11,6 +11,7 @@
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use axum::{
     Form, Router,
@@ -280,7 +281,8 @@ async fn install(State(st): State<St>, Form(f): Form<InstallForm>) -> Response {
             Html(success_page(&installed.vdt, &project_label)).into_response()
         }
         Ok(Err(e)) => Html(format!(
-            "<p>Nothing was installed: {}</p><p><a href=\"/\">Back</a></p>",
+            "<p>The install did not finish: {}</p><p>What was completed is named above; nothing \
+             was undone.</p><p><a href=\"/\">Back</a></p>",
             esc(&e)
         ))
         .into_response(),
@@ -343,12 +345,27 @@ fn install_core(
             i_am_the_human: true,
         };
         let mut out = Vec::new();
-        verdict_adapters::mcp_command(&req, project, &mut out)
-            .map_err(|e| format!("could not register {}: {e}", host.title()))?;
+        verdict_adapters::mcp_command(&req, project, &mut out).map_err(|e| {
+            format!(
+                "the core at {} was installed, but {} was not registered: {e}",
+                target.display(),
+                host.title()
+            )
+        })?;
     }
     if open_page {
-        launcher(project, &target)?;
-        open_project_page(project, &target);
+        launcher(project, &target).map_err(|e| {
+            format!(
+                "the core at {} was installed, but the launcher was not created: {e}",
+                target.display()
+            )
+        })?;
+        if let Err(e) = open_project_page(project, &target) {
+            return Err(format!(
+                "installed the core at {} and the launcher, but not the page: {e}",
+                target.display()
+            ));
+        }
     }
     Ok(Installed { vdt: target })
 }
@@ -439,30 +456,85 @@ fn copy_dir(src: &Path, dst: &Path) -> Result<(), String> {
     Ok(())
 }
 
-fn open_project_page(project: &Path, vdt: &Path) {
+fn open_project_page(project: &Path, vdt: &Path) -> Result<(), String> {
     #[cfg(windows)]
-    {
+    let spawned = {
         use std::os::windows::process::CommandExt;
         const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-        let _ = std::process::Command::new(vdt)
+        std::process::Command::new(vdt)
             .args(["serve", "--project"])
             .arg(project)
             .creation_flags(CREATE_NO_WINDOW)
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
-            .spawn();
-    }
+            .spawn()
+    };
     #[cfg(not(windows))]
-    {
-        let _ = std::process::Command::new(vdt)
-            .args(["serve", "--project"])
-            .arg(project)
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .spawn();
+    let spawned = std::process::Command::new(vdt)
+        .args(["serve", "--project"])
+        .arg(project)
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn();
+    let child = spawned.map_err(|e| format!("the page did not start: {e}"))?;
+    // Only call the page open when the server answering on the port is the instance this installer
+    // started, says it is Verdict, and serves the project chosen here. A bare HTTP 200 from
+    // anything else is not success.
+    wait_until_ready(
+        project,
+        crate::DEFAULT_PORT,
+        child.id(),
+        Duration::from_secs(15),
+    )?;
+    open_url(&format!("http://127.0.0.1:{}/", crate::DEFAULT_PORT));
+    Ok(())
+}
+
+/// Poll `/readyz` until the page identifies itself as Verdict for `project` and is the process this
+/// installer started (`pid`), or the deadline passes.
+fn wait_until_ready(project: &Path, port: u16, pid: u32, deadline: Duration) -> Result<(), String> {
+    let want = std::fs::canonicalize(project).unwrap_or_else(|_| project.to_path_buf());
+    let started = std::time::Instant::now();
+    let mut last = "no answer".to_string();
+    while started.elapsed() < deadline {
+        match read_readyz(port) {
+            Ok(v) => {
+                let app = v.get("app").and_then(|x| x.as_str()).unwrap_or("");
+                let served = v.get("project").and_then(|x| x.as_str()).unwrap_or("");
+                let answered_pid = v.get("pid").and_then(|x| x.as_u64()).unwrap_or(0);
+                if app == "verdict" && answered_pid == u64::from(pid) && Path::new(served) == want {
+                    return Ok(());
+                }
+                last = format!("it answered as {app:?} for {served:?} (pid {answered_pid})");
+            }
+            Err(e) => last = e,
+        }
+        std::thread::sleep(Duration::from_millis(200));
     }
-    std::thread::sleep(std::time::Duration::from_millis(600));
-    open_url("http://127.0.0.1:4717/");
+    Err(format!(
+        "the page did not come up for {} within {} seconds ({last})",
+        want.display(),
+        deadline.as_secs()
+    ))
+}
+
+/// One `GET /readyz` over the loopback.
+fn read_readyz(port: u16) -> Result<serde_json::Value, String> {
+    use std::io::{Read as _, Write as _};
+    let mut stream = std::net::TcpStream::connect(("127.0.0.1", port))
+        .map_err(|e| format!("cannot connect to the page: {e}"))?;
+    let _ = stream.set_read_timeout(Some(Duration::from_secs(2)));
+    let request =
+        format!("GET /readyz HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nConnection: close\r\n\r\n");
+    stream
+        .write_all(request.as_bytes())
+        .map_err(|e| format!("the page refused the readiness request: {e}"))?;
+    let mut buf = String::new();
+    stream
+        .read_to_string(&mut buf)
+        .map_err(|e| format!("the readiness answer could not be read: {e}"))?;
+    let body = buf.split("\r\n\r\n").nth(1).unwrap_or("");
+    serde_json::from_str(body).map_err(|e| format!("the answer is not readiness JSON: {e}"))
 }
 
 /// Open a URL in the user's browser.
@@ -533,4 +605,63 @@ pub fn run_setup(opts: SetupOptions) -> std::io::Result<()> {
             .await
             .map_err(std::io::Error::other)
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn temp_dir(label: &str) -> PathBuf {
+        let p = std::env::temp_dir().join(format!(
+            "vdt-setup-ready-{label}-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        std::fs::create_dir_all(&p).unwrap();
+        p
+    }
+
+    #[test]
+    fn readiness_requires_this_app_this_project_and_this_pid() {
+        let dir = temp_dir("ok");
+        std::fs::write(dir.join("a.txt"), "x\n").unwrap();
+        let page = crate::start_background(dir.clone(), 0).unwrap();
+        let port = page.addr.port();
+        // The page runs in this test process, so its pid is this one.
+        assert!(
+            wait_until_ready(&dir, port, std::process::id(), Duration::from_secs(5)).is_ok(),
+            "this app, this project and this pid must read as ready"
+        );
+        // Same app, same project, but not the process the installer started.
+        let err = wait_until_ready(
+            &dir,
+            port,
+            std::process::id() + 1,
+            Duration::from_millis(500),
+        )
+        .expect_err("a different pid is not the instance we spawned");
+        assert!(err.contains("did not come up"), "{err}");
+        // Same app and pid, but a different project.
+        let other = temp_dir("other");
+        let err = wait_until_ready(&other, port, std::process::id(), Duration::from_millis(500))
+            .expect_err("a page for a different project is not ready");
+        assert!(err.contains("did not come up"), "{err}");
+        let _ = std::fs::remove_dir_all(&dir);
+        let _ = std::fs::remove_dir_all(&other);
+    }
+
+    #[test]
+    fn nothing_listening_is_a_clear_failure_not_a_success() {
+        let dir = temp_dir("closed");
+        let closed = std::net::TcpListener::bind(("127.0.0.1", 0)).unwrap();
+        let port = closed.local_addr().unwrap().port();
+        drop(closed);
+        let err = wait_until_ready(&dir, port, std::process::id(), Duration::from_millis(400))
+            .expect_err("nothing answered, so the page is not ready");
+        assert!(err.contains("cannot connect"), "{err}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }
