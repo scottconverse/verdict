@@ -15,24 +15,7 @@ use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
 const DEFAULT_TIMEOUT_SECS: u64 = 240;
-const DESK_SCHEMA: &str = r#"{
-  "type": "object",
-  "required": ["findings"],
-  "properties": {
-    "findings": {"type": "array", "maxItems": 5, "items": {
-      "type": "object", "required": ["severity", "title"],
-      "properties": {
-        "severity": {"enum": ["blocker", "major", "minor", "nit"]},
-        "title": {"type": "string"},
-        "evidence": {"type": "array", "items": {"type": "object"}},
-        "fix": {"type": "string"}
-      }}},
-    "hypotheses": {"type": "array", "items": {"type": "string"}},
-    "proposals": {"type": "array", "items": {"type": "string"}},
-    "usage": {"type": "object"},
-    "model": {"type": "string"}
-  }
-}"#;
+
 const MAX_ATTEMPTS: u32 = 2;
 
 fn main() {
@@ -144,12 +127,7 @@ fn ask(args: &Args, prompt: &str, requested_model: &str) -> Result<String, Strin
         "--ephemeral",
     ]);
     cmd.args(["-C", "."]);
-    // Force the desk answer shape at the provider boundary. A model that wraps a hypothesis in an
-    // object, or names an unknown severity, must not fail a desk for a shape the protocol accepts.
-    let schema = std::env::temp_dir().join(format!("vdt-desk-schema-{}.json", std::process::id()));
-    if std::fs::write(&schema, DESK_SCHEMA).is_ok() {
-        cmd.arg("--output-schema").arg(&schema);
-    }
+
     cmd.arg("-o").arg(&last);
     // "unspecified" is the provider interface's "the policy named no model". Passing it to the CLI
     // would ask for a model that does not exist; let Codex use its own configured default and
@@ -245,7 +223,6 @@ fn ask(args: &Args, prompt: &str, requested_model: &str) -> Result<String, Strin
 
     let answer_text = std::fs::read_to_string(&last).unwrap_or_default();
     let _ = std::fs::remove_file(&last);
-    let _ = std::fs::remove_file(&schema);
     let mut answer = normalize_answer(extract_json(&answer_text)?);
     let (observed_model, usage) = observed_from_events(&stdout);
     if let Some(obj) = answer.as_object_mut() {
