@@ -52,15 +52,15 @@ jobs:
           (cd /tmp/dist && sha256sum -c vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256) || true
           clean_home=/tmp/clean-home
           mkdir -p "$clean_home"
-          (cd /tmp/project && HOME="$clean_home" sh /tmp/extracted/vdt-1.0.0-x86_64-unknown-linux-gnu/install.sh)
+          pkg=/tmp/extracted/vdt-1.0.0-x86_64-unknown-linux-gnu
+          (cd /tmp/project && HOME="$clean_home" "$pkg/vdt-setup" --silent --project /tmp/project \
+            --install-dir "$clean_home/.local/bin" --no-open)
           "$clean_home/.local/bin/vdt" --version
-          test -f /tmp/project/.mcp.json
-          test -f /tmp/project/.cursor/mcp.json
-          grep -q '"verdict"' /tmp/project/.mcp.json
-          # A tampered binary must be refused, not installed.
-          printf 'tampered\n' >> /tmp/extracted/vdt-1.0.0-x86_64-unknown-linux-gnu/vdt
-          if (cd /tmp/project && HOME=/tmp/other-home sh /tmp/extracted/vdt-1.0.0-x86_64-unknown-linux-gnu/install.sh); then
-            echo "the installer accepted a tampered binary" >&2
+          # A tampered core must be refused by the setup entry point, not installed.
+          printf 'tampered\n' >> "$pkg/vdt"
+          if (cd /tmp/project && HOME=/tmp/other-home "$pkg/vdt-setup" --silent --project /tmp/project \
+            --install-dir /tmp/other-home/.local/bin --no-open); then
+            echo "the setup entry point accepted a tampered core" >&2
             exit 1
           fi
           if command -v pkill >/dev/null 2>&1; then pkill -f "vdt serve" || true; fi
@@ -85,14 +85,34 @@ jobs:
           mkdir -p "$extract" "$project"
           (cd "$extract" && 7z x "$(cygpath -w "$GITHUB_WORKSPACE")/dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip" >/dev/null)
           cd "$project"
-          powershell -NoProfile -ExecutionPolicy Bypass -File \
-            "$extract/vdt-1.0.0-x86_64-pc-windows-msvc/install.ps1" \
-            -Silent -NoShortcut -NoLaunch -InstallDir "$bin" -Project "$project"
+          "$extract/vdt-1.0.0-x86_64-pc-windows-msvc/Verdict-Setup.exe" --silent \
+            --project "$project" --install-dir "$bin" --no-open
           test -f "$bin/vdt.exe"
           "$bin/vdt.exe" --version
-          test -f .mcp.json
-          test -f .cursor/mcp.json
-          grep -q '"verdict"' .mcp.json
+  macos-package:
+    name: macOS package and setup entry (headless)
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo build --release --locked --bin vdt
+      - name: Package and run the app's setup entry
+        shell: bash
+        run: |
+          set -euo pipefail
+          sh release/package.sh 1.0.0 aarch64-apple-darwin tar.gz target/release/vdt dist
+          mkdir -p extract project bin
+          tar -C extract -xzf dist/vdt-1.0.0-aarch64-apple-darwin.tar.gz
+          pkg=extract/vdt-1.0.0-aarch64-apple-darwin
+          test -f "$pkg/Verdict.app/Contents/Info.plist"
+          test -x "$pkg/Verdict.app/Contents/MacOS/vdt-setup"
+          grep -q 'CFBundleExecutable' "$pkg/Verdict.app/Contents/Info.plist"
+          # This runs the app's executable directly; a Finder double-click needs a desktop session
+          # and is recorded as unverified unless one is available.
+          "$pkg/Verdict.app/Contents/MacOS/vdt-setup" --silent --project "$PWD/project" \
+            --install-dir "$PWD/bin" --no-open
+          test -x bin/vdt
+          bin/vdt --version
   generate:
     name: generate on ${{ matrix.os }}
     strategy:

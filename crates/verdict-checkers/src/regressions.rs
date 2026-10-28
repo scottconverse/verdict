@@ -44,7 +44,7 @@ re!(PY_EXCEPT_PASS_SAME_LINE, r"^\s*except\b[^:]*:\s*pass\b");
 re!(PY_EXCEPT_HEAD, r"^\s*except\b[^:]*:\s*$");
 re!(PY_PASS, r"^\s*pass\b\s*(#.*)?$");
 re!(BARE_EXCEPT, r"^\s*except\s*:");
-re!(JS_DEBUGGER, r"(?:^|[;{}]\s*)debugger\s*;?\s*$");
+re!(JS_DEBUGGER, r"(?:^|[;{}])\s*debugger\s*;?\s*$");
 re!(
     PY_DEBUGGER,
     r"(?:^|[^\w.])(?:i?pdb\.set_trace\(\)|breakpoint\(\))"

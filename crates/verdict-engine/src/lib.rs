@@ -52,6 +52,7 @@ impl CheckRunner for RealRunner {
             lane: opts.lane,
             timeout: opts.timeout,
             deadline: opts.deadline,
+            force: opts.force,
         };
         verdict_checkers::run_lane_with_home(
             ledger,
@@ -160,6 +161,7 @@ pub fn verify(
             lane,
             timeout,
             deadline,
+            force: false,
         },
     )
     .map_err(|e| e.to_string())?;
@@ -370,6 +372,7 @@ fn run_proposals(
             lane,
             timeout,
             deadline,
+            force: true,
         },
     )?;
     let _ = home;

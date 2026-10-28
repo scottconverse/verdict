@@ -37,7 +37,26 @@ fn project(label: &str, policy: &str) -> (Tmp, Tmp, Ledger, String) {
     let dir = Tmp::new(label);
     let home = Tmp::new(&format!("{label}-home"));
     std::fs::write(dir.path().join("verdict.json"), policy).unwrap();
-    std::fs::write(dir.path().join("a.txt"), "a\n").unwrap();
+    std::fs::create_dir_all(dir.path().join("src")).unwrap();
+    std::fs::write(dir.path().join("src/a.rs"), "fn a() {}\n").unwrap();
+    let git = |args: &[&str]| {
+        let out = std::process::Command::new("git")
+            .arg("-C")
+            .arg(dir.path())
+            .args(args)
+            .output()
+            .unwrap();
+        assert!(
+            out.status.success(),
+            "git {args:?}: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+    };
+    git(&["init", "-q"]);
+    git(&["config", "user.email", "f20@example.invalid"]);
+    git(&["config", "user.name", "f20"]);
+    git(&["add", "-A"]);
+    git(&["commit", "-q", "-m", "baseline"]);
     let mut ledger = Ledger::open(dir.path()).unwrap();
     let s = start_session(
         &mut ledger,
@@ -212,4 +231,170 @@ fn a_desk_proposal_is_recorded_as_a_hypothesis_and_never_a_finding() {
         a.hypotheses[0].1.title
     );
     let _ = DecisionKind::ModeSwitch;
+}
+
+/// F20: one connected deterministic path — a provider answer is processed by the real desk
+/// engine into a proposal, the engine accepts it, and the proposed checker actually runs and
+/// writes a new receipt after the proposal. No model call is involved.
+#[test]
+fn a_desk_proposal_is_dispatched_to_the_checker_and_creates_a_new_receipt() {
+    // The answer cites record 2 (the prompt) so the desk finding is a real finding, and proposes
+    // the mutation checker. The provider is `cmd /C type`/`cat`, so it speaks the protocol without
+    // any model.
+    let dir = Tmp::new("f20");
+    let home = Tmp::new("f20-home");
+    let answer = serde_json::json!({
+        "findings": [{
+            "severity": "minor",
+            "title": "a cited concern",
+            "evidence": [{"record": 2}],
+            "fix": "look at it"
+        }],
+        "proposals": [{"checker": "mutation", "reason": "the tax branch changed"}]
+    });
+    let answer_path = dir.path().join("answer.json");
+    std::fs::write(&answer_path, answer.to_string()).unwrap();
+    std::fs::write(
+        dir.path().join("mutation.json"),
+        r#"{"survivors":[{"seed":7,"file":"src/a.rs","line":1,"description":"changed the constant"}],"killed":0,"total":1}"#,
+    )
+    .unwrap();
+    std::fs::create_dir_all(dir.path().join("src")).unwrap();
+    std::fs::write(dir.path().join("src/a.rs"), "fn a() {}\n").unwrap();
+    let git = |args: &[&str]| {
+        let out = std::process::Command::new("git")
+            .arg("-C")
+            .arg(dir.path())
+            .args(args)
+            .output()
+            .unwrap();
+        assert!(
+            out.status.success(),
+            "git {args:?}: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+    };
+    git(&["init", "-q"]);
+    git(&["config", "user.email", "f20@example.invalid"]);
+    git(&["config", "user.name", "f20"]);
+    git(&["add", "-A"]);
+    git(&["commit", "-q", "-m", "baseline"]);
+    #[cfg(windows)]
+    let (program, args) = (
+        "cmd",
+        vec![
+            "/C".to_string(),
+            "type".to_string(),
+            answer_path.to_string_lossy().to_string(),
+        ],
+    );
+    #[cfg(not(windows))]
+    let (program, args) = ("cat", vec![answer_path.to_string_lossy().to_string()]);
+    let policy = serde_json::json!({
+        "version": 1,
+        "lanes": {"standard": {"checkers": ["unfinished"], "desks": ["engineer"]}},
+        "mutation": {
+            "require_when": ["test_sensitivity_uncertain"],
+            "test_sensitivity_uncertain": true,
+            "report": "mutation.json"
+        },
+        "desks": {"run_proposals": true},
+        "vendors": {"providers": [{
+            "name": "fake", "vendor": "openai",
+            "command": program, "args": args, "model": "fake-1"
+        }]}
+    });
+    std::fs::write(
+        dir.path().join("verdict.json"),
+        serde_json::to_string(&policy).unwrap(),
+    )
+    .unwrap();
+    let mut ledger = Ledger::open(dir.path()).unwrap();
+    let sid = start_session(
+        &mut ledger,
+        dir.path(),
+        &SessionParams {
+            agent: "claude".into(),
+            model: "builder".into(),
+            vendor: "anthropic".into(),
+            home: Some(home.path().to_path_buf()),
+        },
+    )
+    .unwrap()
+    .id;
+    ledger
+        .append(
+            Writer::Adapter,
+            Some(&sid),
+            Record::Prompt {
+                ordinal: 1,
+                text: "check the tax branch".into(),
+                agent: "claude".into(),
+                model: "builder".into(),
+            },
+        )
+        .unwrap();
+
+    std::fs::write(dir.path().join("src/a.rs"), "fn a() { let _ = 1; }\n").unwrap();
+    verify(
+        dir.path(),
+        &mut ledger,
+        &sid,
+        Some(home.path()),
+        &VerifyOptions {
+            budget: Some(Duration::from_secs(120)),
+            reason: Some("F20".into()),
+        },
+    )
+    .unwrap();
+
+    let records = ledger.records_for_session(&sid).unwrap();
+    let proposal_seq = records
+        .iter()
+        .find_map(|s| match &s.record {
+            Record::Hypothesis(f) if f.title.starts_with("PROPOSAL: mutation") => Some(s.seq),
+            _ => None,
+        })
+        .unwrap_or_else(|| panic!("no proposal hypothesis: {records:#?}"));
+    let dispatch_seq = records
+        .iter()
+        .find_map(|s| match &s.record {
+            Record::Check { name, .. } if name == "proposals" => Some(s.seq),
+            _ => None,
+        })
+        .unwrap_or_else(|| panic!("no proposals dispatch record: {records:#?}"));
+    let mutation_checks: Vec<_> = records
+        .iter()
+        .filter_map(|s| match &s.record {
+            Record::Check {
+                name,
+                outcome,
+                tier,
+                detail,
+                ..
+            } if name == "mutation" => Some((s.seq, *outcome, *tier, detail.clone())),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(mutation_checks.len(), 1, "{mutation_checks:#?}");
+    let (mutation_seq, outcome, tier, detail) = &mutation_checks[0];
+    assert!(
+        proposal_seq < dispatch_seq,
+        "proposal {proposal_seq}, dispatch {dispatch_seq}"
+    );
+    assert!(
+        *mutation_seq > dispatch_seq,
+        "the proposed checker must run after the dispatch (dispatch {dispatch_seq}, mutation {mutation_seq})"
+    );
+    assert_eq!(*outcome, CheckOutcome::Ran, "{detail:?}");
+    assert_eq!(*tier, Tier::Asset);
+    let detail = detail.clone().unwrap_or_default();
+    assert!(detail.contains("survivor"), "{detail}");
+    let survivor = records.iter().find_map(|s| match &s.record {
+        Record::Finding(f) if f.id.starts_with("mutation:") => Some(f),
+        _ => None,
+    });
+    let survivor = survivor.expect("the mutation survivor finding");
+    assert!(survivor.title.contains("seed 7"), "{}", survivor.title);
+    assert!(!survivor.evidence.is_empty());
 }

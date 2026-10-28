@@ -121,20 +121,17 @@ verdict PARTIAL, never clean.
 
 From a release archive:
 
-- Windows: run `install.ps1` (it opens a small installer window: project folder, MCP registration,
-  shortcut, then it opens the page).
-- Linux/macOS: `sh install.sh`.
+- Windows: double-click `Verdict-Setup.exe` from the archive.
+- macOS: double-click `Verdict.app` (unsigned: right-click → Open the first time).
+- Linux: double-click the AppImage.
 
-The archive holds `vdt` (`vdt.exe`) and `vdt.sha256` / `vdt.exe.sha256`, plus the installer, README,
-LICENSE, NOTICE and the optional DSH integration. The installer checks the binary's own SHA-256 and
-**refuses to install without one** unless it is told to (`-AllowUnverified` on Windows,
-`VDT_ALLOW_UNVERIFIED=1` on Linux/macOS). The `.sha256` beside the downloaded archive is for
-checking the download itself before extracting. The Windows installer installs `vdt`, registers the
-Verdict MCP server for Claude Code and Cursor in the chosen project, puts a desktop shortcut on that
-same project (`serve --project <folder>`), waits for the page, and opens
-`http://127.0.0.1:4717/`. The shell installer does the same for the current folder. After that every
-step is a button on that page; no terminal is needed. The archives are unsigned unless the release
-says otherwise; checksums and rollback are in [docs/RELEASE.md](docs/RELEASE.md).
+Each one opens the install wizard in your browser: choose the project and the hosts, press Install.
+It checks the core's SHA-256 (a missing or different checksum refuses the install), places the core,
+registers only the hosts you tick with the exact files, makes a launcher for the chosen project and
+opens its page. No terminal is involved. The `install.ps1`/`install.sh` scripts remain as
+silent/legacy paths for CI and recovery. The packages are unsigned unless the release says
+otherwise; checksums, SmartScreen/Gatekeeper notes and rollback are in
+[docs/RELEASE.md](docs/RELEASE.md).
 
 ## Hosts and docs
 

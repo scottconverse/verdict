@@ -12,8 +12,10 @@
 
 mod decisions;
 mod hooks;
+pub mod setup;
 
 pub use hooks::Host;
+pub use setup::{SetupOptions, run_setup};
 
 use std::net::{Ipv4Addr, SocketAddr, TcpListener as StdListener};
 use std::path::PathBuf;
@@ -192,13 +194,22 @@ async fn guard(State(st): State<St>, req: Request, next: Next) -> Response {
             .get(header::ORIGIN)
             .and_then(|v| v.to_str().ok())
             .unwrap_or("");
-        if !st.allowed_origins.iter().any(|o| o == origin) {
+        // An editor panel (VS Code Simple Browser and similar webviews) sends its own
+        // `vscode-webview://` origin, not this page's http origin. The per-run token in every
+        // form is still required by the handler, so accepting the editor's own origin keeps the
+        // page usable where the design says it must be used, without opening the page to a
+        // random web page.
+        let editor_webview = origin.starts_with("vscode-webview://")
+            || origin.starts_with("vscode-webview:")
+            || origin == "null";
+        if !editor_webview && !st.allowed_origins.iter().any(|o| o == origin) {
             return deny(
                 StatusCode::FORBIDDEN,
                 "Refused: this request did not come from this page (its Origin is missing or different).",
             );
         }
-        if let Some(site) = req.headers().get("sec-fetch-site")
+        if !editor_webview
+            && let Some(site) = req.headers().get("sec-fetch-site")
             && site.to_str().unwrap_or("") != "same-origin"
         {
             return deny(

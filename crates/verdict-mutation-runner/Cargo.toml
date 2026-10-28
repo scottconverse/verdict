@@ -1,0 +1,16 @@
+[package]
+name = "verdict-mutation-runner"
+description = "Verdict's own bounded mutation runner (project tooling; not part of the product)."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish = false
+
+[[bin]]
+name = "vdt-mutation-runner"
+path = "src/main.rs"
+
+[dependencies]
+serde_json = "1.0.154"

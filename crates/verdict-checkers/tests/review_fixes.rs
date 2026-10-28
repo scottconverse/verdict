@@ -17,6 +17,7 @@ fn opts() -> RunOptions {
         lane: Lane::Standard,
         timeout: Duration::from_secs(60),
         deadline: None,
+        force: false,
     }
 }
 

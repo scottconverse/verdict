@@ -241,6 +241,9 @@ pub struct RunOptions {
     /// When the whole run must be done (the Stop hook's configurable budget). A checker that has
     /// not started by then is recorded as unavailable, never as clean.
     pub deadline: Option<std::time::Instant>,
+    /// Run the listed checkers even when the lane's selection does not include them (a desk
+    /// proposal the core accepted). The checker's own policy and approval gates still apply.
+    pub force: bool,
 }
 
 /// What one checker's run came to.
@@ -350,7 +353,7 @@ pub fn run_lane_with_home(
             )?);
             continue;
         };
-        if !checker.applies(&ctx.policy, opts.lane) {
+        if !opts.force && !checker.applies(&ctx.policy, opts.lane) {
             let seq = append_check(
                 ledger,
                 session,
@@ -713,6 +716,7 @@ pub fn cli_check(
         lane,
         timeout,
         deadline: None,
+        force: false,
     };
     let summaries = run_lane(&mut ledger, root, &session, &names, &opts)?;
     for sm in &summaries {

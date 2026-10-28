@@ -13,7 +13,7 @@ axum = "0.8.9"
 blake3 = "1.8.7"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
-tokio = { version = "1.54.1", features = ["rt-multi-thread", "net", "macros"] }
+tokio = { version = "1.54.1", features = ["rt-multi-thread", "net", "macros", "sync"] }
 verdict-adapters = { version = "1.0.0", path = "../verdict-adapters" }
 verdict-core = { version = "1.0.0", path = "../verdict-core" }
 verdict-engine = { version = "1.0.0", path = "../verdict-engine" }

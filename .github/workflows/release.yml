@@ -50,12 +50,22 @@ jobs:
           bin=target/release/vdt
           [ -f "$bin" ] || bin=target/release/vdt.exe
           sh release/package.sh "$version" "${{ matrix.target }}" "${{ matrix.archive }}" "$bin" dist
+      - name: Build the Linux AppImage installer
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL -o /tmp/appimagetool \
+            https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x /tmp/appimagetool
+          APPIMAGETOOL=/tmp/appimagetool sh release/package-appimage.sh 1.0.0 target/release/vdt dist
       - uses: actions/upload-artifact@v4
         with:
           name: vdt-${{ matrix.target }}
           path: |
             dist/*.zip
             dist/*.tar.gz
+            dist/*.AppImage
             dist/*.sha256
 
   draft-release:
@@ -97,6 +107,7 @@ jobs:
           files: |
             dist/*.zip
             dist/*.tar.gz
+            dist/*.AppImage
             dist/*.sha256
             dist/RELEASE.md
             dist/RELEASE-NOTES.md

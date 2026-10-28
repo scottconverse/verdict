@@ -35,6 +35,28 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
+    /// The install wizard the per-OS packages launch (also runs when the program is named
+    /// `vdt-setup` and started with no arguments).
+    Setup {
+        /// Project folder (default: the wizard asks).
+        #[arg(long)]
+        project: Option<std::path::PathBuf>,
+        /// Wizard port (0 picks a free one).
+        #[arg(long, default_value_t = 0)]
+        port: u16,
+        /// Do not open the browser.
+        #[arg(long)]
+        no_open: bool,
+        /// Install folder (default: the platform's user binary folder).
+        #[arg(long)]
+        install_dir: Option<std::path::PathBuf>,
+        /// Install without showing the wizard (for CI and tests; no host decisions).
+        #[arg(long)]
+        silent: bool,
+        /// Comma-separated hosts to register in silent mode.
+        #[arg(long, default_value = "")]
+        hosts: String,
+    },
     /// Work with the evidence ledger.
     Ledger {
         #[command(subcommand)]
@@ -233,10 +255,81 @@ enum LedgerAction {
     },
 }
 
+fn run_setup_cli(opts: verdict_gui::SetupOptions) -> ExitCode {
+    match verdict_gui::run_setup(opts) {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(e) => {
+            eprintln!("vdt: setup stopped: {e}");
+            ExitCode::from(1)
+        }
+    }
+}
+
+/// Flags for the `vdt-setup` entry point (a copy of this program under that name). No terminal is
+/// needed: with no flags it starts the wizard and opens the browser.
+fn setup_from_argv(argv: &[String]) -> ExitCode {
+    let mut opts = verdict_gui::SetupOptions::default();
+    let mut it = argv.iter();
+    while let Some(flag) = it.next() {
+        match flag.as_str() {
+            "--project" => match it.next() {
+                Some(p) => opts.project = Some(std::path::PathBuf::from(p)),
+                None => return ExitCode::from(1),
+            },
+            "--port" => match it.next().and_then(|p| p.parse().ok()) {
+                Some(p) => opts.port = p,
+                None => return ExitCode::from(1),
+            },
+            "--install-dir" => match it.next() {
+                Some(p) => opts.install_dir = Some(std::path::PathBuf::from(p)),
+                None => return ExitCode::from(1),
+            },
+            "--hosts" => match it.next() {
+                Some(h) => {
+                    opts.hosts = h
+                        .split(',')
+                        .map(str::trim)
+                        .filter(|h| !h.is_empty())
+                        .map(str::to_string)
+                        .collect()
+                }
+                None => return ExitCode::from(1),
+            },
+            "--silent" => {
+                opts.silent = true;
+                opts.open = false;
+            }
+            "--no-open" => opts.open = false,
+            "--help" | "-h" => {
+                println!(
+                    "vdt-setup [--project DIR] [--install-dir DIR] [--hosts claude,cursor] \
+                     [--silent] [--no-open] [--port N]"
+                );
+                return ExitCode::SUCCESS;
+            }
+            other => {
+                eprintln!("vdt-setup: unknown argument {other:?}");
+                return ExitCode::from(1);
+            }
+        }
+    }
+    run_setup_cli(opts)
+}
+
 fn main() -> ExitCode {
     // A hook must never fail the agent, so it is handled before argument parsing can reject
     // anything: `vdt hook ...` always exits 0.
     let argv: Vec<String> = std::env::args().skip(1).collect();
+    let exe = std::env::current_exe().ok();
+    let is_setup_exe = exe
+        .as_ref()
+        .and_then(|p| p.file_stem())
+        .and_then(|s| s.to_str())
+        .map(|s| s.to_ascii_lowercase().contains("setup"))
+        .unwrap_or(false);
+    if is_setup_exe {
+        return setup_from_argv(&argv);
+    }
     if argv.first().map(String::as_str) == Some("hook") {
         verdict_adapters::run_hook_cli(&argv[1..]);
         return ExitCode::SUCCESS;
@@ -434,6 +527,28 @@ fn main() -> ExitCode {
                 }
             };
         }
+        Command::Setup {
+            project,
+            port,
+            no_open,
+            install_dir,
+            silent,
+            hosts,
+        } => {
+            return run_setup_cli(verdict_gui::SetupOptions {
+                project: project.clone(),
+                port: *port,
+                open: !*no_open && !*silent,
+                install_dir: install_dir.clone(),
+                silent: *silent,
+                hosts: hosts
+                    .split(',')
+                    .map(str::trim)
+                    .filter(|h| !h.is_empty())
+                    .map(str::to_string)
+                    .collect(),
+            });
+        }
         Command::Serve { port, project } => {
             let root = find_project_root(project.as_deref().unwrap_or(&cwd));
             return match verdict_gui::serve(root, *port) {
@@ -626,6 +741,7 @@ fn run(cli: Cli, cwd: &Path, out: &mut dyn Write) -> Result<u8, LedgerError> {
                 root.display()
             )?,
             Command::Mcp { .. }
+            | Command::Setup { .. }
             | Command::Serve { .. }
             | Command::Scan { .. }
             | Command::Check { .. }
@@ -684,6 +800,7 @@ fn run(cli: Cli, cwd: &Path, out: &mut dyn Write) -> Result<u8, LedgerError> {
         }
         Command::Hook { .. } | Command::Hooks { .. } | Command::McpInstall { .. } => Ok(0),
         Command::Mcp { .. }
+        | Command::Setup { .. }
         | Command::Serve { .. }
         | Command::Scan { .. }
         | Command::Check { .. }

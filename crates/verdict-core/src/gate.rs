@@ -39,6 +39,9 @@ pub struct RunOptions {
     /// When the whole run must be done. A runner uses it to record checkers that could not start
     /// as unavailable (the Stop hook's budget).
     pub deadline: Option<std::time::Instant>,
+    /// Run the listed checkers even when the lane does not select them (a proposed checker). The
+    /// checker's own policy and approval gates still apply.
+    pub force: bool,
 }
 
 /// What one checker reports back. The checker has already written its `check` and `finding`
@@ -319,6 +322,7 @@ pub fn run_pre_commit(
             lane,
             timeout: default_timeout(&policy),
             deadline: None,
+            force: false,
         },
     )?;
 
@@ -607,6 +611,7 @@ pub fn run_verdict(
                 lane,
                 timeout: default_timeout(&live.policy),
                 deadline: None,
+                force: false,
             },
         )?;
         let desks = catch_unwind(AssertUnwindSafe(|| {

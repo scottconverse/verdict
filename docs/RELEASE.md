@@ -11,10 +11,11 @@ a published release.
   report; the tag is the human's and points at that commit).
 - Proposed tag: **v1.0.0**
 - Merge target: `main` (fast-forward from `rc/1.0.0`).
-- Public assets: four archives, one per supported target, each with a `.sha256`; inside each
-  archive: `vdt` (`vdt.exe`) and its own `vdt.sha256` (`vdt.exe.sha256`), the installer, README,
-  LICENSE, NOTICE and `integrations/dsh/`. The draft release also carries `RELEASE.md`,
-  `RELEASE-NOTES.md` and `PACKET-BEFORE-TAG.txt`.
+- Public assets: the per-target archives and the Linux AppImage, each with a `.sha256`. Inside each
+  archive: `vdt` (`vdt.exe`) and its own checksum, the double-click entry point
+  (`Verdict-Setup.exe`, `vdt-setup`, or `Verdict.app` on macOS), README, LICENSE, NOTICE and
+  `integrations/dsh/`. The draft release also carries `RELEASE.md`, `RELEASE-NOTES.md` and
+  `PACKET-BEFORE-TAG.txt`.
 
 ## The archive layout, exactly
 
@@ -24,13 +25,15 @@ release publishes. It produces:
 
 ```text
 vdt-1.0.0-x86_64-unknown-linux-gnu/
-  vdt                  the binary
-  vdt.sha256           SHA-256 of the binary (the installer checks this)
-  install.sh
+  vdt                  the core
+  vdt.sha256           SHA-256 of the core (the setup program checks this)
+  vdt-setup            the double-click entry point (same program, setup mode)
+  install.sh           legacy/silent script
   README.md LICENSE NOTICE
   integrations/dsh/
 vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz
 vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256   SHA-256 of the downloaded archive
+Verdict-1.0.0-x86_64.AppImage                       the Linux double-click installer
 ```
 
 The outer `.sha256` is for checking the download before extracting. The inner one is what the
@@ -81,11 +84,17 @@ configured a cross-vendor provider. That is the honest pre-tag state, not a clea
 
 ## Install, upgrade and rollback
 
-- Windows: `powershell -ExecutionPolicy Bypass -File install.ps1` from the archive. Upgrade: run
-  the newer installer; it replaces `%LOCALAPPDATA%\Verdict\bin\vdt.exe`. Rollback: run the previous
-  archive's installer.
-- Linux/macOS: `sh install.sh` from the archive; it installs `~/.local/bin/vdt`. Same upgrade and
-  rollback.
+- Windows: double-click `Verdict-Setup.exe` from the archive. The unsigned binary shows
+  SmartScreen; choose More info → Run anyway. The wizard installs `vdt` under
+  `%LOCALAPPDATA%\Verdict\bin`, registers the hosts you tick, makes a shortcut for the chosen
+  project and opens its page. Upgrade: run the newer package; rollback: run the previous one.
+- macOS: double-click `Verdict.app` (unsigned: right-click → Open the first time). It installs the
+  app under `~/Applications`, the core under `~/.local/bin`, registers the chosen hosts, and opens
+  the project page.
+- Linux: make the AppImage executable if needed and double-click it. The wizard installs `vdt` in
+  `~/.local/bin`, writes the desktop entry, registers the chosen hosts, and opens the project page.
+- The `install.sh`/`install.ps1` scripts remain as silent/legacy paths for CI and recovery; they
+  are not the user entry point.
 - Hooks and the git gate are per project and reversible: `vdt hooks uninstall <host>
   --i-am-the-human` and `vdt gate uninstall --i-am-the-human`. Both put back what was there.
 - Ledgers are local (`<project>/.verdict/`), git-ignored, and are never included in a release.

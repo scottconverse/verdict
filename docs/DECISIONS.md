@@ -257,3 +257,16 @@ longer: the plugin exists, its tests use the harness's recorded event shapes, an
 the release archive. What is still not done is loading it into this workstation's preserved DSH
 configuration. Undo: delete `integrations/dsh/` and its `docs/DSH.md` section; the generic product
 is unaffected.
+
+## 26. Installer delivery: wizard reuse (approved 2026-10-28)
+
+**Ruling: the localhost GUI is the install wizard; each OS gets a double-clickable package that
+launches it.** The specification's architecture table names Tauri/cargo-dist. The owner approved
+replacing that implementation approach while keeping every functional and acceptance requirement:
+the package must install the core, register the selected hosts with the exact configuration, open
+the chosen project's page, and work without a terminal. Windows ships `Verdict-Setup.exe`, macOS
+`Verdict.app`, Linux an AppImage; the setup program runs the same checksummed core and calls the
+same `mcp_command` registration path as `vdt mcp-install`. Signing is not waived: unsigned packages
+are a delivery state, and signed/notarized packages still need the certificates.
+
+Undo: remove the setup wizard and the per-OS wrappers, and return to the Tauri/cargo-dist plan.

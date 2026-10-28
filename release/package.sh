@@ -2,12 +2,15 @@
 # Build one Verdict release archive. Used by .github/workflows/release.yml and by the clean-install
 # workflow, so CI installs the exact layout the release publishes.
 #
-#   sh release/package.sh <version> <target> <zip|tar.gz> <path-to-built-binary> <outdir>
+#   sh release/package.sh <version> <target> <zip|tar.gz|dir> <path-to-built-binary> <outdir>
 #
 # Layout inside the archive directory (vdt-<version>-<target>/):
-#   vdt or vdt.exe          the binary
-#   vdt.sha256              SHA-256 of the binary (the installer checks this)
-#   install.sh / install.ps1
+#   vdt or vdt.exe          the core
+#   vdt.sha256              SHA-256 of the core (the installer checks this)
+#   Verdict-Setup.exe       Windows double-click entry point (same program, setup mode)
+#   vdt-setup               Unix double-click entry point (same program)
+#   Verdict.app/            macOS app bundle (macOS targets only)
+#   install.sh / install.ps1  legacy/silent scripts (the wizard is the entry point)
 #   README.md LICENSE NOTICE
 #   integrations/dsh/       the optional DSH host integration
 # And beside the archive: <archive>.sha256, the download checksum.
@@ -15,7 +18,7 @@ set -eu
 
 version="${1:?version}"
 target="${2:?target}"
-archive_kind="${3:?zip or tar.gz}"
+archive_kind="${3:?zip, tar.gz or dir}"
 binary="${4:?path to the built vdt}"
 outdir="${5:?output folder}"
 
@@ -30,11 +33,12 @@ if [ -d "$repo/integrations/dsh" ]; then
 fi
 
 case "$target" in
-  *windows*) exe="vdt.exe" ;;
-  *) exe="vdt" ;;
+  *windows*) exe="vdt.exe"; setup="Verdict-Setup.exe" ;;
+  *) exe="vdt"; setup="vdt-setup" ;;
 esac
 cp "$binary" "$dir/$exe"
-chmod +x "$dir/$exe" 2>/dev/null || true
+cp "$binary" "$dir/$setup"
+chmod +x "$dir/$exe" "$dir/$setup" 2>/dev/null || true
 
 if command -v sha256sum >/dev/null 2>&1; then
   sha_cmd="sha256sum"
@@ -48,14 +52,57 @@ printf '%s\n' "$sum" > "$dir/$exe.sha256"
 
 if [ "$exe" = "vdt.exe" ]; then
   cp "$repo/release/install.ps1" "$dir/"
-  ( cd "$outdir" && 7z a "$name.zip" "$name" >/dev/null )
-  file="$outdir/$name.zip"
-else
+elif [ "$archive_kind" != "dir" ]; then
   cp "$repo/release/install.sh" "$dir/"
   chmod +x "$dir/install.sh"
-  ( cd "$outdir" && tar -czf "$name.tar.gz" "$name" )
-  file="$outdir/$name.tar.gz"
 fi
+
+# macOS: a real double-clickable app bundle. Its executable is the setup program, which starts the
+# wizard and installs the core that sits beside it.
+case "$target" in
+  *apple-darwin*)
+    app="$dir/Verdict.app"
+    mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
+    cp "$binary" "$app/Contents/MacOS/vdt"
+    cp "$binary" "$app/Contents/MacOS/vdt-setup"
+    chmod +x "$app/Contents/MacOS/vdt" "$app/Contents/MacOS/vdt-setup"
+    cat > "$app/Contents/Info.plist" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleName</key><string>Verdict</string>
+  <key>CFBundleDisplayName</key><string>Verdict</string>
+  <key>CFBundleIdentifier</key><string>com.scottconverse.verdict</string>
+  <key>CFBundleVersion</key><string>$version</string>
+  <key>CFBundleShortVersionString</key><string>$version</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleExecutable</key><string>vdt-setup</string>
+  <key>LSMinimumSystemVersion</key><string>11.0</string>
+</dict>
+</plist>
+PLIST
+    ;;
+esac
+
+case "$archive_kind" in
+  zip)
+    ( cd "$outdir" && 7z a "$name.zip" "$name" >/dev/null )
+    file="$outdir/$name.zip"
+    ;;
+  tar.gz)
+    ( cd "$outdir" && tar -czf "$name.tar.gz" "$name" )
+    file="$outdir/$name.tar.gz"
+    ;;
+  dir)
+    printf 'built %s\n' "$dir"
+    exit 0
+    ;;
+  *)
+    echo "unknown archive kind: $archive_kind" >&2
+    exit 1
+    ;;
+esac
 
 # The download checksum covers the outer archive, the bytes a person downloads.
 ( cd "$outdir" && $sha_cmd "$(basename "$file")" | cut -d' ' -f1 ) > "$file.sha256"
