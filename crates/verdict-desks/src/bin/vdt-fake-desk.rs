@@ -24,6 +24,7 @@ struct Args {
     uncited: bool,
     spawn_child: Option<String>,
     spawn_early_child: Option<String>,
+    helper: bool,
 }
 
 fn args() -> Args {
@@ -39,6 +40,7 @@ fn args() -> Args {
         uncited: false,
         spawn_child: None,
         spawn_early_child: None,
+        helper: false,
     };
     let mut it = std::env::args().skip(1);
     while let Some(flag) = it.next() {
@@ -54,6 +56,7 @@ fn args() -> Args {
             "--uncited" => a.uncited = true,
             "--spawn-child" => a.spawn_child = it.next(),
             "--spawn-early-child" => a.spawn_early_child = it.next(),
+            "--helper" => a.helper = true,
             _ => {}
         }
     }
@@ -65,7 +68,7 @@ fn args() -> Args {
 fn spawn_helper(path: &str) {
     let exe = std::env::current_exe().unwrap_or_default();
     match std::process::Command::new(exe)
-        .args(["--sleep-ms", "600000"])
+        .args(["--helper"])
         .stdin(std::process::Stdio::null())
         .spawn()
     {
@@ -80,6 +83,12 @@ fn spawn_helper(path: &str) {
 
 fn main() {
     let a = args();
+    // The pipe-holding helper: it never reads the request, it just stays alive holding the
+    // inherited output pipes until the runner ends the tree.
+    if a.helper {
+        std::thread::sleep(std::time::Duration::from_secs(600));
+        return;
+    }
     // A provider that starts a helper before it reads its request: on Windows the job object is
     // assigned after spawn, so this helper can predate job membership. It must still be ended.
     if let Some(path) = &a.spawn_early_child {

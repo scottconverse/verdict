@@ -69,7 +69,14 @@ fn process_alive(pid: u32) -> bool {
     }
     #[cfg(unix)]
     {
-        std::path::Path::new(&format!("/proc/{pid}")).exists()
+        // `kill -0` works on Linux and macOS; /proc does not exist on macOS.
+        match std::process::Command::new("kill")
+            .args(["-0", &pid.to_string()])
+            .output()
+        {
+            Ok(o) => o.status.success(),
+            Err(_) => false,
+        }
     }
     #[cfg(not(any(windows, unix)))]
     {
