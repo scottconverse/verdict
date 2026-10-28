@@ -384,6 +384,9 @@ fn launcher(project: &Path, vdt: &Path) -> Result<(), String> {
     }
     #[cfg(target_os = "macos")]
     {
+        // The app bundle itself is the launcher; `project` and `vdt` are used by the page opener
+        // that runs after this, not here.
+        let _ = (project, vdt);
         // Reuse the app bundle this setup binary lives in, when there is one.
         let me = std::env::current_exe().map_err(|e| e.to_string())?;
         if let Some(app) = me
