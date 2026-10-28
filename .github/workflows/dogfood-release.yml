@@ -1,18 +1,16 @@
 name: dogfood-release
 
-# Verdict's own release lane, run on this repository. This is a real run, not a placeholder: it
-# checks this candidate with Verdict's checkers in the release lane, computes the verdict, and
-# uploads the packet.
+# Verdict's own release gate, run on this repository. It runs the release lane on the candidate,
+# computes the verdict and exports the packet, then FAILS unless the packet's verdict line is
+# `CLEAR TO SHIP`. It never tags, never creates a release and never publishes: the human does those.
 #
 # What it can and cannot show:
 # * The release check's tag test cannot pass before the human creates the tag, so a pre-tag run is
-#   expected to read FAILED for `release:tag-missing`. That is the sequencing the design
-#   acknowledges; it is not waived and it is not dressed as clear.
-# * The exec, firstrun and desk parts need the human's command approval and a configured
-#   cross-vendor provider in this ledger. A CI runner starts with neither, so this workflow records
-#   those as unavailable rather than inventing them. A CLEAR TO SHIP packet is produced on the
-#   human's machine (where the approval exists) against the tag, attached to the release, and only
-#   then is the draft published by the human.
+#   expected to read FAILED. That is the sequencing the design acknowledges; it is not waived, and
+#   this gate is expected to be red until the candidate is genuinely release-ready.
+# * The exec and firstrun parts need the human's command approval in this ledger, and the desks need
+#   a configured cross-vendor provider. A CI runner starts with neither, so those are recorded as
+#   unavailable and the packet says so. It must not be read as clear.
 on:
   workflow_dispatch:
   push:
@@ -27,22 +25,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - name: Build
-        run: cargo build --workspace --locked
-      - name: Run the release lane
+      - name: Build the release binary
+        run: cargo build --release --locked --bin vdt
+      - name: Release lane must be CLEAR TO SHIP (expected to fail until the candidate is release-ready)
+        shell: bash
         run: |
-          set -euo pipefail
-          target/debug/vdt check --lane release --checkers '*' | tee check.txt
-          target/debug/vdt verdict --run --lane release | tee verdict.txt
-          target/debug/vdt export --packet --out packet.txt
-          echo "----- packet head -----"
-          head -20 packet.txt
-          if grep -q '^VERDICT: CLEAR TO SHIP' packet.txt; then
-            echo "the packet says CLEAR TO SHIP"
-          else
-            echo "::warning::the packet is not CLEAR TO SHIP. This is expected before the human's tag and on a runner without the human's command approval or a configured cross-vendor provider. The failure list in packet.txt says exactly what is missing."
-          fi
-      - uses: actions/upload-artifact@v4
+          # No `set -e`: the evidence must be gathered before the gate decides. The exit status of
+          # this step is the gate, and the last line of this step is the gate's decision.
+          set -uo pipefail
+          vdt=target/release/vdt
+          "$vdt" check --lane release --checkers '*' | tee check.txt || true
+          "$vdt" verdict --run --lane release | tee verdict.txt || true
+          "$vdt" export --packet --lane release --out packet.txt || true
+          # Strict parse of the packet's own verdict line; never a loose substring match.
+          sh release/dogfood-gate.sh packet.txt
+      - if: always()
+        uses: actions/upload-artifact@v4
         with:
           name: release-lane-packet
           path: |
