@@ -82,7 +82,8 @@ jobs:
           cd project
           powershell -NoProfile -ExecutionPolicy Bypass -File \
             ../extracted/vdt-1.0.0-x86_64-pc-windows-msvc/install.ps1 \
-            -Silent -NoShortcut -NoLaunch -InstallDir "$(cygpath -w "$PWD/../bin")"
+            -Silent -NoShortcut -NoLaunch -InstallDir "$(cygpath -w "$PWD/../bin")" \
+            -Project "$(cygpath -w "$PWD")"
           test -f ../bin/vdt.exe
           ../bin/vdt.exe --version
           test -f .mcp.json
