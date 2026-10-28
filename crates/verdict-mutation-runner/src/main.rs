@@ -56,8 +56,8 @@ const MUTATIONS: &[Mutation] = &[
         old: "Some(\"blockers_only\") => (Bar::BlockersOnly, None),",
         new: "Some(\"blockers_only\") => (Bar::ZeroAboveNit, None),",
         package: "verdict-core",
-        target: Target::Integration("verdict_word"),
-        filter: "a_release_bar_of_blockers_only_does_not_fail_on_a_major",
+        target: Target::Integration("lanes"),
+        filter: "a_policy_declared_blockers_only_bar_is_read_as_blockers_only",
         description: "the blockers_only release bar silently becomes zero_above_nit",
     },
     Mutation {
