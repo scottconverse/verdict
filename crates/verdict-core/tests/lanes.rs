@@ -376,3 +376,18 @@ fn staged_tree_is_the_identity_of_exactly_what_is_staged() {
     assert!(staged_tree(plain.path()).is_none());
     assert!(staged_paths(plain.path()).is_empty());
 }
+
+#[test]
+fn a_policy_declared_blockers_only_bar_is_read_as_blockers_only() {
+    // The parser is part of the verdict: a project that declares the looser bar must get it, and
+    // the stricter default must still apply when the key is absent or unknown.
+    let mut p = policy();
+    p.value["lanes"]["release"]["bar"] = serde_json::json!("blockers_only");
+    assert_eq!(lane_bar(&p, Lane::Release), Bar::BlockersOnly);
+    p.value["lanes"]["release"]["bar"] = serde_json::json!("zero_above_nit");
+    assert_eq!(lane_bar(&p, Lane::Release), Bar::ZeroAboveNit);
+    p.value["lanes"]["release"]["bar"] = serde_json::json!("nonsense");
+    let (bar, warning) = lane_bar_with_warning(&p, Lane::Release);
+    assert_eq!(bar, Bar::ZeroAboveNit);
+    assert!(warning.is_some(), "an unknown bar is reported, not trusted");
+}
