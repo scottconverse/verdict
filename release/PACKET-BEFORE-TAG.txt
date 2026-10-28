@@ -1,7 +1,7 @@
 VERDICT ACCEPTANCE PACKET
 =========================
 
-Session: s-7cbc4c1eb7
+Session: s-dc1edf6aaa
 Lane: release (policy v1)
 Builder: claude/unknown [anthropic]
 Verdict: FAILED
@@ -9,20 +9,44 @@ Ledger: intact
 
 CLAIMS
 ------
-(none)
+1. [prompt_translation] crates/verdict-core/src/lane.rs contains the lane names used by the verdict
+   status: proven (wiring ran at the static tier (record 20) and reported no open finding about it)
+   names: crates/verdict-core/src/lane.rs
+   record 5
+2. [prompt_translation] crates/verdict-engine/src/lib.rs contains the fresh verification engine
+   status: proven (wiring ran at the static tier (record 20) and reported no open finding about it)
+   names: crates/verdict-engine/src/lib.rs
+   record 7
+3. [prompt_translation] release/package.sh builds the release archives
+   status: proven (wiring ran at the static tier (record 20) and reported no open finding about it)
+   names: release/package.sh
+   record 9
+4. [final_message] Checked crates/verdict-core/src/lane.rs and crates/verdict-engine/src/lib.rs; release/package.sh builds the archives.
+   status: out of scope (it names no URL, file or symbol, so no check can look it up)
+   names: nothing
+   record 12
 
 FINDINGS
 --------
-- [blocker] the release candidate is not tagged v1.0.0 (tags on HEAD: none) (asset, record 306, open)
+- [blocker] `cargo test --workspace --locked` exited with code 101 (it left processes running after it ended (they were stopped)); baseline unknown: the re-run on the baseline was not clean (it left processes running after it ended (they were stopped)) (ran, record 25, open)
+    evidence: command `cargo test --workspace --locked`
+    evidence: command `cargo test --workspace --locked (on a copy of the baseline)`
+- [blocker] first-run command 1 `cargo build --workspace --locked` did not pass: it exited 101 (ran, record 32, open)
+    evidence: command `cargo build --workspace --locked`
+- [blocker] release check `cargo test --workspace --locked` did not pass: it left processes running after it ended (they were stopped) (ran, record 34, open)
+    evidence: command `cargo test --workspace --locked`
+- [blocker] the release candidate is not tagged v1.0.0 (tags on HEAD: none) (asset, record 35, open)
     evidence: command `git tag --points-at HEAD (v1.0.0)`
 
 HYPOTHESES (move nothing)
 ------------------------
-(none)
+- [minor] The candidate test failure may be caused by an executable lock or permissions problem rather than a source regression: record 26 reports access denied while removing target/debug/vdt.exe, but does not identify the cause; the core should identify any process holding that file and rerun cargo test --workspace --locked with an isolated CARGO_TARGET_DIR. (record 38)
+- [minor] The repeated surviving-process reports across candidate tests, baseline tests and the mutation runner may indicate subprocess cleanup defects or incorrect process attribution by the execution harness; records 26, 27 and 30 do not distinguish these causes, so the core should capture process identities and parent-child relationships before and after a bounded reproduction. (record 39)
+- [minor] The supplied evidence does not establish that release/package.sh builds the claimed archives: record 20 establishes file existence and record 36 establishes archive checksum consistency; the core should provide the script contents and packaging receipts tying the archives to the candidate source for inspection. (record 40)
 
 DECISIONS
 ---------
-(none)
+- run_project_commands: approved:37aae06f692b60dc721c5e1ca63a8c006beba776cf1e4364a7f8299f58ee53ba (record 19)
 
 OVERRIDES
 ---------
@@ -30,8 +54,8 @@ OVERRIDES
 
 RELEASE EVIDENCE
 ----------------
-- release: ran at the ran tier (record 307): 1 finding(s); release check passed: cargo test --workspace --locked (output blake3 584500919670d6d81785a3a9a45b531c662c7ea24712f1e4025eae17a56f44fe); release tags on HEAD: none; release asset dist/*.zip: dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip; release asset dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip sha256 5fe18e97101803a3e5b33460cdd5560e1c6478f038291fdb2ed41ea2cc35fd9a matches dist/vdt-1.0.0-x8...
-- firstrun: ran at the ran tier (record 305): 0 finding(s); first-run command 1 ran and passed: cargo build --workspace --locked; first-run command 2 ran and passed: target/debug/vdt --version
+- release: ran at the asset tier (record 36): 2 finding(s); release tags on HEAD: none; release asset dist/*.zip: dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip; release asset dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip sha256 5fe18e97101803a3e5b33460cdd5560e1c6478f038291fdb2ed41ea2cc35fd9a matches dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip.sha256; release asset dist/*.tar.gz: dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz; release asset dist/vdt-1.0...
+- firstrun: ran at the ran tier (record 33): 1 finding(s); first-run command 1 failed: cargo build --workspace --locked; first-run command 2 ran and passed: target/debug/vdt --version
 - firstrun at the browsed tier: no
 - release coherence ran: true
 - open commit-anyway override: no
@@ -44,102 +68,115 @@ RELEASE EVIDENCE
 NOT ESTABLISHED
 ---------------
 - lane: you chose the release lane for this packet
-- lane: no changed files found
-- wiring: could not run: no claim, plan line or done-when item of this session names a URL, file or symbol to trace
-- baseline_diff: could not run: this session has no prompt from the human and no claim the human accepted, so nothing says what was asked for
-- claims_vs_code: could not run: this session has no final-message, commit-message or notes-file claims to look up
-- mutation: could not run: no mutation runner is configured (set mutation.command or mutation.report)
-- desk:engineer: did not run
-- desk:docs: did not run
-- desk:qa: did not run
-- desk:ux: did not run
-- desk:security: did not run
-- desk:legal: did not run
-- desk:refuter: did not run
-- desk:engineer: could not run: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor
-- desk:docs: could not run: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor
-- desk:qa: could not run: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor
-- desk:ux: could not run: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor
-- desk:security: could not run: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor
-- desk:legal: could not run: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor
-- desk:refuter: could not run: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor
-- desks: could not run: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor
+- lane: crates/verdict-gui/src/decisions.rs matches high_if_touches crates/**
+- mutation: could not run: the mutation runner did not end successfully (exit 0; it left processes running after it ended (they were stopped)), so its output was not read as a mutation report
+- desk:docs: could not run: desk docs; provider "codex" (vendor openai, requested model "unspecified", returned model None); served vendor None (not_stated); settings None; usage None; lane release; policy v1; 0 finding(s), 0 hypothesis(ies); 14383 ms
+- desk:qa: could not run: desk qa; provider "codex" (vendor openai, requested model "unspecified", returned model None); served vendor None (not_stated); settings None; usage None; lane release; policy v1; 0 finding(s), 0 hypothesis(ies); 21366 ms
+- desk:ux: could not run: desk ux; provider "codex" (vendor openai, requested model "unspecified", returned model None); served vendor None (not_stated); settings None; usage None; lane release; policy v1; 0 finding(s), 0 hypothesis(ies); 11982 ms
+- desk:security: could not run: desk security; provider "codex" (vendor openai, requested model "unspecified", returned model None); served vendor None (not_stated); settings None; usage None; lane release; policy v1; 0 finding(s), 0 hypothesis(ies); 43283 ms
+- desk:legal: could not run: desk legal; provider "codex" (vendor openai, requested model "unspecified", returned model None); served vendor None (not_stated); settings None; usage None; lane release; policy v1; 0 finding(s), 0 hypothesis(ies); 12681 ms
+- desk:refuter: could not run: desk refuter; provider "codex" (vendor openai, requested model "unspecified", returned model None); served vendor None (not_stated); settings None; usage None; lane release; policy v1; 0 finding(s), 0 hypothesis(ies); 35032 ms
+- desk:docs: could not run: the answer is not the JSON the protocol asks for: invalid type: map, expected a string at line 1 column 29
+- desk:qa: could not run: the answer is not the JSON the protocol asks for: invalid type: map, expected a string at line 1 column 1557
+- desk:ux: could not run: the answer is not the JSON the protocol asks for: invalid type: map, expected a string at line 1 column 360
+- desk:security: could not run: the answer is not the JSON the protocol asks for: invalid type: map, expected a string at line 1 column 29
+- desk:legal: could not run: the answer is not the JSON the protocol asks for: invalid type: map, expected a string at line 1 column 29
+- desk:refuter: could not run: the answer is not the JSON the protocol asks for: invalid type: map, expected a string at line 1 column 1488
+- 3 hypothesis(es) with no evidence pointer count for nothing
 - whether your real app works: no page was loaded
-- desk:engineer: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 310)
-- desk:docs: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 311)
-- desk:qa: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 312)
-- desk:ux: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 313)
-- desk:security: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 314)
-- desk:legal: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 315)
-- desk:refuter: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 316)
-- desks: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 317)
+- desk:docs: the answer is not the JSON the protocol asks for: invalid type: map, expected a string at line 1 column 29 (record 42)
+- desk:qa: the answer is not the JSON the protocol asks for: invalid type: map, expected a string at line 1 column 1557 (record 44)
+- desk:ux: the answer is not the JSON the protocol asks for: invalid type: map, expected a string at line 1 column 360 (record 46)
+- desk:security: the answer is not the JSON the protocol asks for: invalid type: map, expected a string at line 1 column 29 (record 48)
+- desk:legal: the answer is not the JSON the protocol asks for: invalid type: map, expected a string at line 1 column 29 (record 50)
+- desk:refuter: the answer is not the JSON the protocol asks for: invalid type: map, expected a string at line 1 column 1488 (record 52)
 
 THE REPORT AS PRINTED
 ---------------------
 VERDICT: FAILED  (lane: release, policy v1, builder: claude/unknown [anthropic], verifier: none)
-read from code: done  |  your build and tests: ran, passed  |  your real app: not run
-session s-7cbc4c1eb7, started 2026-10-28T06:49:09.142Z  |  ledger: intact, 318 records  |  baseline f5e51944faa1
+read from code: done  |  your build and tests: ran, failed  |  your real app: not run
+session s-dc1edf6aaa, started 2026-10-28T17:09:18.106Z  |  ledger: intact, 54 records  |  baseline 13ebc7907b8e
 
 FIX FIRST
-  1. [Blocker] the release candidate is not tagged v1.0.0 (tags on HEAD: none) (asset, command `git tag --points-at HEAD (v1.0.0)`; record 306)
+  1. [Blocker] `cargo test --workspace --locked` exited with code 101 (it left processes running after it ended (they were stopped)); baseline unknown: the re-run on the baseline was not clean (it left processes running after it ended (they were stopped)) (ran, command `cargo test --workspace --locked`; record 25)
+  2. [Blocker] first-run command 1 `cargo build --workspace --locked` did not pass: it exited 101 (ran, command `cargo build --workspace --locked`; record 32)
+  3. [Blocker] release check `cargo test --workspace --locked` did not pass: it left processes running after it ended (they were stopped) (ran, command `cargo test --workspace --locked`; record 34)
+  4. [Blocker] the release candidate is not tagged v1.0.0 (tags on HEAD: none) (asset, command `git tag --points-at HEAD (v1.0.0)`; record 35)
 
 YOURS TO SETTLE
-  1. check unavailable: wiring: no claim, plan line or done-when item of this session names a URL, file or symbol to trace (record 293)
-  2. check unavailable: baseline_diff: this session has no prompt from the human and no claim the human accepted, so nothing says what was asked for (record 295)
-  3. check unavailable: mutation: no mutation runner is configured (set mutation.command or mutation.report) (record 303)
-  4. check unavailable: claims_vs_code: this session has no final-message, commit-message or notes-file claims to look up (record 308)
-  5. check unavailable: desk:engineer: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 310)
-  6. check unavailable: desk:docs: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 311)
-  7. check unavailable: desk:qa: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 312)
-  8. check unavailable: desk:ux: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 313)
-  9. check unavailable: desk:security: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 314)
-  10. check unavailable: desk:legal: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 315)
-  11. check unavailable: desk:refuter: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 316)
-  12. check unavailable: desks: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 317)
+  1. check unavailable: mutation: the mutation runner did not end successfully (exit 0; it left processes running after it ended (they were stopped)), so its output was not read as a mutation report (record 30)
+  2. check unavailable: desk:docs: the answer is not the JSON the protocol asks for: invalid type: map, expected a string at line 1 column 29 (record 42)
+  3. check unavailable: desk:qa: the answer is not the JSON the protocol asks for: invalid type: map, expected a string at line 1 column 1557 (record 44)
+  4. check unavailable: desk:ux: the answer is not the JSON the protocol asks for: invalid type: map, expected a string at line 1 column 360 (record 46)
+  5. check unavailable: desk:security: the answer is not the JSON the protocol asks for: invalid type: map, expected a string at line 1 column 29 (record 48)
+  6. check unavailable: desk:legal: the answer is not the JSON the protocol asks for: invalid type: map, expected a string at line 1 column 29 (record 50)
+  7. check unavailable: desk:refuter: the answer is not the JSON the protocol asks for: invalid type: map, expected a string at line 1 column 1488 (record 52)
+  8. hypothesis (no evidence pointer, counts for nothing): The candidate test failure may be caused by an executable lock or permissions problem rather than a source regression: record 26 reports access denied while removing target/debug/vdt.exe, but does not identify the cause; the core should identify any process holding that file and rerun cargo test --workspace --locked with an isolated CARGO_TARGET_DIR. (record 38)
+  9. hypothesis (no evidence pointer, counts for nothing): The repeated surviving-process reports across candidate tests, baseline tests and the mutation runner may indicate subprocess cleanup defects or incorrect process attribution by the execution harness; records 26, 27 and 30 do not distinguish these causes, so the core should capture process identities and parent-child relationships before and after a bounded reproduction. (record 39)
+  10. hypothesis (no evidence pointer, counts for nothing): The supplied evidence does not establish that release/package.sh builds the claimed archives: record 20 establishes file existence and record 36 establishes archive checksum consistency; the core should provide the script contents and packaging receipts tying the archives to the candidate source for inspection. (record 40)
 
-PROMPTS (0)
-  (none recorded)
+DECISIONS BY THE HUMAN
+  record 19: run_project_commands = approved:37aae06f692b60dc721c5e1ca63a8c006beba776cf1e4364a7f8299f58ee53ba
 
-CLAIMS (0)
-  (none recorded)
+PROMPTS (1)
+  1. Do not edit any file. Use the verdict_claim tool to record exactly these three claims, one call each: (1) crates/verdict-core/src/lane.rs contains the lane names used by the verdict; (2) crates/verdict-engine/src/lib.rs contains the fresh verification engine; (3) release/package.sh builds the release archives. Then reply exactly: Checked crates/verdict-core/src/lane.rs and crates/verdict-engine/src/lib.rs; release/package.sh builds the archives.
 
-TOOL CALLS (0)
-  (none recorded)
+CLAIMS (4)
+  1. (prompt_translation) crates/verdict-core/src/lane.rs contains the lane names used by the verdict  [names: crates/verdict-core/src/lane.rs]
+  2. (prompt_translation) crates/verdict-engine/src/lib.rs contains the fresh verification engine  [names: crates/verdict-engine/src/lib.rs]
+  3. (prompt_translation) release/package.sh builds the release archives  [names: release/package.sh]
+  4. (final_message) Checked crates/verdict-core/src/lane.rs and crates/verdict-engine/src/lib.rs; release/package.sh builds the archives.
+
+TOOL CALLS (6)
+  1. ToolSearch select:mcp__verdict__verdict_claim  (output , 2 ms)
+  2. shell ls -la crates/verdict-core/src/lane.rs crates/verdict-engine/src/lib.rs release/package.sh 2>&1; grep -n "lane\|Lane" crates/verdict-core/src/lane.rs 2>/dev/null | head -20  (output e4c88bd261ee, 4610 ms)
+  3. mcp__verdict__verdict_claim   (output , 29 ms)
+  4. mcp__verdict__verdict_claim   (output , 14 ms)
+  5. mcp__verdict__verdict_claim   (output , 17 ms)
+  6. shell head -15 crates/verdict-engine/src/lib.rs; echo ----; grep -n "tar\|zip\|archive" release/package.sh | head -15  (output b79dce02c744, 835 ms)
 
 CHECKS
-  wiring: FailedToRun, tier honest_red: no claim, plan line or done-when item of this session names a URL, file or symbol to trace (record 294)
-  baseline_diff: FailedToRun, tier honest_red: this session has no prompt from the human and no claim the human accepted, so nothing says what was asked for (record 296)
-  regressions: Ran, tier static: 0 finding(s); unverified: only relative imports (JS/TS `./x`, Python `from .x`, Rust `mod x;`) are resolved; package and alias imports are not read until the tree-sitter extractor exists (record 297)
-  tests_weakened: Ran, tier static: 0 finding(s); unverified: block comments and docstrings around tests are not read; test frameworks are recognized by line patterns, not a parser (record 298)
-  unfinished: Ran, tier static: 0 finding(s) (record 299)
-  exec: Ran, tier ran: receipt: `cargo test --workspace --locked`; tier ran; exited with code 0; output hash 42780a1257015118f77a9b77ca2c3e29588b114d89a81ee085416b67234aeea7; output tail: d877a644ae.exe) |      Running tests\decisions.rs (target\debug\deps\decisions-dee7ae963da0c31e.exe) |      Running tests\page.rs (target\debug\deps\page-2df393f8f1ab3a7e.exe) |      Running unittests src\lib.rs (target\debug\deps\verdict_mcp-e7af542554327875.exe) |      Running tests\commit_anyway.rs (target\debug\deps\commit_anyway-bdfe2914ab5da517.exe) |    Doc-tests verdict_adapters |    Doc-tests verdict_checkers |    Doc-tests verdict_core |    Doc-tests verdict_desks |    Doc-tests verdict_engine |    Doc-tests verdict_extract |    Doc-tests verdict_generate |    Doc-tests verdict_gui |    Doc-tests verdict_mcp | 0 filtered out; finished in 0.00s |  |  | running 0 tests |  | test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s |  |  | running 0 tests |  | test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s |  |  | running 0 tests |  | test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s |  |  | running 0 tests |  | test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s |  |  | running 0 tests |  | test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s |  | (record 300)
-  exec: Ran, tier ran: receipt: `cargo clippy --workspace --all-targets --locked -- -D warnings`; tier ran; exited with code 0; output hash 3239b082cafe1d9cc842de943f75d4e8ed1296b484be83f0c5d8d4543a6b04a4; output tail: Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.49s | (record 301)
-  exec: Ran, tier ran: 0 finding(s) (record 302)
-  mutation: FailedToRun, tier honest_red: no mutation runner is configured (set mutation.command or mutation.report) (record 304)
-  firstrun: Ran, tier ran: 0 finding(s); first-run command 1 ran and passed: cargo build --workspace --locked; first-run command 2 ran and passed: target/debug/vdt --version (record 305)
-  release: Ran, tier ran: 1 finding(s); release check passed: cargo test --workspace --locked (output blake3 584500919670d6d81785a3a9a45b531c662c7ea24712f1e4025eae17a56f44fe); release tags on HEAD: none; release asset dist/*.zip: dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip; release asset dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip sha256 5fe18e97101803a3e5b33460cdd5560e1c6478f038291fdb2ed41ea2cc35fd9a matches dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip.sha256; release asset dist/*.tar.gz: dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz; release asset dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz sha256 ad4147264680a6239a72338d6c5cb8b9a354215f2c0696558adb1f4210aeef33 matches dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256; release asset dist/*.sha256: dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip.sha256, dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256 (record 307)
-  claims_vs_code: FailedToRun, tier honest_red: this session has no final-message, commit-message or notes-file claims to look up (record 309)
-  8 of 12 checks ran.
+  wiring: Ran, tier static: 0 finding(s); 4 CONNECTED  0 BROKEN  0 NOT BUILT  0 HALF BUILT  0 SKIPPED; claim 5 (unticked): CONNECTED - crates/verdict-core/src/lane.rs: crates/verdict-core/src/lane.rs: 0 route(s) or command(s), 0 call(s), 0 control(s), 35 definition(s) read; nothing broken; claim 7 (unticked): CONNECTED - crates/verdict-engine/src/lib.rs: crates/verdict-engine/src/lib.rs: 0 route(s) or command(s), 0 call(s), 0 control(s), 15 definition(s) read; nothing broken; claim 9 (unticked): CONNECTED - release/package.sh: release/package.sh exists (not source code; nothing to wire); claim 12 (ticked): CONNECTED - crates/verdict-core/src/lane.rs: crates/verdict-core/src/lane.rs: 0 route(s) or command(s), 0 call(s), 0 control(s), 35 definition(s) read; nothing broken; unverified: 1 source file(s) in stacks no extractor in this build reads (crates/verdict-checkers/fixtures/wiring/word_skipped/red/change/svc.go) (record 13)
+  regressions: Ran, tier static: 0 finding(s); unverified: only relative imports (JS/TS `./x`, Python `from .x`, Rust `mod x;`) are resolved; package and alias imports are not read until the tree-sitter extractor exists (record 14)
+  unfinished: Ran, tier static: 0 finding(s) (record 15)
+  claims_vs_code: Ran, tier static: 0 finding(s); unverified: URLs are not resolved (no network, no route extraction yet); names that start with / or point above the project are not looked up (record 16)
+  gate: Ran, tier unverified: gate result (stop hook): VERDICT VERIFIED (static) (lane low, policy v1); 4 required checker(s); 2 item(s) not established (record 18)
+  wiring: Ran, tier static: 0 finding(s); 4 CONNECTED  0 BROKEN  0 NOT BUILT  0 HALF BUILT  0 SKIPPED; claim 5 (unticked): CONNECTED - crates/verdict-core/src/lane.rs: crates/verdict-core/src/lane.rs: 0 route(s) or command(s), 0 call(s), 0 control(s), 35 definition(s) read; nothing broken; claim 7 (unticked): CONNECTED - crates/verdict-engine/src/lib.rs: crates/verdict-engine/src/lib.rs: 0 route(s) or command(s), 0 call(s), 0 control(s), 15 definition(s) read; nothing broken; claim 9 (unticked): CONNECTED - release/package.sh: release/package.sh exists (not source code; nothing to wire); claim 12 (ticked): CONNECTED - crates/verdict-core/src/lane.rs: crates/verdict-core/src/lane.rs: 0 route(s) or command(s), 0 call(s), 0 control(s), 35 definition(s) read; nothing broken; unverified: 1 source file(s) in stacks no extractor in this build reads (crates/verdict-checkers/fixtures/wiring/word_skipped/red/change/svc.go) (record 20)
+  baseline_diff: Ran, tier static: 0 finding(s); unverified: routes, pages and tables are recognized by file location and line patterns only (no tree-sitter extractor yet); data-changing buttons are not read (record 21)
+  regressions: Ran, tier static: 0 finding(s); unverified: only relative imports (JS/TS `./x`, Python `from .x`, Rust `mod x;`) are resolved; package and alias imports are not read until the tree-sitter extractor exists (record 22)
+  tests_weakened: Ran, tier static: 0 finding(s); unverified: block comments and docstrings around tests are not read; test frameworks are recognized by line patterns, not a parser (record 23)
+  unfinished: Ran, tier static: 0 finding(s) (record 24)
+  exec: Ran, tier ran: receipt: `cargo test --workspace --locked`; tier ran; exited with code 101; output hash 1299ea797623cf419616bd8c2db13cd758f417da60bc9dc3465ceb80b0ce34f9; problem: it left processes running after it ended (they were stopped); output tail: :\Users\scott\Desktop\Code\verdict-wt\merge-trial\crates\verdict-gui) |    Compiling verdict-mcp v1.0.0 (C:\Users\scott\Desktop\Code\verdict-wt\merge-trial\crates\verdict-mcp) |    Compiling verdict-generate v1.0.0 (C:\Users\scott\Desktop\Code\verdict-wt\merge-trial\crates\verdict-generate) |    Compiling verdict-gate v1.0.0 (C:\Users\scott\Desktop\Code\verdict-wt\merge-trial\crates\verdict-cli) | error: failed to remove file `C:\Users\scott\Desktop\Code\verdict-wt\merge-trial\target\debug\vdt.exe` |  | Caused by: |   Access is denied. (os error 5) | warning: build failed, waiting for other jobs to finish... | (record 26)
+  exec: Ran, tier ran: receipt: `cargo test --workspace --locked (on a copy of the baseline)`; tier ran; exited with code 0; output hash ee8ec59d7a2d4cc55f9c2892077762a7472ae1c8cc3f21cdadcda05523756e3f; problem: it left processes running after it ended (they were stopped); output tail: e) |      Running tests\page.rs (target\debug\deps\page-2df393f8f1ab3a7e.exe) |      Running unittests src\lib.rs (target\debug\deps\verdict_mcp-e7af542554327875.exe) |      Running tests\commit_anyway.rs (target\debug\deps\commit_anyway-bdfe2914ab5da517.exe) |      Running unittests src\main.rs (target\debug\deps\vdt_mutation_runner-4e72e98a562af975.exe) |    Doc-tests verdict_adapters |    Doc-tests verdict_checkers |    Doc-tests verdict_core |    Doc-tests verdict_desks |    Doc-tests verdict_engine |    Doc-tests verdict_extract |    Doc-tests verdict_generate |    Doc-tests verdict_gui |    Doc-tests verdict_mcp | 0 filtered out; finished in 0.00s |  |  | running 0 tests |  | test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s |  |  | running 0 tests |  | test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s |  |  | running 0 tests |  | test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s |  |  | running 0 tests |  | test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s |  |  | running 0 tests |  | test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s |  | (record 27)
+  exec: Ran, tier ran: receipt: `cargo clippy --workspace --all-targets --locked -- -D warnings`; tier ran; exited with code 0; output hash eb7370ea069150f8c78ba7ca6f6ea1fe210212271479ec5387a48d6dc2c0c536; output tail: verdict-adapters v1.0.0 (C:\Users\scott\Desktop\Code\verdict-wt\merge-trial\crates\verdict-adapters) |     Checking verdict-gui v1.0.0 (C:\Users\scott\Desktop\Code\verdict-wt\merge-trial\crates\verdict-gui) |     Checking verdict-mcp v1.0.0 (C:\Users\scott\Desktop\Code\verdict-wt\merge-trial\crates\verdict-mcp) |     Checking verdict-generate v1.0.0 (C:\Users\scott\Desktop\Code\verdict-wt\merge-trial\crates\verdict-generate) |     Checking verdict-gate v1.0.0 (C:\Users\scott\Desktop\Code\verdict-wt\merge-trial\crates\verdict-cli) |     Finished `dev` profile [unoptimized + debuginfo] target(s) in 5.75s | (record 28)
+  exec: Ran, tier ran: 1 finding(s); output tail: `cargo test --workspace --locked` exited with code 101 (it left processes running after it ended (they were stopped)): :\Users\scott\Desktop\Code\verdict-wt\merge-trial\crates\verdict-gui) |    Compiling verdict-mcp v1.0.0 (C:\Users\scott\Desktop\Code\verdict-wt\merge-trial\crates\verdict-mcp) |    Compiling verdict-generate v1.0.0 (C:\Users\scott\Desktop\Code\verdict-wt\merge-trial\crates\verdict-generate) |    Compiling verdict-gate v1.0.0 (C:\Users\scott\Desktop\Code\verdict-wt\merge-trial\crates\verdict-cli) | error: failed to remove file `C:\Users\scott\Desktop\Code\verdict-wt\merge-trial\target\debug\vdt.exe` |  | Caused by: |   Access is denied. (os error 5) | warning: build failed, waiting for other jobs to finish... | (record 29)
+  mutation: FailedToRun, tier honest_red: the mutation runner did not end successfully (exit 0; it left processes running after it ended (they were stopped)), so its output was not read as a mutation report (record 31)
+  firstrun: Ran, tier ran: 1 finding(s); first-run command 1 failed: cargo build --workspace --locked; first-run command 2 ran and passed: target/debug/vdt --version (record 33)
+  release: Ran, tier asset: 2 finding(s); release tags on HEAD: none; release asset dist/*.zip: dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip; release asset dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip sha256 5fe18e97101803a3e5b33460cdd5560e1c6478f038291fdb2ed41ea2cc35fd9a matches dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip.sha256; release asset dist/*.tar.gz: dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz; release asset dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz sha256 ad4147264680a6239a72338d6c5cb8b9a354215f2c0696558adb1f4210aeef33 matches dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256; release asset dist/*.sha256: dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip.sha256, dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256 (record 36)
+  claims_vs_code: Ran, tier static: 0 finding(s); unverified: URLs are not resolved (no network, no route extraction yet); names that start with / or point above the project are not looked up (record 37)
+  desk:engineer: Ran, tier judgment: desk engineer; provider "codex" (vendor openai, requested model "unspecified", returned model None); served vendor None (not_stated); settings None; usage Some(Object {"input_tokens": Number(29997), "cached_input_tokens": Number(13312), "cache_write_input_tokens": Number(0), "output_tokens": Number(280), "reasoning_output_tokens": Number(72)}); lane release; policy v1; 0 finding(s), 3 hypothesis(ies); 16899 ms (record 41)
+  desk:docs: FailedToRun, tier judgment: desk docs; provider "codex" (vendor openai, requested model "unspecified", returned model None); served vendor None (not_stated); settings None; usage None; lane release; policy v1; 0 finding(s), 0 hypothesis(ies); 14383 ms (record 43)
+  desk:qa: FailedToRun, tier judgment: desk qa; provider "codex" (vendor openai, requested model "unspecified", returned model None); served vendor None (not_stated); settings None; usage None; lane release; policy v1; 0 finding(s), 0 hypothesis(ies); 21366 ms (record 45)
+  desk:ux: FailedToRun, tier judgment: desk ux; provider "codex" (vendor openai, requested model "unspecified", returned model None); served vendor None (not_stated); settings None; usage None; lane release; policy v1; 0 finding(s), 0 hypothesis(ies); 11982 ms (record 47)
+  desk:security: FailedToRun, tier judgment: desk security; provider "codex" (vendor openai, requested model "unspecified", returned model None); served vendor None (not_stated); settings None; usage None; lane release; policy v1; 0 finding(s), 0 hypothesis(ies); 43283 ms (record 49)
+  desk:legal: FailedToRun, tier judgment: desk legal; provider "codex" (vendor openai, requested model "unspecified", returned model None); served vendor None (not_stated); settings None; usage None; lane release; policy v1; 0 finding(s), 0 hypothesis(ies); 12681 ms (record 51)
+  desk:refuter: FailedToRun, tier judgment: desk refuter; provider "codex" (vendor openai, requested model "unspecified", returned model None); served vendor None (not_stated); settings None; usage None; lane release; policy v1; 0 finding(s), 0 hypothesis(ies); 35032 ms (record 53)
+  18 of 25 checks ran.
 
 NOT ESTABLISHED
-  - wiring: could not run: no claim, plan line or done-when item of this session names a URL, file or symbol to trace
-  - baseline_diff: could not run: this session has no prompt from the human and no claim the human accepted, so nothing says what was asked for
-  - claims_vs_code: could not run: this session has no final-message, commit-message or notes-file claims to look up
-  - mutation: could not run: no mutation runner is configured (set mutation.command or mutation.report)
-  - desk:engineer: did not run
-  - desk:docs: did not run
-  - desk:qa: did not run
-  - desk:ux: did not run
-  - desk:security: did not run
-  - desk:legal: did not run
-  - desk:refuter: did not run
-  - desk:engineer: could not run: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor
-  - desk:docs: could not run: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor
-  - desk:qa: could not run: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor
-  - desk:ux: could not run: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor
-  - desk:security: could not run: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor
-  - desk:legal: could not run: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor
-  - desk:refuter: could not run: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor
-  - desks: could not run: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor
+  - mutation: could not run: the mutation runner did not end successfully (exit 0; it left processes running after it ended (they were stopped)), so its output was not read as a mutation report
+  - desk:docs: could not run: desk docs; provider "codex" (vendor openai, requested model "unspecified", returned model None); served vendor None (not_stated); settings None; usage None; lane release; policy v1; 0 finding(s), 0 hypothesis(ies); 14383 ms
+  - desk:qa: could not run: desk qa; provider "codex" (vendor openai, requested model "unspecified", returned model None); served vendor None (not_stated); settings None; usage None; lane release; policy v1; 0 finding(s), 0 hypothesis(ies); 21366 ms
+  - desk:ux: could not run: desk ux; provider "codex" (vendor openai, requested model "unspecified", returned model None); served vendor None (not_stated); settings None; usage None; lane release; policy v1; 0 finding(s), 0 hypothesis(ies); 11982 ms
+  - desk:security: could not run: desk security; provider "codex" (vendor openai, requested model "unspecified", returned model None); served vendor None (not_stated); settings None; usage None; lane release; policy v1; 0 finding(s), 0 hypothesis(ies); 43283 ms
+  - desk:legal: could not run: desk legal; provider "codex" (vendor openai, requested model "unspecified", returned model None); served vendor None (not_stated); settings None; usage None; lane release; policy v1; 0 finding(s), 0 hypothesis(ies); 12681 ms
+  - desk:refuter: could not run: desk refuter; provider "codex" (vendor openai, requested model "unspecified", returned model None); served vendor None (not_stated); settings None; usage None; lane release; policy v1; 0 finding(s), 0 hypothesis(ies); 35032 ms
+  - desk:docs: could not run: the answer is not the JSON the protocol asks for: invalid type: map, expected a string at line 1 column 29
+  - desk:qa: could not run: the answer is not the JSON the protocol asks for: invalid type: map, expected a string at line 1 column 1557
+  - desk:ux: could not run: the answer is not the JSON the protocol asks for: invalid type: map, expected a string at line 1 column 360
+  - desk:security: could not run: the answer is not the JSON the protocol asks for: invalid type: map, expected a string at line 1 column 29
+  - desk:legal: could not run: the answer is not the JSON the protocol asks for: invalid type: map, expected a string at line 1 column 29
+  - desk:refuter: could not run: the answer is not the JSON the protocol asks for: invalid type: map, expected a string at line 1 column 1488
+  - 3 hypothesis(es) with no evidence pointer count for nothing
   - whether your real app works: no page was loaded
-  - whether any of the 0 claim(s) is true beyond what the checks above show: claims are the agent's words, not evidence
+  - whether any of the 4 claim(s) is true beyond what the checks above show: claims are the agent's words, not evidence

@@ -15,6 +15,24 @@ use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
 const DEFAULT_TIMEOUT_SECS: u64 = 240;
+const DESK_SCHEMA: &str = r#"{
+  "type": "object",
+  "required": ["findings"],
+  "properties": {
+    "findings": {"type": "array", "maxItems": 5, "items": {
+      "type": "object", "required": ["severity", "title"],
+      "properties": {
+        "severity": {"enum": ["blocker", "major", "minor", "nit"]},
+        "title": {"type": "string"},
+        "evidence": {"type": "array", "items": {"type": "object"}},
+        "fix": {"type": "string"}
+      }}},
+    "hypotheses": {"type": "array", "items": {"type": "string"}},
+    "proposals": {"type": "array", "items": {"type": "string"}},
+    "usage": {"type": "object"},
+    "model": {"type": "string"}
+  }
+}"#;
 const MAX_ATTEMPTS: u32 = 2;
 
 fn main() {
@@ -126,6 +144,12 @@ fn ask(args: &Args, prompt: &str, requested_model: &str) -> Result<String, Strin
         "--ephemeral",
     ]);
     cmd.args(["-C", "."]);
+    // Force the desk answer shape at the provider boundary. A model that wraps a hypothesis in an
+    // object, or names an unknown severity, must not fail a desk for a shape the protocol accepts.
+    let schema = std::env::temp_dir().join(format!("vdt-desk-schema-{}.json", std::process::id()));
+    if std::fs::write(&schema, DESK_SCHEMA).is_ok() {
+        cmd.arg("--output-schema").arg(&schema);
+    }
     cmd.arg("-o").arg(&last);
     // "unspecified" is the provider interface's "the policy named no model". Passing it to the CLI
     // would ask for a model that does not exist; let Codex use its own configured default and
@@ -221,7 +245,8 @@ fn ask(args: &Args, prompt: &str, requested_model: &str) -> Result<String, Strin
 
     let answer_text = std::fs::read_to_string(&last).unwrap_or_default();
     let _ = std::fs::remove_file(&last);
-    let mut answer = extract_json(&answer_text)?;
+    let _ = std::fs::remove_file(&schema);
+    let mut answer = normalize_answer(extract_json(&answer_text)?);
     let (observed_model, usage) = observed_from_events(&stdout);
     if let Some(obj) = answer.as_object_mut() {
         if obj.get("usage").is_none_or(serde_json::Value::is_null)
@@ -271,6 +296,74 @@ fn observed_from_events(stdout: &str) -> (Option<String>, Option<serde_json::Val
     (model, usage)
 }
 
+/// Turn a mostly-right model answer into the exact answer shape the desk protocol reads. It never
+/// invents a finding: entries that are not objects, a missing title, or evidence that is not an
+/// object are dropped or reduced to a hypothesis, and an unknown severity becomes `minor`.
+fn normalize_answer(v: serde_json::Value) -> serde_json::Value {
+    let mut out = serde_json::Map::new();
+    let mut findings = Vec::new();
+    if let Some(list) = v.get("findings").and_then(serde_json::Value::as_array) {
+        for f in list {
+            let Some(obj) = f.as_object() else { continue };
+            let severity = obj
+                .get("severity")
+                .and_then(serde_json::Value::as_str)
+                .map(|s| s.to_ascii_lowercase())
+                .filter(|s| matches!(s.as_str(), "blocker" | "major" | "minor" | "nit"))
+                .unwrap_or_else(|| "minor".into());
+            let title = obj
+                .get("title")
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or("a desk concern");
+            let mut finding = serde_json::json!({"severity": severity, "title": title});
+            if let Some(evidence) = obj.get("evidence").and_then(serde_json::Value::as_array) {
+                let evidence: Vec<_> = evidence.iter().filter(|e| e.is_object()).cloned().collect();
+                if !evidence.is_empty() {
+                    finding["evidence"] = serde_json::Value::Array(evidence);
+                }
+            }
+            if let Some(fix) = obj.get("fix").and_then(serde_json::Value::as_str) {
+                finding["fix"] = serde_json::Value::String(fix.to_string());
+            }
+            findings.push(finding);
+        }
+    }
+    out.insert("findings".into(), serde_json::Value::Array(findings));
+    if let Some(list) = v.get("hypotheses").and_then(serde_json::Value::as_array) {
+        let list: Vec<_> = list
+            .iter()
+            .filter_map(|h| match h {
+                serde_json::Value::String(s) => Some(serde_json::Value::String(s.clone())),
+                serde_json::Value::Object(o) => o
+                    .get("title")
+                    .or_else(|| o.get("text"))
+                    .or_else(|| o.get("description"))
+                    .and_then(serde_json::Value::as_str)
+                    .map(|s| serde_json::Value::String(s.to_string())),
+                _ => None,
+            })
+            .collect();
+        out.insert("hypotheses".into(), serde_json::Value::Array(list));
+    }
+    if let Some(list) = v.get("proposals").and_then(serde_json::Value::as_array) {
+        let list: Vec<_> = list
+            .iter()
+            .filter(|p| p.is_string() || p.is_object())
+            .cloned()
+            .collect();
+        out.insert("proposals".into(), serde_json::Value::Array(list));
+    }
+    for key in ["usage", "served"] {
+        if let Some(o) = v.get(key).filter(|x| x.is_object()) {
+            out.insert(key.into(), o.clone());
+        }
+    }
+    if let Some(m) = v.get("model").and_then(serde_json::Value::as_str) {
+        out.insert("model".into(), serde_json::Value::String(m.to_string()));
+    }
+    serde_json::Value::Object(out)
+}
+
 /// Extract the first JSON object from the answer, tolerating prose or one Markdown fence.
 fn extract_json(text: &str) -> Result<serde_json::Value, String> {
     let t = text.trim();
@@ -312,6 +405,26 @@ mod tests {
         let v = extract_json("```json\n{\"findings\":[],\"hypotheses\":[]}\n```").unwrap();
         assert!(v.get("findings").is_some());
         assert!(extract_json("no object here").is_err());
+    }
+
+    #[test]
+    fn a_model_answer_is_normalized_without_inventing_findings() {
+        let v = serde_json::json!({
+            "findings": [
+                {"severity": "MAJOR", "title": "a real concern", "evidence": [{"record": 3}]},
+                {"severity": "weird", "title": "still reported", "evidence": ["not an object"]},
+                "not a finding"
+            ],
+            "hypotheses": ["a string", {"text": "an object wrapped"}, {"nope": 1}],
+            "proposals": [{"checker": "mutation", "reason": "because"}]
+        });
+        let n = normalize_answer(v);
+        assert_eq!(n["findings"].as_array().unwrap().len(), 2);
+        assert_eq!(n["findings"][0]["severity"], "major");
+        assert_eq!(n["findings"][1]["severity"], "minor");
+        assert!(n["findings"][1].get("evidence").is_none());
+        assert_eq!(n["hypotheses"].as_array().unwrap().len(), 2);
+        assert_eq!(n["proposals"][0]["checker"], "mutation");
     }
 
     #[test]
