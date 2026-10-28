@@ -127,8 +127,12 @@ fn ask(args: &Args, prompt: &str, requested_model: &str) -> Result<String, Strin
     ]);
     cmd.args(["-C", "."]);
     cmd.arg("-o").arg(&last);
-    if !requested_model.trim().is_empty() {
-        cmd.args(["-m", requested_model.trim()]);
+    // "unspecified" is the provider interface's "the policy named no model". Passing it to the CLI
+    // would ask for a model that does not exist; let Codex use its own configured default and
+    // record the observed fields separately.
+    let requested = requested_model.trim();
+    if !requested.is_empty() && !requested.eq_ignore_ascii_case("unspecified") {
+        cmd.args(["-m", requested]);
     }
     // `-` reads the prompt from stdin.
     cmd.arg("-");
