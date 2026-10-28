@@ -2,8 +2,8 @@
 
 use std::time::Duration;
 
-use verdict_checkers::{RunOptions, run_lane_with_home};
-use verdict_core::{Lane, Ledger, Record, SessionParams, baseline, start_session};
+use verdict_checkers::{CheckContext, RunOptions, run_lane_with_home};
+use verdict_core::{Lane, Ledger, Policy, Record, SessionParams, baseline, start_session};
 
 /// The snapshot stamp of the latest check record with this name.
 fn stamp_of(ledger: &Ledger, checker: &str) -> Option<String> {
@@ -78,4 +78,54 @@ fn a_check_is_stamped_with_the_tree_it_read_and_the_stamp_moves_with_the_tree() 
     let second = stamp_of(&ledger, "regressions").expect("the second run is stamped too");
     assert_ne!(first, second);
     assert_eq!(Some(second), baseline::tree_state(dir.path()));
+}
+
+#[test]
+fn the_cached_snapshot_is_bound_to_the_bytes_it_read() {
+    // The stamp may only describe the tree state whose bytes the checkers read. Re-deriving the
+    // content digest from the warmed cache and from the working tree proves that binding, and it
+    // also sees a file that changed and changed back while the cache did not.
+    let dir = tempfile::tempdir().unwrap();
+    let home = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(dir.path().join("src")).unwrap();
+    std::fs::write(dir.path().join("src/a.ts"), "export const a = 1;\n").unwrap();
+
+    let mut ledger = Ledger::open_in_memory().unwrap();
+    let session = start_session(
+        &mut ledger,
+        dir.path(),
+        &SessionParams {
+            agent: "claude".into(),
+            model: "m".into(),
+            vendor: "anthropic".into(),
+            home: Some(home.path().to_path_buf()),
+        },
+    )
+    .unwrap()
+    .id;
+    let policy = Policy::load(dir.path(), Some(home.path())).unwrap();
+    let ctx = CheckContext::from_ledger(
+        &ledger,
+        dir.path(),
+        &session,
+        Lane::Low,
+        Duration::from_secs(10),
+        policy,
+    )
+    .unwrap();
+    ctx.warm();
+    assert!(
+        ctx.cache_matches_tree(),
+        "a read that nothing disturbed is the tree's own bytes"
+    );
+
+    // The tree moves away from the cached bytes: the cache is no longer this snapshot.
+    std::fs::write(dir.path().join("src/a.ts"), "export const a = 2;\n").unwrap();
+    assert!(!ctx.cache_matches_tree());
+
+    // Change and change back: the cache's bytes are again exactly the tree's bytes, so a stamp
+    // taken from that state describes what was read; the digest is content-derived, not a
+    // temporal guess.
+    std::fs::write(dir.path().join("src/a.ts"), "export const a = 1;\n").unwrap();
+    assert!(ctx.cache_matches_tree());
 }

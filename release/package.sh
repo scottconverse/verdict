@@ -105,6 +105,9 @@ case "$archive_kind" in
     ;;
 esac
 
-# The download checksum covers the outer archive, the bytes a person downloads.
-( cd "$outdir" && $sha_cmd "$(basename "$file")" | cut -d' ' -f1 ) > "$file.sha256"
+# The download checksum covers the outer archive, the bytes a person downloads. It is written in
+# the standard `<hash>  <name>` form so `sha256sum -c` reads it; the redirect stays outside the
+# subshell so a relative output folder is not applied twice.
+sum_line=$( cd "$outdir" && $sha_cmd "$(basename "$file")" )
+printf '%s\n' "$sum_line" > "$file.sha256"
 printf 'built %s and %s.sha256\n' "$file" "$file"

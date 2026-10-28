@@ -285,20 +285,43 @@ pub fn run_lane_with_home(
     opts: &RunOptions,
     home: Option<&Path>,
 ) -> Result<Vec<CheckSummary>, String> {
+    // The real pin: the two tree-state samples agree and the cached bytes are the tree's bytes.
+    run_lane_pinned(
+        ledger,
+        root,
+        session,
+        checkers,
+        opts,
+        home,
+        &|ctx, before, after| ctx.cache_matches_tree() && snapshot_is_pinned(before, after),
+    )
+}
+
+/// [`run_lane_with_home`] with the snapshot decision given, so a test can exercise the torn path
+/// without racing a real edit. The seam is private: no public API grows.
+fn run_lane_pinned(
+    ledger: &mut Ledger,
+    root: &Path,
+    session: &str,
+    checkers: &[String],
+    opts: &RunOptions,
+    home: Option<&Path>,
+    pin: &dyn Fn(&CheckContext, &Option<String>, &Option<String>) -> bool,
+) -> Result<Vec<CheckSummary>, String> {
     let (policy, policy_problem) = match Policy::load(root, home) {
         Ok(p) => (p, None),
         Err(e) => (Policy::builtin().map_err(s)?, Some(e.to_string())),
     };
     let ctx = CheckContext::from_ledger(ledger, root, session, opts.lane, opts.timeout, policy)?;
-    // Bind the stamp to the snapshot the context actually caches. The tree state is sampled before
-    // and after the warm read: when the two agree, the cached tree and diff are that one state, so
-    // a check can never be stamped with a snapshot newer than the data it inspected. When they
-    // differ, the read saw a tree changing underneath it and no single state describes it, so no
-    // checker may claim current evidence for it.
+    // Bind the stamp to the snapshot the context actually caches, not merely to the state around
+    // it. Three facts must agree: the tree state before the warm read, the tree state after it,
+    // and the cache's own bytes against the working tree's bytes. A tree that moved and moved back
+    // during the read leaves the bracketing samples equal, so only re-deriving the content digest
+    // from the cache and from the tree proves the recorded state is the state the bytes came from.
     let tree_before_warm = verdict_core::baseline::tree_state_of_ledger(ledger);
     ctx.warm();
     let tree_after_warm = verdict_core::baseline::tree_state_of_ledger(ledger);
-    let snapshot_pinned = snapshot_is_pinned(&tree_before_warm, &tree_after_warm);
+    let snapshot_pinned = pin(&ctx, &tree_before_warm, &tree_after_warm);
     // A torn read is stamped with no state at all, which never counts as current.
     let tree_at_start = if snapshot_pinned {
         tree_after_warm
@@ -790,6 +813,68 @@ mod tests {
         assert!(!snapshot_is_pinned(&None, &a));
         // An in-memory ledger has no folder to sample; that is not a tear.
         assert!(snapshot_is_pinned(&None, &None));
+    }
+
+    #[test]
+    fn a_torn_snapshot_records_every_requested_checker_as_unavailable() {
+        // The torn path is driven through the private seam: a real mid-read edit would be a race.
+        let dir = tempfile::tempdir().unwrap();
+        let home = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("a.txt"), "x\n").unwrap();
+        let mut ledger = Ledger::open_in_memory().unwrap();
+        let session = verdict_core::start_session(
+            &mut ledger,
+            dir.path(),
+            &verdict_core::SessionParams {
+                agent: "claude".into(),
+                model: "m".into(),
+                vendor: "anthropic".into(),
+                home: Some(home.path().to_path_buf()),
+            },
+        )
+        .unwrap()
+        .id;
+        let opts = RunOptions {
+            lane: Lane::Low,
+            timeout: std::time::Duration::from_secs(5),
+            deadline: None,
+            force: false,
+        };
+        let summaries = run_lane_pinned(
+            &mut ledger,
+            dir.path(),
+            &session,
+            &["regressions".to_string(), "unfinished".to_string()],
+            &opts,
+            Some(home.path()),
+            &|_, _, _| false,
+        )
+        .unwrap();
+        assert_eq!(summaries.len(), 2);
+        for summary in &summaries {
+            assert_eq!(summary.outcome, verdict_core::CheckOutcome::FailedToRun);
+        }
+        let records = ledger.records().unwrap();
+        for name in ["regressions", "unfinished"] {
+            assert!(
+                records.iter().any(|r| matches!(
+                    &r.record,
+                    Record::CheckUnavailable { component, reason }
+                        if component == name
+                            && reason.contains("changed while the checkers were reading it")
+                )),
+                "{name} must say why it did not count"
+            );
+            let stamp = records.iter().rev().find_map(|r| match &r.record {
+                Record::Check {
+                    name: n,
+                    tree_state,
+                    ..
+                } if n == name => Some(tree_state.clone()),
+                _ => None,
+            });
+            assert_eq!(stamp, Some(None), "a torn check carries no snapshot");
+        }
     }
 
     fn v(items: &[&str]) -> Vec<String> {

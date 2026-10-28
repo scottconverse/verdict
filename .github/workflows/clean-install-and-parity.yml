@@ -51,7 +51,8 @@ jobs:
           mkdir -p /tmp/extracted /tmp/project
           tar -C /tmp/extracted -xzf /tmp/dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz
           # The download checksum covers the archive.
-          (cd /tmp/dist && sha256sum -c vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256) || true
+          # The download checksum covers the archive and is in `sha256sum -c` form.
+          (cd /tmp/dist && sha256sum -c vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256)
           clean_home=/tmp/clean-home
           mkdir -p "$clean_home"
           pkg=/tmp/extracted/vdt-1.0.0-x86_64-unknown-linux-gnu
@@ -74,8 +75,12 @@ jobs:
           curl -fsSL -o /tmp/appimagetool \
             https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
           chmod +x /tmp/appimagetool
-          APPIMAGETOOL=/tmp/appimagetool sh release/package-appimage.sh 1.0.0 target/release/vdt /tmp/appdist
-          app=/tmp/appdist/Verdict-1.0.0-x86_64.AppImage
+          # The release workflow passes a relative output folder (`dist`); the same shape is used
+          # here so a checksum path that only works for absolute folders fails this job.
+          APPIMAGETOOL=/tmp/appimagetool sh release/package-appimage.sh 1.0.0 target/release/vdt appdist
+          app=appdist/Verdict-1.0.0-x86_64.AppImage
+          test -f "$app.sha256"
+          (cd appdist && sha256sum -c Verdict-1.0.0-x86_64.AppImage.sha256)
           chmod +x "$app"
           mkdir -p /tmp/app-project /tmp/app-home
           APPIMAGE_EXTRACT_AND_RUN=1 "$app" --silent --project /tmp/app-project \

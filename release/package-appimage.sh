@@ -59,9 +59,14 @@ file="$outdir/Verdict-$version-x86_64.AppImage"
 # invocation must fail visibly here.
 APPIMAGE_EXTRACT_AND_RUN=1 "$tool" "$appdir" "$file"
 chmod +x "$file"
+# The download checksum covers the outer AppImage, in the standard `<hash>  <name>` form so
+# `sha256sum -c` reads it. The redirect stays outside the subshell: `$file` already carries
+# `$outdir`, so a relative output folder must not be applied to it twice.
 if command -v sha256sum >/dev/null 2>&1; then
-  ( cd "$outdir" && sha256sum "$(basename "$file")" | cut -d' ' -f1 > "$file.sha256" )
+  sha_cmd="sha256sum"
 else
-  ( cd "$outdir" && shasum -a 256 "$(basename "$file")" | cut -d' ' -f1 > "$file.sha256" )
+  sha_cmd="shasum -a 256"
 fi
+sum_line=$( cd "$outdir" && $sha_cmd "$(basename "$file")" )
+printf '%s\n' "$sum_line" > "$file.sha256"
 printf 'built %s and %s.sha256\n' "$file" "$file"

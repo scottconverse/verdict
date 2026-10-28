@@ -503,6 +503,36 @@ impl CheckContext {
         let _ = self.changes();
     }
 
+    /// A digest of exactly what the warmed tree index holds: every cached path with the hash of
+    /// the bytes it cached. `from_disk` computes it again from the working tree instead, so the
+    /// two digests answer "is the cache still this tree's bytes?".
+    pub fn tree_digest(&self, from_disk: bool) -> String {
+        let mut h = blake3::Hasher::new();
+        for (path, cached) in &self.tree().text {
+            h.update(path.as_bytes());
+            h.update(&[0]);
+            let bytes = if from_disk {
+                std::fs::read(self.root.join(path)).ok()
+            } else {
+                Some(cached.as_bytes().to_vec())
+            };
+            match bytes {
+                Some(b) => h.update(blake3::hash(&b).as_bytes()),
+                // A cached file the disk no longer has cannot be the same snapshot.
+                None => h.update(&[0xff]),
+            };
+            h.update(&[0]);
+        }
+        h.finalize().to_hex().to_string()
+    }
+
+    /// True when the cache holds exactly the working tree's bytes. A tree that changed (and even
+    /// one that changed and changed back) is only equal when the cached bytes are the tree's bytes
+    /// now, which is what the recorded snapshot stamp must describe.
+    pub fn cache_matches_tree(&self) -> bool {
+        self.tree_digest(false) == self.tree_digest(true)
+    }
+
     /// Hash of everything a checker could have read: the baseline, the policy, the diff, the
     /// tree's text, the claims, the prompts and the exec approval.
     pub fn inputs_hash(&self, checker: &str) -> String {
