@@ -442,6 +442,9 @@ struct RawAnswer {
     /// What the provider says actually served the answer (the design's served identity).
     #[serde(default)]
     served: Option<ServedInfo>,
+    /// Effective settings observed from the invocation itself, when the adapter reports them.
+    #[serde(default)]
+    settings: Option<Value>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1060,6 +1063,11 @@ pub fn run(
                     if s.model.is_some() {
                         returned_model = s.model.clone();
                     }
+                }
+                // Effective settings can be observed without any served vendor being stated (the
+                // provider adapter records the invocation itself).
+                if settings.is_none() {
+                    settings = raw.settings.clone();
                 }
                 identity = if served_vendor.is_some() {
                     "confirmed"

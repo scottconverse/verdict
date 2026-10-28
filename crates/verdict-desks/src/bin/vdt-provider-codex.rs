@@ -225,7 +225,22 @@ fn ask(args: &Args, prompt: &str, requested_model: &str) -> Result<String, Strin
     let _ = std::fs::remove_file(&last);
     let answer = normalize_answer(extract_json(&answer_text)?);
     let (observed_model, usage) = observed_from_events(&stdout);
-    Ok(apply_observation(answer, observed_model, usage).to_string())
+    let mut answer = apply_observation(answer, observed_model, usage);
+    // Effective settings are observable from the invocation itself: what was run, with which
+    // model flag and deadline, where. They are never taken from the answer's words.
+    if let Some(obj) = answer.as_object_mut() {
+        obj.insert(
+            "settings".into(),
+            serde_json::json!({
+                "source": "invocation",
+                "requested_model": requested_model,
+                "timeout_secs": args.timeout.as_secs(),
+                "cwd": ".",
+                "args": args.codex_args,
+            }),
+        );
+    }
+    Ok(answer.to_string())
 }
 
 /// Observation outranks the answer's own words. `model` and `served` hold what the CLI reported;
