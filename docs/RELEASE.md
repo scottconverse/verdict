@@ -47,7 +47,7 @@ cargo test -p verdict-checkers --locked --features stub-checkers --test fixtures
 sh release/package.sh 1.0.0 <target> <zip|tar.gz> target/release/vdt dist
 vdt check --lane release --checkers '*' --project .
 vdt verdict --run --lane release --project .
-vdt export --packet --out release/packet.txt
+vdt export --packet --lane release --out "$TEMP/verdict-packet.txt"
 vdt export --sarif  --out release/findings.sarif
 ```
 
@@ -97,3 +97,8 @@ configured a cross-vendor provider. That is the honest pre-tag state, not a clea
 - The `CLEAR TO SHIP` packet for the tag itself: it is computed on the tagged revision, with the
   human's command approval and a configured cross-vendor provider, and attached to the release.
 - Signed-installer verification, which needs the certificates.
+
+Write the release packet outside the project and attach it after it is computed: writing it into
+the tree first would make the tree differ from the one the checks were stamped on, and every check
+would read stale. `--lane release` makes the packet state the lane the run was made in, never lower
+than the lane the diff implies.

@@ -171,6 +171,10 @@ enum Command {
         /// The project's human decisions as JSON lines (`decisions.jsonl`), for tracking in git.
         #[arg(long)]
         decisions: bool,
+        /// For `--packet`: compute it in this lane (low, standard, high or release). It can only
+        /// raise the lane the diff implies.
+        #[arg(long)]
+        lane: Option<String>,
         /// Session id (default: the latest).
         #[arg(long)]
         session: Option<String>,
@@ -333,6 +337,7 @@ fn main() -> ExitCode {
             sarif,
             packet,
             decisions,
+            lane,
             session,
             out,
             project,
@@ -392,7 +397,19 @@ fn main() -> ExitCode {
             let text = if *sarif {
                 verdict_core::export::sarif(&ledger, Some(&session))
             } else {
-                verdict_core::export::packet(&root, &ledger, &session)
+                let lane = match lane.as_deref() {
+                    None => None,
+                    Some(l) => match verdict_core::lane::parse_lane(l) {
+                        Some(l) => Some(l),
+                        None => {
+                            eprintln!(
+                                "vdt: unknown lane {l:?} (use low, standard, high or release)"
+                            );
+                            return ExitCode::from(1);
+                        }
+                    },
+                };
+                verdict_core::export::packet_with_lane(&root, &ledger, &session, lane)
             };
             return match text {
                 Ok(t) => match out {

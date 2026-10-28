@@ -138,7 +138,31 @@ fn severity_name(s: Severity) -> &'static str {
 /// the findings with their evidence, the decisions taken, and every commit-anyway override printed
 /// beside the FAILED verdict it went past.
 pub fn packet(root: &Path, ledger: &Ledger, session: &str) -> Result<String, LedgerError> {
-    let live = compute_live(root, ledger, session, None)?;
+    packet_with_lane(root, ledger, session, None)
+}
+
+/// [`packet`] computed in a lane the caller names (the human's release-lane run), never lower
+/// than the lane the diff implies.
+pub fn packet_with_lane(
+    root: &Path,
+    ledger: &Ledger,
+    session: &str,
+    lane: Option<Lane>,
+) -> Result<String, LedgerError> {
+    let mut live_input = super::verdict::live_input(root, ledger, session, None)?;
+    if let Some(chosen) = lane
+        && chosen > live_input.input.implied_lane
+    {
+        live_input.input.lane_reasons.insert(
+            0,
+            format!(
+                "you chose the {} lane for this packet",
+                crate::lane::lane_name(chosen)
+            ),
+        );
+        live_input.input.implied_lane = chosen;
+    }
+    let live = super::verdict::compute(ledger, session, &live_input.input)?;
     let report = render_report_with(ledger, Some(session), None)?;
     let mut out = String::new();
     out.push_str("VERDICT ACCEPTANCE PACKET\n");
