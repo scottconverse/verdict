@@ -542,25 +542,47 @@ fn a_timed_out_provider_ends_its_whole_process_tree() {
     let mut l = Ledger::open(dir.path()).unwrap();
     let pidfile = dir.path().join("helper.pid");
     let pid_path = pidfile.to_string_lossy().to_string();
-    let providers = vec![provider_with_desk_timeout(&[
-        "--sleep-ms",
-        "60000",
-        "--spawn-child",
-        &pid_path,
-    ])];
     let started = std::time::Instant::now();
-    let out = run(
-        &mut l,
-        dir.path(),
-        &sid,
-        &policy,
-        &DeskOptions {
-            lane: Lane::Standard,
-            timeout: Duration::from_secs(1),
-        },
-        &providers,
-    )
-    .unwrap();
+    let started = std::time::Instant::now();
+    // The lane runs on a scoped thread so the test can observe the helper while the provider is
+    // still held at its deadline: a helper that died at startup must fail this, not pass it.
+    let (out, l) = std::thread::scope(|s| {
+        let lane = s.spawn(move || {
+            let providers = vec![provider_with_desk_timeout(&[
+                "--sleep-ms",
+                "60000",
+                "--spawn-child",
+                &pid_path,
+            ])];
+            let out = run(
+                &mut l,
+                dir.path(),
+                &sid,
+                &policy,
+                &DeskOptions {
+                    lane: Lane::Standard,
+                    timeout: Duration::from_secs(1),
+                },
+                &providers,
+            )
+            .unwrap();
+            (out, l)
+        });
+        let until = started + Duration::from_millis(900);
+        while !pidfile.exists() && std::time::Instant::now() < until {
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        let pid = marker_pid(&pidfile);
+        assert!(
+            process_alive(pid),
+            "the helper must be alive while the provider is held at its deadline (pid {pid})"
+        );
+        assert!(
+            started.elapsed() < Duration::from_secs(1),
+            "the marker must arrive before the 1 s deadline"
+        );
+        lane.join().unwrap()
+    });
     assert!(
         started.elapsed() < Duration::from_secs(20),
         "a timed-out provider must not hold the run past its deadline"
