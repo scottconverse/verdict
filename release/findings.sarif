@@ -37,7 +37,7 @@
           },
           "properties": {
             "verdictFindingId": "release:tag-missing.8bdbbb74",
-            "verdictRecord": 225,
+            "verdictRecord": 252,
             "verdictTier": "asset",
             "verdictSeverity": "blocker",
             "verdictStatus": "open",
@@ -50,7 +50,7 @@
         }
       ],
       "properties": {
-        "verdictSession": "s-3994e97518",
+        "verdictSession": "s-e8db16c5ab",
         "verdictHypotheses": 0,
         "verdictLedgerIntact": true,
         "verdictOverrides": []

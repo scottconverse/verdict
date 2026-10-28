@@ -1,8 +1,8 @@
 VERDICT ACCEPTANCE PACKET
 =========================
 
-Session: s-3994e97518
-Lane: release (policy v1)
+Session: s-e8db16c5ab
+Lane: low (policy v1)
 Builder: claude/unknown [anthropic]
 Verdict: FAILED
 Ledger: intact
@@ -13,7 +13,7 @@ CLAIMS
 
 FINDINGS
 --------
-- [blocker] the release candidate is not tagged v1.0.0 (tags on HEAD: none) (asset, record 225, open)
+- [blocker] the release candidate is not tagged v1.0.0 (tags on HEAD: none) (asset, record 252, open)
     evidence: command `git tag --points-at HEAD (v1.0.0)`
 
 HYPOTHESES (move nothing)
@@ -28,107 +28,13 @@ OVERRIDES
 ---------
 (none)
 
-RELEASE EVIDENCE
-----------------
-- release: ran at the ran tier (record 226): 1 finding(s); release check passed: cargo test --workspace --locked (output blake3 3c5f5b269aae3ab7fefe925be0e719135ac00139ca186c878f8800b70d90d91a); release tags on HEAD: none; release asset dist/*.zip: dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip; release asset dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip sha256 e85da9c5f4d1aa9e61fc67c0cf9a3a19ddc80a4d8226e8a9170fd83260618a21 matches dist/vdt-1.0.0-x8...
-- firstrun: ran at the ran tier (record 224): 0 finding(s); first-run command 1 ran and passed: cargo build --workspace --locked; first-run command 2 ran and passed: target/debug/vdt --version
-- firstrun at the browsed tier: no
-- release coherence ran: true
-- open commit-anyway override: no
-- release version: 1.0.0
-- asset dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip: 6325944 bytes, SHA-256 e85da9c5f4d1aa9e61fc67c0cf9a3a19ddc80a4d8226e8a9170fd83260618a21
-- asset dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz: 6629422 bytes, SHA-256 df92c03850d8dbb178069dece2a26bba08b3d9649b0ff23001d1ca4aca6df951
-- asset dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip.sha256: 65 bytes, SHA-256 f501817b440b5d68da5603f354cac5f29bb590d1e3cfaef44e7af4ce3d6c4230
-- asset dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256: 65 bytes, SHA-256 37652316a6c0aeada46fecece790fd0b6c4d793b25782830345ef777e0ec6baa
-
 NOT ESTABLISHED
 ---------------
-- lane: .github/workflows/clean-install-and-parity.yml changes code or configuration
-- lane: .github/workflows/dogfood-release.yml changes code or configuration
-- lane: .github/workflows/release.yml changes code or configuration
-- lane: CHANGELOG.md matches release_if_touches CHANGELOG.md
-- lane: Cargo.lock matches high_if_touches Cargo.lock
-- lane: Cargo.toml matches high_if_touches Cargo.toml
-- lane: crates/verdict-adapters/Cargo.toml matches high_if_touches crates/**
-- lane: crates/verdict-adapters/src/hook.rs matches high_if_touches crates/**
-- lane: crates/verdict-adapters/src/recorder.rs matches high_if_touches crates/**
-- lane: crates/verdict-adapters/tests/common/mod.rs matches high_if_touches crates/**
-- lane: crates/verdict-adapters/tests/hooks.rs matches high_if_touches crates/**
-- lane: crates/verdict-checkers/src/context.rs matches high_if_touches crates/**
-- lane: crates/verdict-checkers/src/exec.rs matches high_if_touches crates/**
-- lane: crates/verdict-checkers/src/firstrun.rs matches high_if_touches crates/**
-- lane: crates/verdict-checkers/src/lib.rs matches high_if_touches crates/**
-- lane: crates/verdict-checkers/src/mutation.rs matches high_if_touches crates/**
-- lane: crates/verdict-checkers/src/release.rs matches high_if_touches crates/**
-- lane: crates/verdict-checkers/tests/lane.rs matches high_if_touches crates/**
-- lane: crates/verdict-checkers/tests/review_fixes.rs matches high_if_touches crates/**
-- lane: crates/verdict-cli/Cargo.toml matches high_if_touches crates/**
-- lane: crates/verdict-cli/src/main.rs matches high_if_touches crates/**
-- lane: crates/verdict-cli/src/p2b.rs matches high_if_touches crates/**
-- lane: crates/verdict-cli/src/runner.rs matches high_if_touches crates/**
-- lane: crates/verdict-cli/tests/check.rs matches high_if_touches crates/**
-- lane: crates/verdict-cli/tests/hooks.rs matches high_if_touches crates/**
-- lane: crates/verdict-cli/tests/mcp.rs matches high_if_touches crates/**
-- lane: crates/verdict-core/src/exec_approval.rs matches high_if_touches crates/**
-- lane: crates/verdict-core/src/export.rs matches high_if_touches crates/**
-- lane: crates/verdict-core/src/gate.rs matches high_if_touches crates/**
-- lane: crates/verdict-core/src/human.rs matches high_if_touches crates/**
-- lane: crates/verdict-core/src/lane.rs matches high_if_touches crates/**
-- lane: crates/verdict-core/src/lib.rs matches high_if_touches crates/**
-- lane: crates/verdict-core/src/policy.rs matches high_if_touches crates/**
-- lane: crates/verdict-core/src/report.rs matches high_if_touches crates/**
-- lane: crates/verdict-core/src/sha256.rs matches high_if_touches crates/**
-- lane: crates/verdict-core/src/verdict.rs matches high_if_touches crates/**
-- lane: crates/verdict-core/tests/export.rs matches high_if_touches crates/**
-- lane: crates/verdict-core/tests/fix2b.rs matches high_if_touches crates/**
-- lane: crates/verdict-core/tests/gate.rs matches high_if_touches crates/**
-- lane: crates/verdict-core/tests/p2b_common/mod.rs matches high_if_touches crates/**
-- lane: crates/verdict-core/tests/snapshots/report_verdicts__golden_clear_to_ship.snap matches high_if_touches crates/**
-- lane: crates/verdict-core/tests/snapshots/report_verdicts__golden_failed_with_a_commit_anyway_override.snap matches high_if_touches crates/**
-- lane: crates/verdict-core/tests/snapshots/report_verdicts__golden_needs_you.snap matches high_if_touches crates/**
-- lane: crates/verdict-core/tests/snapshots/report_verdicts__golden_partial.snap matches high_if_touches crates/**
-- lane: crates/verdict-core/tests/snapshots/report_verdicts__golden_unverified.snap matches high_if_touches crates/**
-- lane: crates/verdict-core/tests/snapshots/report_verdicts__golden_verified_ran.snap matches high_if_touches crates/**
-- lane: crates/verdict-core/tests/verdict_word.rs matches high_if_touches crates/**
-- lane: crates/verdict-desks/src/bin/vdt-fake-desk.rs matches high_if_touches crates/**
-- lane: crates/verdict-desks/src/lib.rs matches high_if_touches crates/**
-- lane: crates/verdict-desks/tests/desks.rs matches high_if_touches crates/**
-- lane: crates/verdict-engine/Cargo.toml matches high_if_touches crates/**
-- lane: crates/verdict-engine/src/lib.rs matches high_if_touches crates/**
-- lane: crates/verdict-engine/tests/verify.rs matches high_if_touches crates/**
-- lane: crates/verdict-gui/Cargo.toml matches high_if_touches crates/**
-- lane: crates/verdict-gui/src/decisions.rs matches high_if_touches crates/**
-- lane: crates/verdict-gui/src/lib.rs matches high_if_touches crates/**
-- lane: crates/verdict-gui/tests/decisions.rs matches high_if_touches crates/**
-- lane: crates/verdict-mcp/Cargo.toml matches high_if_touches crates/**
-- lane: crates/verdict-mcp/src/lib.rs matches high_if_touches crates/**
-- lane: crates/verdict-mcp/tests/commit_anyway.rs matches high_if_touches crates/**
-- lane: policy/default.json matches high_if_touches policy/**
-- lane: policy/schema.json matches high_if_touches policy/**
-- lane: release/PACKET-BEFORE-TAG.txt matches release_if_touches release/**
-- lane: release/findings.sarif matches release_if_touches release/**
-- lane: release/install.ps1 matches release_if_touches release/**
-- lane: release/install.sh matches release_if_touches release/**
-- lane: release/package.sh matches release_if_touches release/**
-- lane: release/verdict-run.txt matches release_if_touches release/**
-- lane: verdict.json changes code or configuration
+- lane: no changed files found
 - wiring: could not run: no claim, plan line or done-when item of this session names a URL, file or symbol to trace
-- baseline_diff: could not run: this session has no prompt from the human and no claim the human accepted, so nothing says what was asked for
-- regressions: not established: the code changed after this check ran
-- tests_weakened: not established: the code changed after this check ran
 - claims_vs_code: could not run: this session has no final-message, commit-message or notes-file claims to look up
-- unfinished: not established: the code changed after this check ran
-- exec: not established: the code changed after this check ran
+- baseline_diff: could not run: this session has no prompt from the human and no claim the human accepted, so nothing says what was asked for
 - mutation: could not run: no mutation runner is configured (set mutation.command or mutation.report)
-- firstrun: not established: the code changed after this check ran
-- release: not established: the code changed after this check ran
-- desk:engineer: did not run
-- desk:docs: did not run
-- desk:qa: did not run
-- desk:ux: did not run
-- desk:security: did not run
-- desk:legal: did not run
-- desk:refuter: did not run
 - desk:engineer: could not run: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor
 - desk:docs: could not run: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor
 - desk:qa: could not run: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor
@@ -137,39 +43,38 @@ NOT ESTABLISHED
 - desk:legal: could not run: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor
 - desk:refuter: could not run: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor
 - desks: could not run: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor
-- whether your build and tests pass: nothing was run
 - whether your real app works: no page was loaded
-- desk:engineer: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 229)
-- desk:docs: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 230)
-- desk:qa: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 231)
-- desk:ux: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 232)
-- desk:security: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 233)
-- desk:legal: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 234)
-- desk:refuter: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 235)
-- desks: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 236)
+- desk:engineer: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 256)
+- desk:docs: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 257)
+- desk:qa: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 258)
+- desk:ux: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 259)
+- desk:security: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 260)
+- desk:legal: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 261)
+- desk:refuter: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 262)
+- desks: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 263)
 
 THE REPORT AS PRINTED
 ---------------------
 VERDICT: FAILED  (lane: release, policy v1, builder: claude/unknown [anthropic], verifier: none)
 read from code: done  |  your build and tests: ran, passed  |  your real app: not run
-session s-3994e97518, started 2026-10-28T05:38:32.352Z  |  ledger: intact, 237 records  |  baseline bc397829de86
+session s-e8db16c5ab, started 2026-10-28T05:56:14.129Z  |  ledger: intact, 264 records  |  baseline a0a741e644c0
 
 FIX FIRST
-  1. [Blocker] the release candidate is not tagged v1.0.0 (tags on HEAD: none) (asset, command `git tag --points-at HEAD (v1.0.0)`; record 225)
+  1. [Blocker] the release candidate is not tagged v1.0.0 (tags on HEAD: none) (asset, command `git tag --points-at HEAD (v1.0.0)`; record 252)
 
 YOURS TO SETTLE
-  1. check unavailable: wiring: no claim, plan line or done-when item of this session names a URL, file or symbol to trace (record 212)
-  2. check unavailable: baseline_diff: this session has no prompt from the human and no claim the human accepted, so nothing says what was asked for (record 214)
-  3. check unavailable: mutation: no mutation runner is configured (set mutation.command or mutation.report) (record 222)
-  4. check unavailable: claims_vs_code: this session has no final-message, commit-message or notes-file claims to look up (record 227)
-  5. check unavailable: desk:engineer: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 229)
-  6. check unavailable: desk:docs: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 230)
-  7. check unavailable: desk:qa: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 231)
-  8. check unavailable: desk:ux: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 232)
-  9. check unavailable: desk:security: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 233)
-  10. check unavailable: desk:legal: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 234)
-  11. check unavailable: desk:refuter: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 235)
-  12. check unavailable: desks: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 236)
+  1. check unavailable: wiring: no claim, plan line or done-when item of this session names a URL, file or symbol to trace (record 239)
+  2. check unavailable: baseline_diff: this session has no prompt from the human and no claim the human accepted, so nothing says what was asked for (record 241)
+  3. check unavailable: mutation: no mutation runner is configured (set mutation.command or mutation.report) (record 249)
+  4. check unavailable: claims_vs_code: this session has no final-message, commit-message or notes-file claims to look up (record 254)
+  5. check unavailable: desk:engineer: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 256)
+  6. check unavailable: desk:docs: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 257)
+  7. check unavailable: desk:qa: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 258)
+  8. check unavailable: desk:ux: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 259)
+  9. check unavailable: desk:security: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 260)
+  10. check unavailable: desk:legal: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 261)
+  11. check unavailable: desk:refuter: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 262)
+  12. check unavailable: desks: cross-vendor verification is required from the standard lane and up, and the builder's vendor is "anthropic"; no configured provider serves another vendor (record 263)
 
 PROMPTS (0)
   (none recorded)
@@ -181,18 +86,18 @@ TOOL CALLS (0)
   (none recorded)
 
 CHECKS
-  wiring: FailedToRun, tier honest_red: no claim, plan line or done-when item of this session names a URL, file or symbol to trace (record 213)
-  baseline_diff: FailedToRun, tier honest_red: this session has no prompt from the human and no claim the human accepted, so nothing says what was asked for (record 215)
-  regressions: Ran, tier static: 0 finding(s); the baseline already had 96 uncommitted file(s); their lines cannot be told apart from this session's and count as this session's; unverified: only relative imports (JS/TS `./x`, Python `from .x`, Rust `mod x;`) are resolved; package and alias imports are not read until the tree-sitter extractor exists (record 216)
-  tests_weakened: Ran, tier static: 0 finding(s); the baseline already had 96 uncommitted file(s); their lines cannot be told apart from this session's and count as this session's; unverified: block comments and docstrings around tests are not read; test frameworks are recognized by line patterns, not a parser (record 217)
-  unfinished: Ran, tier static: 0 finding(s); the baseline already had 96 uncommitted file(s); their lines cannot be told apart from this session's and count as this session's (record 218)
-  exec: Ran, tier ran: receipt: `cargo test --workspace --locked`; tier ran; exited with code 0; output hash 8691052d98e1aec1f231f4dfbd48011fa9d78393fdf2d17d46777ee7e3fca156; output tail: d877a644ae.exe) |      Running tests\decisions.rs (target\debug\deps\decisions-dee7ae963da0c31e.exe) |      Running tests\page.rs (target\debug\deps\page-2df393f8f1ab3a7e.exe) |      Running unittests src\lib.rs (target\debug\deps\verdict_mcp-e7af542554327875.exe) |      Running tests\commit_anyway.rs (target\debug\deps\commit_anyway-bdfe2914ab5da517.exe) |    Doc-tests verdict_adapters |    Doc-tests verdict_checkers |    Doc-tests verdict_core |    Doc-tests verdict_desks |    Doc-tests verdict_engine |    Doc-tests verdict_extract |    Doc-tests verdict_generate |    Doc-tests verdict_gui |    Doc-tests verdict_mcp | 0 filtered out; finished in 0.00s |  |  | running 0 tests |  | test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s |  |  | running 0 tests |  | test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s |  |  | running 0 tests |  | test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s |  |  | running 0 tests |  | test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s |  |  | running 0 tests |  | test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s |  | (record 219)
-  exec: Ran, tier ran: receipt: `cargo clippy --workspace --all-targets --locked -- -D warnings`; tier ran; exited with code 0; output hash 21149e12f52c6c41b6bfc9d6d4fcbf6e1637971b54e553b5c522c85d324ebd16; output tail: Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.55s | (record 220)
-  exec: Ran, tier ran: 0 finding(s) (record 221)
-  mutation: FailedToRun, tier honest_red: no mutation runner is configured (set mutation.command or mutation.report) (record 223)
-  firstrun: Ran, tier ran: 0 finding(s); first-run command 1 ran and passed: cargo build --workspace --locked; first-run command 2 ran and passed: target/debug/vdt --version (record 224)
-  release: Ran, tier ran: 1 finding(s); release check passed: cargo test --workspace --locked (output blake3 3c5f5b269aae3ab7fefe925be0e719135ac00139ca186c878f8800b70d90d91a); release tags on HEAD: none; release asset dist/*.zip: dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip; release asset dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip sha256 e85da9c5f4d1aa9e61fc67c0cf9a3a19ddc80a4d8226e8a9170fd83260618a21 matches dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip.sha256; release asset dist/*.tar.gz: dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz; release asset dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz sha256 df92c03850d8dbb178069dece2a26bba08b3d9649b0ff23001d1ca4aca6df951 matches dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256; release asset dist/*.sha256: dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip.sha256, dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256 (record 226)
-  claims_vs_code: FailedToRun, tier honest_red: this session has no final-message, commit-message or notes-file claims to look up (record 228)
+  wiring: FailedToRun, tier honest_red: no claim, plan line or done-when item of this session names a URL, file or symbol to trace (record 240)
+  baseline_diff: FailedToRun, tier honest_red: this session has no prompt from the human and no claim the human accepted, so nothing says what was asked for (record 242)
+  regressions: Ran, tier static: 0 finding(s); unverified: only relative imports (JS/TS `./x`, Python `from .x`, Rust `mod x;`) are resolved; package and alias imports are not read until the tree-sitter extractor exists (record 243)
+  tests_weakened: Ran, tier static: 0 finding(s); unverified: block comments and docstrings around tests are not read; test frameworks are recognized by line patterns, not a parser (record 244)
+  unfinished: Ran, tier static: 0 finding(s) (record 245)
+  exec: Ran, tier ran: receipt: `cargo test --workspace --locked`; tier ran; exited with code 0; output hash febcdeb466a0eed2f9f90049b07742912ddae538b8228eee080ce39f01be2adf; output tail: d877a644ae.exe) |      Running tests\decisions.rs (target\debug\deps\decisions-dee7ae963da0c31e.exe) |      Running tests\page.rs (target\debug\deps\page-2df393f8f1ab3a7e.exe) |      Running unittests src\lib.rs (target\debug\deps\verdict_mcp-e7af542554327875.exe) |      Running tests\commit_anyway.rs (target\debug\deps\commit_anyway-bdfe2914ab5da517.exe) |    Doc-tests verdict_adapters |    Doc-tests verdict_checkers |    Doc-tests verdict_core |    Doc-tests verdict_desks |    Doc-tests verdict_engine |    Doc-tests verdict_extract |    Doc-tests verdict_generate |    Doc-tests verdict_gui |    Doc-tests verdict_mcp | 0 filtered out; finished in 0.00s |  |  | running 0 tests |  | test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s |  |  | running 0 tests |  | test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s |  |  | running 0 tests |  | test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s |  |  | running 0 tests |  | test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s |  |  | running 0 tests |  | test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s |  | (record 246)
+  exec: Ran, tier ran: receipt: `cargo clippy --workspace --all-targets --locked -- -D warnings`; tier ran; exited with code 0; output hash 4e03ffa840c4863abb5a988d0f7a1686e4393b2ca3e87eec7d1701d4b367b025; output tail: Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.23s | (record 247)
+  exec: Ran, tier ran: 0 finding(s) (record 248)
+  mutation: FailedToRun, tier honest_red: no mutation runner is configured (set mutation.command or mutation.report) (record 250)
+  firstrun: Ran, tier ran: 0 finding(s); first-run command 1 ran and passed: cargo build --workspace --locked; first-run command 2 ran and passed: target/debug/vdt --version (record 251)
+  release: Ran, tier ran: 1 finding(s); release check passed: cargo test --workspace --locked (output blake3 3666baf78d75b20cd7f1868c462527dfdf4ad815bf1772e3cd66a68cda546283); release tags on HEAD: none; release asset dist/*.zip: dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip; release asset dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip sha256 0975810a16fba681cda7fb09baf9b098df3de1ec2a680b251d9b96dc4cc9f712 matches dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip.sha256; release asset dist/*.tar.gz: dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz; release asset dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz sha256 4c6f0248d14ede1372cd83e14fbe21d05186e240031cbd45582a69222b470cc7 matches dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256; release asset dist/*.sha256: dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip.sha256, dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256 (record 253)
+  claims_vs_code: FailedToRun, tier honest_red: this session has no final-message, commit-message or notes-file claims to look up (record 255)
   8 of 12 checks ran.
 
 NOT ESTABLISHED

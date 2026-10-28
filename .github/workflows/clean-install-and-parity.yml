@@ -77,15 +77,19 @@ jobs:
         run: |
           set -euo pipefail
           sh release/package.sh 1.0.0 x86_64-pc-windows-msvc zip target/release/vdt.exe dist
-          mkdir -p extracted project
-          (cd extracted && 7z x ../dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip >/dev/null)
-          cd project
+          # The project must be outside this git repository: a folder inside it resolves to the
+          # repository root as the project (by design), and the MCP files would land there.
+          extract="$(cygpath -w "$RUNNER_TEMP/vdt-extract")"
+          project="$(cygpath -w "$RUNNER_TEMP/vdt-project")"
+          bin="$(cygpath -w "$RUNNER_TEMP/vdt-bin")"
+          mkdir -p "$extract" "$project"
+          (cd "$extract" && 7z x "$(cygpath -w "$GITHUB_WORKSPACE")/dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip" >/dev/null)
+          cd "$project"
           powershell -NoProfile -ExecutionPolicy Bypass -File \
-            ../extracted/vdt-1.0.0-x86_64-pc-windows-msvc/install.ps1 \
-            -Silent -NoShortcut -NoLaunch -InstallDir "$(cygpath -w "$PWD/../bin")" \
-            -Project "$(cygpath -w "$PWD")"
-          test -f ../bin/vdt.exe
-          ../bin/vdt.exe --version
+            "$extract/vdt-1.0.0-x86_64-pc-windows-msvc/install.ps1" \
+            -Silent -NoShortcut -NoLaunch -InstallDir "$bin" -Project "$project"
+          test -f "$bin/vdt.exe"
+          "$bin/vdt.exe" --version
           test -f .mcp.json
           test -f .cursor/mcp.json
           grep -q '"verdict"' .mcp.json

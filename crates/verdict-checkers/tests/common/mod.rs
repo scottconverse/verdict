@@ -107,6 +107,26 @@ impl Built {
     }
 }
 
+/// Set the destination files' modified time to now, recursively over `src`.
+fn touch_files(src: &Path, dst: &Path) {
+    let Ok(entries) = std::fs::read_dir(src) else {
+        return;
+    };
+    for entry in entries.filter_map(Result::ok) {
+        let from = entry.path();
+        let to = dst.join(entry.file_name());
+        match entry.file_type() {
+            Ok(t) if t.is_dir() => touch_files(&from, &to),
+            Ok(t) if t.is_file() => {
+                if let Ok(f) = std::fs::OpenOptions::new().write(true).open(&to) {
+                    let _ = f.set_modified(std::time::SystemTime::now());
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
 pub fn init_repo(dir: &Path) {
     git(dir, &["init", "-q"]);
     git(dir, &["config", "user.email", "fixture@example.invalid"]);
@@ -153,6 +173,10 @@ pub fn build(name: &str, kind: &str) -> Built {
     let session = started.id;
 
     copy_dir(&fx.join("change"), dir.path());
+    // Windows' file copy preserves the source mtime. A fresh checkout gives base and change the
+    // same timestamp and some fixtures change a file without changing its size, so git's stat
+    // cache can call the file unchanged. Touching the copied files makes the edit visible.
+    touch_files(&fx.join("change"), dir.path());
     if let Ok(list) = std::fs::read_to_string(fx.join("deleted.txt")) {
         for p in list.lines().map(str::trim).filter(|p| !p.is_empty()) {
             std::fs::remove_file(dir.path().join(p)).unwrap();
