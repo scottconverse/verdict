@@ -22,6 +22,7 @@
   "mutation": {
     "require_when": ["critical_logic_changed", "test_sensitivity_uncertain"],
     "never_merely_for": ["lane_label", "file_count", "release"],
+    "command": "target/debug/vdt-mutation-runner",
     "success_exit_codes": [0],
     "critical_paths": ["crates/**"]
   },
