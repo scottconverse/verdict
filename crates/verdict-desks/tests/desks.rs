@@ -543,7 +543,6 @@ fn a_timed_out_provider_ends_its_whole_process_tree() {
     let pidfile = dir.path().join("helper.pid");
     let pid_path = pidfile.to_string_lossy().to_string();
     let started = std::time::Instant::now();
-    let started = std::time::Instant::now();
     // The lane runs on a scoped thread so the test can observe the helper while the provider is
     // still held at its deadline: a helper that died at startup must fail this, not pass it.
     let (out, l) = std::thread::scope(|s| {
