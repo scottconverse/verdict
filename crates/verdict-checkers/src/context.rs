@@ -233,6 +233,11 @@ impl CheckContext {
     }
 
     /// Read a working-tree file as text (`None` if missing or not text).
+    ///
+    /// Text the warmed index holds is exactly the snapshot's bytes. A read that the index cannot
+    /// answer (a binary, an oversize or a gap file) falls back to the disk, which is *not* the
+    /// warmed snapshot: the content is recorded as not established, so the check is never stamped
+    /// with a snapshot it did not read.
     pub fn read_text(&self, path: &str) -> Option<String> {
         if let Some(t) = self.tree().text.get(path) {
             return Some(t.clone());
@@ -241,6 +246,11 @@ impl CheckContext {
         if bytes.contains(&0) {
             return None;
         }
+        self.note(format!(
+            "{path} was read from disk because the index holds no text for it, so the read is not \
+             covered by this run's snapshot"
+        ));
+        self.unestablished(format!("read {path} outside the index's snapshot"));
         Some(String::from_utf8_lossy(&bytes).to_string())
     }
 
@@ -531,6 +541,20 @@ impl CheckContext {
     /// now, which is what the recorded snapshot stamp must describe.
     pub fn cache_matches_tree(&self) -> bool {
         self.tree_digest(false) == self.tree_digest(true)
+    }
+
+    /// True when the warmed diff cache still describes the diff now. The tree text and the diff
+    /// are cached by the same warm read, so a stamp is only honest when both are unchanged; a file
+    /// that moved while the diff was being computed leaves the diff describing another state.
+    pub fn cache_matches_changes(&self) -> bool {
+        match self.changes.get() {
+            Some(Ok(cached)) => self
+                .compute_changes()
+                .is_ok_and(|now| now.fingerprint() == cached.fingerprint()),
+            // A diff that could not be computed is reported by the checkers themselves; it is not
+            // a snapshot tear.
+            _ => true,
+        }
     }
 
     /// Hash of everything a checker could have read: the baseline, the policy, the diff, the

@@ -129,3 +129,58 @@ fn the_cached_snapshot_is_bound_to_the_bytes_it_read() {
     std::fs::write(dir.path().join("src/a.ts"), "export const a = 1;\n").unwrap();
     assert!(ctx.cache_matches_tree());
 }
+
+#[test]
+fn a_read_the_index_cannot_answer_is_recorded_as_not_established() {
+    // The index does not hold text for an oversize file. A checker that reads one anyway reads the
+    // live disk, which the warmed snapshot's digest cannot cover, so the context must record that
+    // read as not established; the runner turns any unestablished lookup into `check_unavailable`,
+    // never a clean check (`run_lane_pinned`, the `unestablished_reasons` branch).
+    let dir = tempfile::tempdir().unwrap();
+    let home = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(dir.path().join("src")).unwrap();
+    std::fs::write(dir.path().join("src/a.ts"), "export const a = 1;\n").unwrap();
+    let mut big = String::from("// TODO: not finished\n");
+    big.push_str(&"let x = 1;\n".repeat(120_000));
+    std::fs::write(dir.path().join("src/big.rs"), big).unwrap();
+
+    let mut ledger = Ledger::open_in_memory().unwrap();
+    let session = start_session(
+        &mut ledger,
+        dir.path(),
+        &SessionParams {
+            agent: "claude".into(),
+            model: "m".into(),
+            vendor: "anthropic".into(),
+            home: Some(home.path().to_path_buf()),
+        },
+    )
+    .unwrap()
+    .id;
+    let policy = Policy::load(dir.path(), Some(home.path())).unwrap();
+    let ctx = CheckContext::from_ledger(
+        &ledger,
+        dir.path(),
+        &session,
+        Lane::Low,
+        Duration::from_secs(10),
+        policy,
+    )
+    .unwrap();
+    ctx.warm();
+    // The index holds no text for it...
+    assert!(!ctx.tree().text.contains_key("src/big.rs"));
+    // ...so the read is served from disk and is not established for this snapshot.
+    assert!(ctx.read_text("src/big.rs").is_some());
+    assert!(
+        ctx.unestablished_reasons()
+            .iter()
+            .any(|r| r.contains("outside the index's snapshot")),
+        "the out-of-snapshot read must be recorded: {:?}",
+        ctx.unestablished_reasons()
+    );
+    // The index's own files stay inside the snapshot and are not marked.
+    ctx.reset_run_state();
+    assert!(ctx.read_text("src/a.ts").is_some());
+    assert!(ctx.unestablished_reasons().is_empty());
+}

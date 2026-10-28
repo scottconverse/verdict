@@ -285,16 +285,13 @@ pub fn run_lane_with_home(
     opts: &RunOptions,
     home: Option<&Path>,
 ) -> Result<Vec<CheckSummary>, String> {
-    // The real pin: the two tree-state samples agree and the cached bytes are the tree's bytes.
-    run_lane_pinned(
-        ledger,
-        root,
-        session,
-        checkers,
-        opts,
-        home,
-        &|ctx, before, after| ctx.cache_matches_tree() && snapshot_is_pinned(before, after),
-    )
+    run_lane_pinned(ledger, root, session, checkers, opts, home, &real_pin)
+}
+
+/// The real snapshot decision: the warmed tree text and the warmed diff must both still match the
+/// working tree, and the tree state must not have moved across the warm read.
+fn real_pin(ctx: &CheckContext, before: &Option<String>, after: &Option<String>) -> bool {
+    ctx.cache_matches_tree() && ctx.cache_matches_changes() && snapshot_is_pinned(before, after)
 }
 
 /// [`run_lane_with_home`] with the snapshot decision given, so a test can exercise the torn path
@@ -879,6 +876,55 @@ mod tests {
 
     fn v(items: &[&str]) -> Vec<String> {
         items.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn the_warmed_diff_cache_is_part_of_the_snapshot_pin() {
+        // The diff is cached by the same warm read as the tree text. A file that moved after that
+        // read leaves the cached diff describing another state, so the pin must reject it even
+        // while the tree text digest still matches.
+        let dir = tempfile::tempdir().unwrap();
+        let home = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("a.txt"), "one\n").unwrap();
+        let mut ledger = Ledger::open_in_memory().unwrap();
+        let session = verdict_core::start_session(
+            &mut ledger,
+            dir.path(),
+            &verdict_core::SessionParams {
+                agent: "claude".into(),
+                model: "m".into(),
+                vendor: "anthropic".into(),
+                home: Some(home.path().to_path_buf()),
+            },
+        )
+        .unwrap()
+        .id;
+        let policy = Policy::load(dir.path(), Some(home.path())).unwrap();
+        let ctx = CheckContext::from_ledger(
+            &ledger,
+            dir.path(),
+            &session,
+            Lane::Low,
+            std::time::Duration::from_secs(5),
+            policy,
+        )
+        .unwrap();
+        ctx.warm();
+        let state = verdict_core::baseline::tree_state(dir.path());
+        assert!(real_pin(&ctx, &state, &state), "nothing moved");
+
+        std::fs::write(dir.path().join("a.txt"), "two\n").unwrap();
+        let moved = verdict_core::baseline::tree_state(dir.path());
+        assert!(
+            !real_pin(&ctx, &moved, &moved),
+            "the cached diff describes the tree before the edit"
+        );
+
+        std::fs::write(dir.path().join("a.txt"), "one\n").unwrap();
+        assert!(
+            real_pin(&ctx, &state, &state),
+            "the cached diff and text are the tree's again"
+        );
     }
 
     #[test]
