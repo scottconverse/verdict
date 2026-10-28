@@ -500,6 +500,20 @@ pub fn analyze(ledger: &Ledger, session: &str) -> Result<Analysis, LedgerError> 
     let mut checks: BTreeMap<String, CheckState> = BTreeMap::new();
     let mut plumbing = Vec::new();
     let mut counts: BTreeMap<Tier, u64> = BTreeMap::new();
+    // A later successful check for the same component supersedes an earlier unavailability, so a
+    // re-run after fixing the cause does not leave the old gap in the verdict for ever.
+    let latest_ran: BTreeMap<&str, u64> = all
+        .iter()
+        .filter(|s| in_scope(session, s))
+        .filter_map(|s| match &s.record {
+            Record::Check {
+                name,
+                outcome: CheckOutcome::Ran,
+                ..
+            } => Some((name.as_str(), s.seq)),
+            _ => None,
+        })
+        .collect();
     // Commit-anyway overrides from every session: an override stays open project-wide.
     let mut raw_overrides: Vec<(u64, Option<String>, CommitAnywayChoice, String)> = Vec::new();
 
@@ -538,6 +552,12 @@ pub fn analyze(ledger: &Ledger, session: &str) -> Result<Analysis, LedgerError> 
                 checks.insert(name.clone(), state);
             }
             Record::CheckUnavailable { component, reason } if in_scope(session, s) => {
+                if latest_ran
+                    .get(component.as_str())
+                    .is_some_and(|seq| *seq > s.seq)
+                {
+                    continue;
+                }
                 if is_checker(component) {
                     checks.insert(
                         component.clone(),
