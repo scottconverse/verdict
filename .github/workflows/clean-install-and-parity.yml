@@ -128,7 +128,29 @@ jobs:
           pkg=extract/vdt-1.0.0-aarch64-apple-darwin
           test -f "$pkg/Verdict.app/Contents/Info.plist"
           test -x "$pkg/Verdict.app/Contents/MacOS/vdt-setup"
-          grep -q 'CFBundleExecutable' "$pkg/Verdict.app/Contents/Info.plist"
+          test -x "$pkg/Verdict.app/Contents/MacOS/vdt-launch"
+          grep -q 'CFBundleExecutable</key><string>vdt-launch</string>' "$pkg/Verdict.app/Contents/Info.plist"
+          # Re-opening the app opens the recorded project; the wizard runs only without one. The
+          # bundle's vdt is replaced by a stub so the decision is observable without a server.
+          tmp=$(mktemp -d)
+          cp -R "$pkg/Verdict.app" "$tmp/app"
+          mv "$tmp/app/Contents/MacOS/vdt" "$tmp/app/Contents/MacOS/vdt.real"
+          printf '#!/bin/sh\nprintf "%%s\\n" "$@" > "%s"\n' "$tmp/args" \
+            > "$tmp/app/Contents/MacOS/vdt"
+          chmod +x "$tmp/app/Contents/MacOS/vdt"
+          mkdir -p "$tmp/proj" "$tmp/state"
+          printf '%s\n' "$tmp/proj" > "$tmp/state/last-project"
+          VERDICT_STATE_DIR="$tmp/state" "$tmp/app/Contents/MacOS/vdt-launch"
+          grep -q '^serve$' "$tmp/args"
+          grep -q -- "--project" "$tmp/args"
+          grep -q "$tmp/proj" "$tmp/args"
+          # No recorded project: the wizard is the entry point.
+          printf '#!/bin/sh\nprintf "setup\\n" > "%s"\n' "$tmp/setup-ran" \
+            > "$tmp/app/Contents/MacOS/vdt-setup"
+          chmod +x "$tmp/app/Contents/MacOS/vdt-setup"
+          rm -f "$tmp/state/last-project"
+          VERDICT_STATE_DIR="$tmp/state" "$tmp/app/Contents/MacOS/vdt-launch"
+          test -f "$tmp/setup-ran"
           # This runs the app's executable directly; a Finder double-click needs a desktop session
           # and is recorded as unverified unless one is available.
           "$pkg/Verdict.app/Contents/MacOS/vdt-setup" --silent --project "$PWD/project" \

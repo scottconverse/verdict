@@ -367,7 +367,44 @@ fn install_core(
             ));
         }
     }
+    // Best effort: re-opening the installed app opens the project chosen here. If this cannot be
+    // written, the app falls back to the wizard; the install itself is still complete.
+    if let Err(e) = record_last_project_in(&state_dir(), project) {
+        eprintln!("warning: the chosen project was not remembered for re-opening: {e}");
+    }
     Ok(Installed { vdt: target })
+}
+
+/// The folder holding Verdict's small per-user state. `VERDICT_STATE_DIR` overrides it (tests).
+pub fn state_dir() -> PathBuf {
+    if let Some(dir) = std::env::var_os("VERDICT_STATE_DIR") {
+        return PathBuf::from(dir);
+    }
+    std::env::var_os("HOME")
+        .map(|h| PathBuf::from(h).join(".verdict"))
+        .unwrap_or_else(|| PathBuf::from(".verdict"))
+}
+
+/// Remember `project` as the one the installed app should open. Written atomically: a temp file is
+/// renamed over the old one, so a crash cannot leave half a path behind.
+fn record_last_project_in(state: &Path, project: &Path) -> Result<(), String> {
+    std::fs::create_dir_all(state).map_err(|e| format!("cannot make {}: {e}", state.display()))?;
+    let project = std::fs::canonicalize(project).unwrap_or_else(|_| project.to_path_buf());
+    let file = state.join("last-project");
+    let tmp = state.join(format!("last-project.tmp{}", std::process::id()));
+    std::fs::write(&tmp, format!("{}\n", project.display()))
+        .map_err(|e| format!("cannot write {}: {e}", tmp.display()))?;
+    std::fs::rename(&tmp, &file).map_err(|e| format!("cannot replace {}: {e}", file.display()))
+}
+
+/// The project the installed app should open, when one was recorded and it still exists. The
+/// macOS bundle's launcher reads the same file; this reader is used by the tests that pin the
+/// format, and by any future in-process use.
+#[allow(dead_code)]
+fn last_project_in(state: &Path) -> Option<PathBuf> {
+    let text = std::fs::read_to_string(state.join("last-project")).ok()?;
+    let project = PathBuf::from(text.trim());
+    project.is_dir().then_some(project)
 }
 
 /// A desktop entry, shortcut or copied app bundle that starts the page for this project.
@@ -651,6 +688,37 @@ mod tests {
         assert!(err.contains("did not come up"), "{err}");
         let _ = std::fs::remove_dir_all(&dir);
         let _ = std::fs::remove_dir_all(&other);
+    }
+
+    #[test]
+    fn the_chosen_project_is_remembered_atomically() {
+        let state = temp_dir("state");
+        let project = temp_dir("project");
+        record_last_project_in(&state, &project).unwrap();
+        let want = std::fs::canonicalize(&project).unwrap();
+        assert_eq!(last_project_in(&state), Some(want.clone()));
+        let file = std::fs::read_to_string(state.join("last-project")).unwrap();
+        assert_eq!(file.trim(), want.display().to_string(), "one absolute path");
+        // Rewriting replaces the old choice rather than appending to it.
+        let other = temp_dir("project2");
+        record_last_project_in(&state, &other).unwrap();
+        assert_eq!(
+            last_project_in(&state),
+            Some(std::fs::canonicalize(&other).unwrap())
+        );
+        // No temporary file is left behind.
+        let leftovers: Vec<_> = std::fs::read_dir(&state)
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .map(|e| e.file_name().to_string_lossy().to_string())
+            .filter(|n| n.starts_with("last-project.tmp"))
+            .collect();
+        assert!(leftovers.is_empty(), "{leftovers:?}");
+        // A recorded folder that no longer exists is not opened.
+        std::fs::remove_dir_all(&other).unwrap();
+        assert_eq!(last_project_in(&state), None);
+        let _ = std::fs::remove_dir_all(&state);
+        let _ = std::fs::remove_dir_all(&project);
     }
 
     #[test]

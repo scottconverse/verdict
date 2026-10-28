@@ -67,6 +67,22 @@ case "$target" in
     cp "$binary" "$app/Contents/MacOS/vdt-setup"
     cp "$dir/$exe.sha256" "$app/Contents/MacOS/$exe.sha256"
     chmod +x "$app/Contents/MacOS/vdt" "$app/Contents/MacOS/vdt-setup"
+    # Re-opening the installed app opens the project chosen at install (recorded by setup in
+    # $VERDICT_STATE_DIR/last-project, default ~/.verdict). The wizard runs only when no project
+    # has been recorded yet, or the recorded folder is gone.
+    cat > "$app/Contents/MacOS/vdt-launch" <<'LAUNCH'
+#!/bin/sh
+HERE=$(dirname "$0")
+state="${VERDICT_STATE_DIR:-$HOME/.verdict}/last-project"
+if [ -f "$state" ]; then
+  IFS= read -r project < "$state" || project=""
+  if [ -n "$project" ] && [ -d "$project" ]; then
+    exec "$HERE/vdt" serve --project "$project"
+  fi
+fi
+exec "$HERE/vdt-setup"
+LAUNCH
+    chmod +x "$app/Contents/MacOS/vdt-launch"
     cat > "$app/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -78,7 +94,7 @@ case "$target" in
   <key>CFBundleVersion</key><string>$version</string>
   <key>CFBundleShortVersionString</key><string>$version</string>
   <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleExecutable</key><string>vdt-setup</string>
+  <key>CFBundleExecutable</key><string>vdt-launch</string>
   <key>LSMinimumSystemVersion</key><string>11.0</string>
 </dict>
 </plist>
