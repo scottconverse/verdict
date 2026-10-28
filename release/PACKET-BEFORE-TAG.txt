@@ -10,15 +10,15 @@ Ledger: intact
 CLAIMS
 ------
 1. [prompt_translation] crates/verdict-core/src/lane.rs is present in the project
-   status: proven (wiring ran at the static tier (record 19) and reported no open finding about it)
+   status: proven (wiring ran at the static tier (record 130) and reported no open finding about it)
    names: crates/verdict-core/src/lane.rs
    record 4
 2. [prompt_translation] crates/verdict-engine/src/lib.rs is present in the project
-   status: proven (wiring ran at the static tier (record 19) and reported no open finding about it)
+   status: proven (wiring ran at the static tier (record 130) and reported no open finding about it)
    names: crates/verdict-engine/src/lib.rs
    record 6
 3. [prompt_translation] release/package.sh is present in the project
-   status: proven (wiring ran at the static tier (record 19) and reported no open finding about it)
+   status: proven (wiring ran at the static tier (record 130) and reported no open finding about it)
    names: release/package.sh
    record 8
 4. [final_message] Checked crates/verdict-core/src/lane.rs and crates/verdict-engine/src/lib.rs; release/package.sh is present.
@@ -28,7 +28,7 @@ CLAIMS
 
 FINDINGS
 --------
-- [blocker] the release candidate is not tagged v1.0.0 (tags on HEAD: none) (asset, record 29, open)
+- [blocker] the release candidate is not tagged v1.0.0 (tags on HEAD: none) (asset, record 29, resolved)
     evidence: command `git tag --points-at HEAD (v1.0.0)`
 - [blocker] The release candidate lacks the required v1.0.0 tag on HEAD. (judgment, record 32, open)
     evidence: command `ledger record 29`
@@ -36,6 +36,92 @@ FINDINGS
 - [blocker] Record 30 is listed as a clean release result despite recording a release blocker (judgment, record 46, open)
     evidence: command `ledger record 29`
     evidence: command `ledger record 30`
+- [major] new file crates/verdict-checkers/tests/freshness.rs that nothing in this session's prompts or accepted claims asked for (static, record 50, resolved)
+    evidence: crates/verdict-checkers/tests/freshness.rs:1
+- [major] new dependency libc in crates/verdict-desks/Cargo.toml:20 that nothing in this session's prompts or accepted claims asked for (static, record 51, resolved)
+    evidence: crates/verdict-desks/Cargo.toml:20
+- [major] new dependency windows-sys in crates/verdict-desks/Cargo.toml:25 that nothing in this session's prompts or accepted claims asked for (static, record 52, resolved)
+    evidence: crates/verdict-desks/Cargo.toml:25
+- [minor] TODO/FIXME left in added code at crates/verdict-checkers/tests/freshness.rs:143 (static, record 56, resolved)
+    evidence: crates/verdict-checkers/tests/freshness.rs:143
+- [blocker] `cargo test --workspace --locked` exited with code 101; it passes on a copy of the baseline: this session broke it (ran, record 58, resolved)
+    evidence: command `cargo test --workspace --locked`
+    evidence: command `cargo test --workspace --locked (on a copy of the baseline)`
+- [blocker] first-run command 1 `cargo build --workspace --locked` did not pass: it exited 101 (ran, record 64, resolved)
+    evidence: command `cargo build --workspace --locked`
+- [blocker] the release asset dist/*.AppImage does not exist in the candidate (asset, record 66, resolved)
+    evidence: command `release asset dist/*.AppImage`
+- [blocker] release check `cargo test --workspace --locked` did not pass: it exited 101 (ran, record 67, resolved)
+    evidence: command `cargo test --workspace --locked`
+- [blocker] the release candidate is not tagged v1.0.0 (tags on HEAD: none) (asset, record 68, resolved)
+    evidence: command `git tag --points-at HEAD (v1.0.0)`
+- [major] new file crates/verdict-checkers/tests/freshness.rs that nothing in this session's prompts or accepted claims asked for (static, record 72, resolved)
+    evidence: crates/verdict-checkers/tests/freshness.rs:1
+- [major] new dependency libc in crates/verdict-desks/Cargo.toml:20 that nothing in this session's prompts or accepted claims asked for (static, record 73, resolved)
+    evidence: crates/verdict-desks/Cargo.toml:20
+- [major] new dependency windows-sys in crates/verdict-desks/Cargo.toml:25 that nothing in this session's prompts or accepted claims asked for (static, record 74, resolved)
+    evidence: crates/verdict-desks/Cargo.toml:25
+- [minor] TODO/FIXME left in added code at crates/verdict-checkers/tests/freshness.rs:143 (static, record 78, resolved)
+    evidence: crates/verdict-checkers/tests/freshness.rs:143
+- [blocker] `cargo test --workspace --locked` exited with code 101; it passes on a copy of the baseline: this session broke it (ran, record 80, resolved)
+    evidence: command `cargo test --workspace --locked`
+    evidence: command `cargo test --workspace --locked (on a copy of the baseline)`
+- [blocker] first-run command 1 `cargo build --workspace --locked` did not pass: it exited 101 (ran, record 86, resolved)
+    evidence: command `cargo build --workspace --locked`
+- [blocker] the release asset dist/*.AppImage does not exist in the candidate (asset, record 88, resolved)
+    evidence: command `release asset dist/*.AppImage`
+- [blocker] release check `cargo test --workspace --locked` did not pass: it exited 101 (ran, record 89, resolved)
+    evidence: command `cargo test --workspace --locked`
+- [blocker] the release candidate is not tagged v1.0.0 (tags on HEAD: none) (asset, record 90, resolved)
+    evidence: command `git tag --points-at HEAD (v1.0.0)`
+- [major] The latest candidate has no successful workspace test execution in the supplied receipts (judgment, record 110, open)
+    evidence: command `ledger record 59`
+    evidence: command `ledger record 81`
+    evidence: command `ledger record 24`
+    evidence: command `ledger record 83`
+- [major] A successful version command after a failed build does not establish first-run behavior of the candidate (judgment, record 111, open)
+    evidence: command `ledger record 65`
+    evidence: command `ledger record 87`
+- [major] The attribution 'this session broke it' exceeds the baseline comparison evidence (judgment, record 112, open)
+    evidence: command `ledger record 58`
+    evidence: command `ledger record 59`
+    evidence: command `ledger record 60`
+    evidence: command `ledger record 80`
+    evidence: command `ledger record 81`
+    evidence: command `ledger record 82`
+- [blocker] The configured source-build first-run flow cannot complete (judgment, record 115, open)
+    evidence: command `ledger record 64`
+    evidence: command `ledger record 65`
+    evidence: command `ledger record 86`
+    evidence: command `ledger record 87`
+- [blocker] The clean-result list includes release record 30, which explicitly reports a blocker (judgment, record 126, open)
+    evidence: command `ledger record 29`
+    evidence: command `ledger record 30`
+- [blocker] The clean-result list includes checks that explicitly report findings and failed commands (judgment, record 127, open)
+    evidence: command `ledger record 53`
+    evidence: command `ledger record 57`
+    evidence: command `ledger record 59`
+    evidence: command `ledger record 62`
+    evidence: command `ledger record 65`
+- [major] new file crates/verdict-checkers/tests/freshness.rs that nothing in this session's prompts or accepted claims asked for (static, record 131, open)
+    evidence: crates/verdict-checkers/tests/freshness.rs:1
+- [major] new dependency libc in crates/verdict-desks/Cargo.toml:20 that nothing in this session's prompts or accepted claims asked for (static, record 132, open)
+    evidence: crates/verdict-desks/Cargo.toml:20
+- [major] new dependency windows-sys in crates/verdict-desks/Cargo.toml:25 that nothing in this session's prompts or accepted claims asked for (static, record 133, open)
+    evidence: crates/verdict-desks/Cargo.toml:25
+- [minor] TODO/FIXME left in added code at crates/verdict-checkers/tests/freshness.rs:143 (static, record 137, open)
+    evidence: crates/verdict-checkers/tests/freshness.rs:143
+- [blocker] the release asset dist/*.AppImage does not exist in the candidate (asset, record 145, open)
+    evidence: command `release asset dist/*.AppImage`
+- [blocker] the release candidate is not tagged v1.0.0 (tags on HEAD: none) (asset, record 146, open)
+    evidence: command `git tag --points-at HEAD (v1.0.0)`
+- [blocker] The clean-result inventory includes checks whose ledger records explicitly report findings or execution failures (judgment, record 179, open)
+    evidence: command `ledger record 30`
+    evidence: command `ledger record 53`
+    evidence: command `ledger record 57`
+    evidence: command `ledger record 59`
+    evidence: command `ledger record 62`
+    evidence: command `ledger record 65`
 
 HYPOTHESES (move nothing)
 ------------------------
@@ -46,6 +132,33 @@ HYPOTHESES (move nothing)
 - [minor] Dependency licensing and attribution remain unverified from the supplied evidence (record 42)
 - [minor] The execution output hashes and current tree identity cannot be independently reconciled from the supplied ledger (record 44)
 - [minor] Matching release checksums do not establish that the packaged binaries came from the tested tree (record 45)
+- [minor] The candidate's test failure may be environmental rather than a source regression: records 59 and 81 show Windows denying removal of target/debug/vdt.exe, while records 60 and 82 test a baseline copy in a different execution context; the core should run `cargo test --workspace --locked --target-dir target/engineer-isolated` on the unchanged candidate to distinguish a target-directory conflict from a code failure. (record 103)
+- [minor] The supplied receipts do not establish that the release archives were built from the current candidate: record 69 reports the same archive hashes as record 30 despite a changed tree identity; the core should inspect packaging receipts that bind those archives to their source tree. (record 104)
+- [minor] The documented GUI and POSIX installer paths lack acceptance evidence in the supplied records (record 106)
+- [minor] Documentation link validity remains unverified (record 107)
+- [minor] A running executable or another filesystem access constraint may explain the repeated inability to replace vdt.exe (record 109)
+- [minor] Usability beyond build and version output remains unassessed (record 114)
+- [minor] Source and dependency security are not established by the supplied evidence (record 117)
+- [minor] Dependency licensing and release attribution remain unverified (record 119)
+- [minor] Records after 73 cannot be audited from the truncated ledger (record 121)
+- [minor] The claim that this session broke the tests may conflate a build-environment failure with a source regression (record 122)
+- [minor] The successful version command may have exercised an older executable after the candidate build failed (record 123)
+- [minor] The mutation summary does not establish that all three mutants were killed by meaningful test failures (record 124)
+- [minor] Execution-output hashes and release-asset provenance cannot be independently reconciled from the supplied summaries (record 125)
+- [minor] The regression attribution in record 58 is not established by records 59 and 60: the candidate failed while removing target/debug/vdt.exe with Windows error 5, whereas the baseline ran in a separate copy; the core should check executable ownership and target-directory access before attributing this difference to source changes. (record 159)
+- [minor] Records 139 and 140 report successful tests and Clippy, but the supplied excerpts omit their tree identities, so their applicability to the current release candidate remains unverified. (record 160)
+- [minor] The supplied material contains no source contents or dependency diff, so architecture, implementation correctness and dependency changes remain unassessed by this desk. (record 161)
+- [minor] The documented GUI and POSIX installation paths are not established by the supplied execution evidence (record 163)
+- [minor] Documentation link validity remains unverified (record 164)
+- [minor] First-use usability is not established by the supplied evidence (record 167)
+- [minor] Security of the added process-control dependencies remains unverified (record 169)
+- [minor] Source-level security coverage is not established by the supplied ledger (record 170)
+- [minor] Dependency licensing and release attribution remain unverified (record 172)
+- [minor] The supplied ledger is truncated, so the later checks cannot be refuted or their citations inspected (record 174)
+- [minor] The successful version invocation may have exercised an older executable (record 175)
+- [minor] Execution hashes and freshness cannot be independently reconciled from the supplied receipt summaries (record 176)
+- [minor] Matching archive checksums do not establish candidate provenance (record 177)
+- [minor] Mutation kills may reflect execution failures rather than test sensitivity (record 178)
 
 DECISIONS
 ---------
@@ -57,44 +170,126 @@ OVERRIDES
 
 RELEASE EVIDENCE
 ----------------
-- release: ran at the ran tier (record 30): 1 finding(s); release check passed: cargo test --workspace --locked (output blake3 c7d573ae4c3169c20d7bb696d78b1b09500797a81030880d971b53d5e00da3ad); release tags on HEAD: none; release asset dist/*.zip: dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip; release asset dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip sha256 5fe18e97101803a3e5b33460cdd5560e1c6478f038291fdb2ed41ea2cc35fd9a matches dist/vdt-1.0.0-x8...
-- firstrun: ran at the ran tier (record 28): 0 finding(s); first-run command 1 ran and passed: cargo build --workspace --locked; first-run command 2 ran and passed: target/debug/vdt --version
+- release: could not run (2 finding(s) written, but not everything could be looked up: read dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip.sha256 outside the index's snapshot; read dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256 outside the index's snapshot; release check passed: cargo test --workspace --locked (output blake3 373d481e4dad98913c50c5da3bf622b8955e406ae706b2028e955ba45b4791aa); release tags on HEAD: none; release asset dist/*.zip: dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip; dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip.sha256 was read from disk because the index holds no text for it, so the read is not covered by this run's snapshot; release asset dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip sha256 5fe18e97101803a3e5b33460cdd5560e1c6478f038291fdb2ed41ea2cc35fd9a matches dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip.sha256; release asset dist/*.tar.gz: dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz; dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256 was read from disk because the index holds no text for it, so the read is not covered by this run's snapshot; release asset dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz sha256 ad4147264680a6239a72338d6c5cb8b9a354215f2c0696558adb1f4210aeef33 matches dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256; release asset dist/*.AppImage: missing; release asset dist/*.sha256: dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip.sha256, dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256)
+- firstrun: ran at the ran tier (record 144): 0 finding(s); first-run command 1 ran and passed: cargo build --workspace --locked; first-run command 2 ran and passed: target/debug/vdt --version
 - firstrun at the browsed tier: no
-- release coherence ran: true
+- release coherence ran: false
 - open commit-anyway override: no
 - release version: 1.0.0
 - asset dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip: 6327583 bytes, SHA-256 5fe18e97101803a3e5b33460cdd5560e1c6478f038291fdb2ed41ea2cc35fd9a
 - asset dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz: 6629510 bytes, SHA-256 ad4147264680a6239a72338d6c5cb8b9a354215f2c0696558adb1f4210aeef33
+- asset dist/*.AppImage: (no file matched)
 - asset dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip.sha256: 65 bytes, SHA-256 6c6dff039f937037899c4a06ab950f4d01cb14b16e3117747318f1a980102934
 - asset dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256: 65 bytes, SHA-256 6cbe6bc8c4469e783b04a47e0ea77dd397e5640ee801bb613c05a58352499006
 
 NOT ESTABLISHED
 ---------------
-- lane: you chose the release lane for this packet
-- lane: no changed files found
-- mutation: skipped by policy (mutation was not required by mutation.require_when (critical_logic_changed, test_sensitivity_uncertain) for this diff: no logic file changed; 0 finding(s) recorded separately)
-- 7 hypothesis(es) with no evidence pointer count for nothing
+- lane: .github/workflows/clean-install-and-parity.yml changes code or configuration
+- lane: .github/workflows/dogfood-release.yml changes code or configuration
+- lane: Cargo.lock matches high_if_touches Cargo.lock
+- lane: crates/verdict-checkers/src/context.rs matches high_if_touches crates/**
+- lane: crates/verdict-checkers/src/lib.rs matches high_if_touches crates/**
+- lane: crates/verdict-checkers/tests/freshness.rs matches high_if_touches crates/**
+- lane: crates/verdict-desks/Cargo.toml matches high_if_touches crates/**
+- lane: crates/verdict-desks/src/bin/vdt-fake-desk.rs matches high_if_touches crates/**
+- lane: crates/verdict-desks/src/bin/vdt-provider-codex.rs matches high_if_touches crates/**
+- lane: crates/verdict-desks/src/lib.rs matches high_if_touches crates/**
+- lane: crates/verdict-desks/tests/desks.rs matches high_if_touches crates/**
+- lane: crates/verdict-gui/src/lib.rs matches high_if_touches crates/**
+- lane: crates/verdict-gui/src/setup.rs matches high_if_touches crates/**
+- lane: crates/verdict-gui/tests/page.rs matches high_if_touches crates/**
+- lane: release/PACKET-BEFORE-TAG.txt matches release_if_touches release/**
+- lane: release/dogfood-gate.sh matches release_if_touches release/**
+- lane: release/findings.sarif matches release_if_touches release/**
+- lane: release/package-appimage.sh matches release_if_touches release/**
+- lane: release/package.sh matches release_if_touches release/**
+- lane: verdict.json changes code or configuration
+- mutation: could not run: the mutation runner did not end successfully (exit 1), so its output was not read as a mutation report
+- release: could not run: 2 finding(s) written, but not everything could be looked up: read dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip.sha256 outside the index's snapshot; read dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256 outside the index's snapshot; release check passed: cargo test --workspace --locked (output blake3 373d481e4dad98913c50c5da3bf622b8955e406ae706b2028e955ba45b4791aa); release tags on HEAD: none; release asset dist/*.zip: dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip; dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip.sha256 was read from disk because the index holds no text for it, so the read is not covered by this run's snapshot; release asset dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip sha256 5fe18e97101803a3e5b33460cdd5560e1c6478f038291fdb2ed41ea2cc35fd9a matches dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip.sha256; release asset dist/*.tar.gz: dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz; dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256 was read from disk because the index holds no text for it, so the read is not covered by this run's snapshot; release asset dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz sha256 ad4147264680a6239a72338d6c5cb8b9a354215f2c0696558adb1f4210aeef33 matches dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256; release asset dist/*.AppImage: missing; release asset dist/*.sha256: dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip.sha256, dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256
+- 34 hypothesis(es) with no evidence pointer count for nothing
 - whether your real app works: no page was loaded
 
 THE REPORT AS PRINTED
 ---------------------
 VERDICT: FAILED  (lane: release, policy v1, builder: claude/unknown [anthropic], verifier: none)
 read from code: done  |  your build and tests: ran, passed  |  your real app: not run
-session s-58be697247, started 2026-10-28T21:41:56.996Z  |  ledger: intact, 48 records  |  baseline 5f6334ff582a
+session s-58be697247, started 2026-10-28T21:41:56.996Z  |  ledger: intact, 181 records  |  baseline 5f6334ff582a
 
 FIX FIRST
-  1. [Blocker] the release candidate is not tagged v1.0.0 (tags on HEAD: none) (asset, command `git tag --points-at HEAD (v1.0.0)`; record 29)
-  2. [Blocker] The release candidate lacks the required v1.0.0 tag on HEAD. (judgment, command `ledger record 29`; record 32)
-  3. [Blocker] Record 30 is listed as a clean release result despite recording a release blocker (judgment, command `ledger record 29`; record 46)
+  1. [Blocker] The release candidate lacks the required v1.0.0 tag on HEAD. (judgment, command `ledger record 29`; record 32)
+  2. [Blocker] Record 30 is listed as a clean release result despite recording a release blocker (judgment, command `ledger record 29`; record 46)
+  3. [Major] The latest candidate has no successful workspace test execution in the supplied receipts (judgment, command `ledger record 59`; record 110)
+  4. [Major] A successful version command after a failed build does not establish first-run behavior of the candidate (judgment, command `ledger record 65`; record 111)
+  5. [Major] The attribution 'this session broke it' exceeds the baseline comparison evidence (judgment, command `ledger record 58`; record 112)
+  6. [Blocker] The configured source-build first-run flow cannot complete (judgment, command `ledger record 64`; record 115)
+  7. [Blocker] The clean-result list includes release record 30, which explicitly reports a blocker (judgment, command `ledger record 29`; record 126)
+  8. [Blocker] The clean-result list includes checks that explicitly report findings and failed commands (judgment, command `ledger record 53`; record 127)
+  9. [Major] new file crates/verdict-checkers/tests/freshness.rs that nothing in this session's prompts or accepted claims asked for (static, crates/verdict-checkers/tests/freshness.rs:1; record 131)
+  10. [Major] new dependency libc in crates/verdict-desks/Cargo.toml:20 that nothing in this session's prompts or accepted claims asked for (static, crates/verdict-desks/Cargo.toml:20; record 132)
+  11. [Major] new dependency windows-sys in crates/verdict-desks/Cargo.toml:25 that nothing in this session's prompts or accepted claims asked for (static, crates/verdict-desks/Cargo.toml:25; record 133)
+  12. [Blocker] the release asset dist/*.AppImage does not exist in the candidate (asset, command `release asset dist/*.AppImage`; record 145)
+  13. [Blocker] the release candidate is not tagged v1.0.0 (tags on HEAD: none) (asset, command `git tag --points-at HEAD (v1.0.0)`; record 146)
+  14. [Blocker] The clean-result inventory includes checks whose ledger records explicitly report findings or execution failures (judgment, command `ledger record 30`; record 179)
 
 YOURS TO SETTLE
-  1. hypothesis (no evidence pointer, counts for nothing): The documented installer paths are not verified by the supplied first-run evidence (record 34)
-  2. hypothesis (no evidence pointer, counts for nothing): Documentation link validity remains unverified (record 35)
-  3. hypothesis (no evidence pointer, counts for nothing): First-use usability remains unassessed by the supplied evidence (record 38)
-  4. hypothesis (no evidence pointer, counts for nothing): Source and dependency security remain unassessed (record 40)
-  5. hypothesis (no evidence pointer, counts for nothing): Dependency licensing and attribution remain unverified from the supplied evidence (record 42)
-  6. hypothesis (no evidence pointer, counts for nothing): The execution output hashes and current tree identity cannot be independently reconciled from the supplied ledger (record 44)
-  7. hypothesis (no evidence pointer, counts for nothing): Matching release checksums do not establish that the packaged binaries came from the tested tree (record 45)
+  1. [Minor] TODO/FIXME left in added code at crates/verdict-checkers/tests/freshness.rs:143 (static, crates/verdict-checkers/tests/freshness.rs:143; record 137)
+  2. check unavailable: mutation: the mutation runner did not end successfully (exit 1), so its output was not read as a mutation report (record 142)
+  3. check unavailable: release: 2 finding(s) written, but not everything could be looked up: read dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip.sha256 outside the index's snapshot; read dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256 outside the index's snapshot; release check passed: cargo test --workspace --locked (output blake3 373d481e4dad98913c50c5da3bf622b8955e406ae706b2028e955ba45b4791aa); release tags on HEAD: none; release asset dist/*.zip: dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip; dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip.sha256 was read from disk because the index holds no text for it, so the read is not covered by this run's snapshot; release asset dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip sha256 5fe18e97101803a3e5b33460cdd5560e1c6478f038291fdb2ed41ea2cc35fd9a matches dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip.sha256; release asset dist/*.tar.gz: dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz; dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256 was read from disk because the index holds no text for it, so the read is not covered by this run's snapshot; release asset dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz sha256 ad4147264680a6239a72338d6c5cb8b9a354215f2c0696558adb1f4210aeef33 matches dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256; release asset dist/*.AppImage: missing; release asset dist/*.sha256: dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip.sha256, dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256 (record 147)
+  4. hypothesis (no evidence pointer, counts for nothing): The documented installer paths are not verified by the supplied first-run evidence (record 34)
+  5. hypothesis (no evidence pointer, counts for nothing): Documentation link validity remains unverified (record 35)
+  6. hypothesis (no evidence pointer, counts for nothing): First-use usability remains unassessed by the supplied evidence (record 38)
+  7. hypothesis (no evidence pointer, counts for nothing): Source and dependency security remain unassessed (record 40)
+  8. hypothesis (no evidence pointer, counts for nothing): Dependency licensing and attribution remain unverified from the supplied evidence (record 42)
+  9. hypothesis (no evidence pointer, counts for nothing): The execution output hashes and current tree identity cannot be independently reconciled from the supplied ledger (record 44)
+  10. hypothesis (no evidence pointer, counts for nothing): Matching release checksums do not establish that the packaged binaries came from the tested tree (record 45)
+  11. hypothesis (no evidence pointer, counts for nothing): The candidate's test failure may be environmental rather than a source regression: records 59 and 81 show Windows denying removal of target/debug/vdt.exe, while records 60 and 82 test a baseline copy in a different execution context; the core should run `cargo test --workspace --locked --target-dir target/engineer-isolated` on the unchanged candidate to distinguish a target-directory conflict from a code failure. (record 103)
+  12. hypothesis (no evidence pointer, counts for nothing): The supplied receipts do not establish that the release archives were built from the current candidate: record 69 reports the same archive hashes as record 30 despite a changed tree identity; the core should inspect packaging receipts that bind those archives to their source tree. (record 104)
+  13. hypothesis (no evidence pointer, counts for nothing): The documented GUI and POSIX installer paths lack acceptance evidence in the supplied records (record 106)
+  14. hypothesis (no evidence pointer, counts for nothing): Documentation link validity remains unverified (record 107)
+  15. hypothesis (no evidence pointer, counts for nothing): A running executable or another filesystem access constraint may explain the repeated inability to replace vdt.exe (record 109)
+  16. hypothesis (no evidence pointer, counts for nothing): Usability beyond build and version output remains unassessed (record 114)
+  17. hypothesis (no evidence pointer, counts for nothing): Source and dependency security are not established by the supplied evidence (record 117)
+  18. hypothesis (no evidence pointer, counts for nothing): Dependency licensing and release attribution remain unverified (record 119)
+  19. hypothesis (no evidence pointer, counts for nothing): Records after 73 cannot be audited from the truncated ledger (record 121)
+  20. hypothesis (no evidence pointer, counts for nothing): The claim that this session broke the tests may conflate a build-environment failure with a source regression (record 122)
+  21. hypothesis (no evidence pointer, counts for nothing): The successful version command may have exercised an older executable after the candidate build failed (record 123)
+  22. hypothesis (no evidence pointer, counts for nothing): The mutation summary does not establish that all three mutants were killed by meaningful test failures (record 124)
+  23. hypothesis (no evidence pointer, counts for nothing): Execution-output hashes and release-asset provenance cannot be independently reconciled from the supplied summaries (record 125)
+  24. hypothesis (no evidence pointer, counts for nothing): The regression attribution in record 58 is not established by records 59 and 60: the candidate failed while removing target/debug/vdt.exe with Windows error 5, whereas the baseline ran in a separate copy; the core should check executable ownership and target-directory access before attributing this difference to source changes. (record 159)
+  25. hypothesis (no evidence pointer, counts for nothing): Records 139 and 140 report successful tests and Clippy, but the supplied excerpts omit their tree identities, so their applicability to the current release candidate remains unverified. (record 160)
+  26. hypothesis (no evidence pointer, counts for nothing): The supplied material contains no source contents or dependency diff, so architecture, implementation correctness and dependency changes remain unassessed by this desk. (record 161)
+  27. hypothesis (no evidence pointer, counts for nothing): The documented GUI and POSIX installation paths are not established by the supplied execution evidence (record 163)
+  28. hypothesis (no evidence pointer, counts for nothing): Documentation link validity remains unverified (record 164)
+  29. hypothesis (no evidence pointer, counts for nothing): First-use usability is not established by the supplied evidence (record 167)
+  30. hypothesis (no evidence pointer, counts for nothing): Security of the added process-control dependencies remains unverified (record 169)
+  31. hypothesis (no evidence pointer, counts for nothing): Source-level security coverage is not established by the supplied ledger (record 170)
+  32. hypothesis (no evidence pointer, counts for nothing): Dependency licensing and release attribution remain unverified (record 172)
+  33. hypothesis (no evidence pointer, counts for nothing): The supplied ledger is truncated, so the later checks cannot be refuted or their citations inspected (record 174)
+  34. hypothesis (no evidence pointer, counts for nothing): The successful version invocation may have exercised an older executable (record 175)
+  35. hypothesis (no evidence pointer, counts for nothing): Execution hashes and freshness cannot be independently reconciled from the supplied receipt summaries (record 176)
+  36. hypothesis (no evidence pointer, counts for nothing): Matching archive checksums do not establish candidate provenance (record 177)
+  37. hypothesis (no evidence pointer, counts for nothing): Mutation kills may reflect execution failures rather than test sensitivity (record 178)
+
+CLOSED FINDINGS
+  [Blocker] the release candidate is not tagged v1.0.0 (tags on HEAD: none) (record 29): resolved (correction record 93)
+  [Major] new file crates/verdict-checkers/tests/freshness.rs that nothing in this session's prompts or accepted claims asked for (record 50): resolved (correction record 94)
+  [Major] new dependency libc in crates/verdict-desks/Cargo.toml:20 that nothing in this session's prompts or accepted claims asked for (record 51): resolved (correction record 95)
+  [Major] new dependency windows-sys in crates/verdict-desks/Cargo.toml:25 that nothing in this session's prompts or accepted claims asked for (record 52): resolved (correction record 96)
+  [Minor] TODO/FIXME left in added code at crates/verdict-checkers/tests/freshness.rs:143 (record 56): resolved (correction record 97)
+  [Blocker] `cargo test --workspace --locked` exited with code 101; it passes on a copy of the baseline: this session broke it (record 58): resolved (correction record 98)
+  [Blocker] first-run command 1 `cargo build --workspace --locked` did not pass: it exited 101 (record 64): resolved (correction record 99)
+  [Blocker] the release asset dist/*.AppImage does not exist in the candidate (record 66): resolved (correction record 100)
+  [Blocker] release check `cargo test --workspace --locked` did not pass: it exited 101 (record 67): resolved (correction record 101)
+  [Blocker] the release candidate is not tagged v1.0.0 (tags on HEAD: none) (record 68): resolved (correction record 102)
+  [Major] new file crates/verdict-checkers/tests/freshness.rs that nothing in this session's prompts or accepted claims asked for (record 72): resolved (correction record 150)
+  [Major] new dependency libc in crates/verdict-desks/Cargo.toml:20 that nothing in this session's prompts or accepted claims asked for (record 73): resolved (correction record 151)
+  [Major] new dependency windows-sys in crates/verdict-desks/Cargo.toml:25 that nothing in this session's prompts or accepted claims asked for (record 74): resolved (correction record 152)
+  [Minor] TODO/FIXME left in added code at crates/verdict-checkers/tests/freshness.rs:143 (record 78): resolved (correction record 153)
+  [Blocker] `cargo test --workspace --locked` exited with code 101; it passes on a copy of the baseline: this session broke it (record 80): resolved (correction record 154)
+  [Blocker] first-run command 1 `cargo build --workspace --locked` did not pass: it exited 101 (record 86): resolved (correction record 155)
+  [Blocker] the release asset dist/*.AppImage does not exist in the candidate (record 88): resolved (correction record 156)
+  [Blocker] release check `cargo test --workspace --locked` did not pass: it exited 101 (record 89): resolved (correction record 157)
+  [Blocker] the release candidate is not tagged v1.0.0 (tags on HEAD: none) (record 90): resolved (correction record 158)
 
 DECISIONS BY THE HUMAN
   record 18: run_project_commands = approved:37aae06f692b60dc721c5e1ca63a8c006beba776cf1e4364a7f8299f58ee53ba
@@ -140,10 +335,63 @@ CHECKS
   desk:security: Ran, tier judgment: desk security; provider "codex" (vendor openai, requested model "unspecified", returned model None); served vendor None (not_stated); settings None; usage Some(Object {"input_tokens": Number(88592), "cached_input_tokens": Number(75776), "cache_write_input_tokens": Number(0), "output_tokens": Number(384), "reasoning_output_tokens": Number(13)}); lane release; policy v1; 0 finding(s), 1 hypothesis(ies); 18886 ms (record 41)
   desk:legal: Ran, tier judgment: desk legal; provider "codex" (vendor openai, requested model "unspecified", returned model None); served vendor None (not_stated); settings None; usage Some(Object {"input_tokens": Number(27682), "cached_input_tokens": Number(13312), "cache_write_input_tokens": Number(0), "output_tokens": Number(174), "reasoning_output_tokens": Number(40)}); lane release; policy v1; 0 finding(s), 1 hypothesis(ies); 13763 ms (record 43)
   desk:refuter: Ran, tier judgment: desk refuter; provider "codex" (vendor openai, requested model "unspecified", returned model None); served vendor None (not_stated); settings None; usage Some(Object {"input_tokens": Number(27552), "cached_input_tokens": Number(13312), "cache_write_input_tokens": Number(0), "output_tokens": Number(477), "reasoning_output_tokens": Number(45)}); lane release; policy v1; 1 finding(s), 2 hypothesis(ies); 20806 ms (record 47)
-  23 of 24 checks ran.
+  wiring: Ran, tier static: 0 finding(s); 4 CONNECTED  0 BROKEN  0 NOT BUILT  0 HALF BUILT  0 SKIPPED; claim 4 (unticked): CONNECTED - crates/verdict-core/src/lane.rs: crates/verdict-core/src/lane.rs: 0 route(s) or command(s), 0 call(s), 0 control(s), 35 definition(s) read; nothing broken; claim 6 (unticked): CONNECTED - crates/verdict-engine/src/lib.rs: crates/verdict-engine/src/lib.rs: 0 route(s) or command(s), 0 call(s), 0 control(s), 15 definition(s) read; nothing broken; claim 8 (unticked): CONNECTED - release/package.sh: release/package.sh exists (not source code; nothing to wire); claim 11 (ticked): CONNECTED - crates/verdict-core/src/lane.rs: crates/verdict-core/src/lane.rs: 0 route(s) or command(s), 0 call(s), 0 control(s), 35 definition(s) read; nothing broken; unverified: 1 source file(s) in stacks no extractor in this build reads (crates/verdict-checkers/fixtures/wiring/word_skipped/red/change/svc.go) (record 49)
+  baseline_diff: Ran, tier static: 3 finding(s); unverified: routes, pages and tables are recognized by file location and line patterns only (no tree-sitter extractor yet); data-changing buttons are not read (record 53)
+  regressions: Ran, tier static: 0 finding(s); unverified: only relative imports (JS/TS `./x`, Python `from .x`, Rust `mod x;`) are resolved; package and alias imports are not read until the tree-sitter extractor exists (record 54)
+  tests_weakened: Ran, tier static: 0 finding(s); unverified: block comments and docstrings around tests are not read; test frameworks are recognized by line patterns, not a parser (record 55)
+  unfinished: Ran, tier static: 1 finding(s) (record 57)
+  exec: Ran, tier ran: receipt: `cargo test --workspace --locked`; tier ran; exited with code 101; output hash abb16405ee2ff23ccbe28117141539e5b02a31b2ab243e3420c5f2bc592c6069; output tail: crates\verdict-adapters) |    Compiling verdict-gui v1.0.0 (C:\Users\scott\Desktop\Code\verdict-wt\merge-trial\crates\verdict-gui) |    Compiling verdict-mcp v1.0.0 (C:\Users\scott\Desktop\Code\verdict-wt\merge-trial\crates\verdict-mcp) |    Compiling verdict-generate v1.0.0 (C:\Users\scott\Desktop\Code\verdict-wt\merge-trial\crates\verdict-generate) |    Compiling verdict-gate v1.0.0 (C:\Users\scott\Desktop\Code\verdict-wt\merge-trial\crates\verdict-cli) | error: failed to remove file `C:\Users\scott\Desktop\Code\verdict-wt\merge-trial\target\debug\vdt.exe` |  | Caused by: |   Access is denied. (os error 5) | (record 59)
+  exec: Ran, tier ran: receipt: `cargo test --workspace --locked (on a copy of the baseline)`; tier ran; exited with code 0; output hash 96beea0f053b2eb7b69ccc9ce8aaf59c6bdbaa8d0b07b4c6f630acc49cc64df6; output tail: e) |      Running tests\page.rs (target\debug\deps\page-2df393f8f1ab3a7e.exe) |      Running unittests src\lib.rs (target\debug\deps\verdict_mcp-e7af542554327875.exe) |      Running tests\commit_anyway.rs (target\debug\deps\commit_anyway-bdfe2914ab5da517.exe) |      Running unittests src\main.rs (target\debug\deps\vdt_mutation_runner-4e72e98a562af975.exe) |    Doc-tests verdict_adapters |    Doc-tests verdict_checkers |    Doc-tests verdict_core |    Doc-tests verdict_desks |    Doc-tests verdict_engine |    Doc-tests verdict_extract |    Doc-tests verdict_generate |    Doc-tests verdict_gui |    Doc-tests verdict_mcp | 0 filtered out; finished in 0.00s |  |  | running 0 tests |  | test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s |  |  | running 0 tests |  | test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s |  |  | running 0 tests |  | test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s |  |  | running 0 tests |  | test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s |  |  | running 0 tests |  | test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s |  | (record 60)
+  exec: Ran, tier ran: receipt: `cargo clippy --workspace --all-targets --locked -- -D warnings`; tier ran; exited with code 0; output hash 649339fb6ddddb20b416277ace3980a917c9a9ea11cd3a1b16544c2df57a1c81; output tail: Checking verdict-gui v1.0.0 (C:\Users\scott\Desktop\Code\verdict-wt\merge-trial\crates\verdict-gui) |     Checking verdict-gate v1.0.0 (C:\Users\scott\Desktop\Code\verdict-wt\merge-trial\crates\verdict-cli) |     Finished `dev` profile [unoptimized + debuginfo] target(s) in 2.16s | (record 61)
+  exec: Ran, tier ran: 1 finding(s); output tail: `cargo test --workspace --locked` exited with code 101: crates\verdict-adapters) |    Compiling verdict-gui v1.0.0 (C:\Users\scott\Desktop\Code\verdict-wt\merge-trial\crates\verdict-gui) |    Compiling verdict-mcp v1.0.0 (C:\Users\scott\Desktop\Code\verdict-wt\merge-trial\crates\verdict-mcp) |    Compiling verdict-generate v1.0.0 (C:\Users\scott\Desktop\Code\verdict-wt\merge-trial\crates\verdict-generate) |    Compiling verdict-gate v1.0.0 (C:\Users\scott\Desktop\Code\verdict-wt\merge-trial\crates\verdict-cli) | error: failed to remove file `C:\Users\scott\Desktop\Code\verdict-wt\merge-trial\target\debug\vdt.exe` |  | Caused by: |   Access is denied. (os error 5) | (record 62)
+  mutation: Ran, tier ran: 0 finding(s); mutation required: critical logic changed (crates/verdict-checkers/src/context.rs, crates/verdict-checkers/src/lib.rs, crates/verdict-desks/src/bin/vdt-fake-desk.rs); mutation: 0 survivor(s), 3 killed of 3 mutant(s); seeds:  (record 63)
+  firstrun: Ran, tier ran: 1 finding(s); first-run command 1 failed: cargo build --workspace --locked; first-run command 2 ran and passed: target/debug/vdt --version (record 65)
+  release: Ran, tier asset: 3 finding(s); release tags on HEAD: none; release asset dist/*.zip: dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip; release asset dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip sha256 5fe18e97101803a3e5b33460cdd5560e1c6478f038291fdb2ed41ea2cc35fd9a matches dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip.sha256; release asset dist/*.tar.gz: dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz; release asset dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz sha256 ad4147264680a6239a72338d6c5cb8b9a354215f2c0696558adb1f4210aeef33 matches dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256; release asset dist/*.AppImage: missing; release asset dist/*.sha256: dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip.sha256, dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256 (record 69)
+  claims_vs_code: Ran, tier static: 0 finding(s); unverified: URLs are not resolved (no network, no route extraction yet); names that start with / or point above the project are not looked up (record 70)
+  wiring: Ran, tier static: 0 finding(s); 4 CONNECTED  0 BROKEN  0 NOT BUILT  0 HALF BUILT  0 SKIPPED; claim 4 (unticked): CONNECTED - crates/verdict-core/src/lane.rs: crates/verdict-core/src/lane.rs: 0 route(s) or command(s), 0 call(s), 0 control(s), 35 definition(s) read; nothing broken; claim 6 (unticked): CONNECTED - crates/verdict-engine/src/lib.rs: crates/verdict-engine/src/lib.rs: 0 route(s) or command(s), 0 call(s), 0 control(s), 15 definition(s) read; nothing broken; claim 8 (unticked): CONNECTED - release/package.sh: release/package.sh exists (not source code; nothing to wire); claim 11 (ticked): CONNECTED - crates/verdict-core/src/lane.rs: crates/verdict-core/src/lane.rs: 0 route(s) or command(s), 0 call(s), 0 control(s), 35 definition(s) read; nothing broken; unverified: 1 source file(s) in stacks no extractor in this build reads (crates/verdict-checkers/fixtures/wiring/word_skipped/red/change/svc.go) (record 71)
+  baseline_diff: Ran, tier static: 3 finding(s); unverified: routes, pages and tables are recognized by file location and line patterns only (no tree-sitter extractor yet); data-changing buttons are not read (record 75)
+  regressions: Ran, tier static: 0 finding(s); unverified: only relative imports (JS/TS `./x`, Python `from .x`, Rust `mod x;`) are resolved; package and alias imports are not read until the tree-sitter extractor exists (record 76)
+  tests_weakened: Ran, tier static: 0 finding(s); unverified: block comments and docstrings around tests are not read; test frameworks are recognized by line patterns, not a parser (record 77)
+  unfinished: Ran, tier static: 1 finding(s) (record 79)
+  exec: Ran, tier ran: receipt: `cargo test --workspace --locked`; tier ran; exited with code 101; output hash 3536f06d2f483587044309201e38db0c52ea636e4b087a63ecf6ed4594dc0497; output tail: Compiling verdict-gate v1.0.0 (C:\Users\scott\Desktop\Code\verdict-wt\merge-trial\crates\verdict-cli) | error: failed to remove file `C:\Users\scott\Desktop\Code\verdict-wt\merge-trial\target\debug\vdt.exe` |  | Caused by: |   Access is denied. (os error 5) | (record 81)
+  exec: Ran, tier ran: receipt: `cargo test --workspace --locked (on a copy of the baseline)`; tier ran; exited with code 0; output hash 2621811a791592b1a23eb3f2e5d62b7f508245aade275777f319cb0fe71aad18; output tail: e) |      Running tests\page.rs (target\debug\deps\page-2df393f8f1ab3a7e.exe) |      Running unittests src\lib.rs (target\debug\deps\verdict_mcp-e7af542554327875.exe) |      Running tests\commit_anyway.rs (target\debug\deps\commit_anyway-bdfe2914ab5da517.exe) |      Running unittests src\main.rs (target\debug\deps\vdt_mutation_runner-4e72e98a562af975.exe) |    Doc-tests verdict_adapters |    Doc-tests verdict_checkers |    Doc-tests verdict_core |    Doc-tests verdict_desks |    Doc-tests verdict_engine |    Doc-tests verdict_extract |    Doc-tests verdict_generate |    Doc-tests verdict_gui |    Doc-tests verdict_mcp | 0 filtered out; finished in 0.00s |  |  | running 0 tests |  | test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s |  |  | running 0 tests |  | test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s |  |  | running 0 tests |  | test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s |  |  | running 0 tests |  | test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s |  |  | running 0 tests |  | test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s |  | (record 82)
+  exec: Ran, tier ran: receipt: `cargo clippy --workspace --all-targets --locked -- -D warnings`; tier ran; exited with code 0; output hash 20b30e6701005922e180a7a9783417a96bd27125f586a612e97d8fb16fda23ce; output tail: Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.20s | (record 83)
+  exec: Ran, tier ran: 1 finding(s); output tail: `cargo test --workspace --locked` exited with code 101: Compiling verdict-gate v1.0.0 (C:\Users\scott\Desktop\Code\verdict-wt\merge-trial\crates\verdict-cli) | error: failed to remove file `C:\Users\scott\Desktop\Code\verdict-wt\merge-trial\target\debug\vdt.exe` |  | Caused by: |   Access is denied. (os error 5) | (record 84)
+  mutation: Ran, tier ran: 0 finding(s); mutation required: critical logic changed (crates/verdict-checkers/src/context.rs, crates/verdict-checkers/src/lib.rs, crates/verdict-desks/src/bin/vdt-fake-desk.rs); mutation: 0 survivor(s), 3 killed of 3 mutant(s); seeds:  (record 85)
+  firstrun: Ran, tier ran: 1 finding(s); first-run command 1 failed: cargo build --workspace --locked; first-run command 2 ran and passed: target/debug/vdt --version (record 87)
+  release: Ran, tier asset: 3 finding(s); release tags on HEAD: none; release asset dist/*.zip: dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip; release asset dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip sha256 5fe18e97101803a3e5b33460cdd5560e1c6478f038291fdb2ed41ea2cc35fd9a matches dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip.sha256; release asset dist/*.tar.gz: dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz; release asset dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz sha256 ad4147264680a6239a72338d6c5cb8b9a354215f2c0696558adb1f4210aeef33 matches dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256; release asset dist/*.AppImage: missing; release asset dist/*.sha256: dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip.sha256, dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256 (record 91)
+  claims_vs_code: Ran, tier static: 0 finding(s); unverified: URLs are not resolved (no network, no route extraction yet); names that start with / or point above the project are not looked up (record 92)
+  desk:engineer: Ran, tier judgment: desk engineer; provider "codex" (vendor openai, requested model "unspecified", returned model None); served vendor None (not_stated); settings None; usage Some(Object {"input_tokens": Number(35458), "cached_input_tokens": Number(21760), "cache_write_input_tokens": Number(0), "output_tokens": Number(223), "reasoning_output_tokens": Number(72)}); lane release; policy v1; 0 finding(s), 2 hypothesis(ies); 15498 ms (record 105)
+  desk:docs: Ran, tier judgment: desk docs; provider "codex" (vendor openai, requested model "unspecified", returned model None); served vendor None (not_stated); settings None; usage Some(Object {"input_tokens": Number(34340), "cached_input_tokens": Number(0), "cache_write_input_tokens": Number(0), "output_tokens": Number(363), "reasoning_output_tokens": Number(55)}); lane release; policy v1; 0 finding(s), 2 hypothesis(ies); 16277 ms (record 108)
+  desk:qa: Ran, tier judgment: desk qa; provider "codex" (vendor openai, requested model "unspecified", returned model None); served vendor None (not_stated); settings None; usage Some(Object {"input_tokens": Number(35282), "cached_input_tokens": Number(13312), "cache_write_input_tokens": Number(0), "output_tokens": Number(447), "reasoning_output_tokens": Number(0)}); lane release; policy v1; 3 finding(s), 1 hypothesis(ies); 17293 ms (record 113)
+  desk:ux: Ran, tier judgment: desk ux; provider "codex" (vendor openai, requested model "unspecified", returned model None); served vendor None (not_stated); settings None; usage Some(Object {"input_tokens": Number(32397), "cached_input_tokens": Number(0), "cache_write_input_tokens": Number(0), "output_tokens": Number(224), "reasoning_output_tokens": Number(0)}); lane release; policy v1; 1 finding(s), 1 hypothesis(ies); 13176 ms (record 116)
+  desk:security: Ran, tier judgment: desk security; provider "codex" (vendor openai, requested model "unspecified", returned model None); served vendor None (not_stated); settings None; usage Some(Object {"input_tokens": Number(32281), "cached_input_tokens": Number(13312), "cache_write_input_tokens": Number(0), "output_tokens": Number(282), "reasoning_output_tokens": Number(94)}); lane release; policy v1; 0 finding(s), 1 hypothesis(ies); 18488 ms (record 118)
+  desk:legal: Ran, tier judgment: desk legal; provider "codex" (vendor openai, requested model "unspecified", returned model None); served vendor None (not_stated); settings None; usage Some(Object {"input_tokens": Number(32408), "cached_input_tokens": Number(13312), "cache_write_input_tokens": Number(0), "output_tokens": Number(184), "reasoning_output_tokens": Number(18)}); lane release; policy v1; 0 finding(s), 1 hypothesis(ies); 14280 ms (record 120)
+  desk:refuter: Ran, tier judgment: desk refuter; provider "codex" (vendor openai, requested model "unspecified", returned model None); served vendor None (not_stated); settings None; usage Some(Object {"input_tokens": Number(32863), "cached_input_tokens": Number(13312), "cache_write_input_tokens": Number(0), "output_tokens": Number(821), "reasoning_output_tokens": Number(91)}); lane release; policy v1; 2 finding(s), 5 hypothesis(ies); 27131 ms (record 128)
+  wiring: Ran, tier static: 0 finding(s); 4 CONNECTED  0 BROKEN  0 NOT BUILT  0 HALF BUILT  0 SKIPPED; claim 4 (unticked): CONNECTED - crates/verdict-core/src/lane.rs: crates/verdict-core/src/lane.rs: 0 route(s) or command(s), 0 call(s), 0 control(s), 35 definition(s) read; nothing broken; claim 6 (unticked): CONNECTED - crates/verdict-engine/src/lib.rs: crates/verdict-engine/src/lib.rs: 0 route(s) or command(s), 0 call(s), 0 control(s), 15 definition(s) read; nothing broken; claim 8 (unticked): CONNECTED - release/package.sh: release/package.sh exists (not source code; nothing to wire); claim 11 (ticked): CONNECTED - crates/verdict-core/src/lane.rs: crates/verdict-core/src/lane.rs: 0 route(s) or command(s), 0 call(s), 0 control(s), 35 definition(s) read; nothing broken; unverified: 1 source file(s) in stacks no extractor in this build reads (crates/verdict-checkers/fixtures/wiring/word_skipped/red/change/svc.go) (record 130)
+  baseline_diff: Ran, tier static: 3 finding(s); unverified: routes, pages and tables are recognized by file location and line patterns only (no tree-sitter extractor yet); data-changing buttons are not read (record 134)
+  regressions: Ran, tier static: 0 finding(s); unverified: only relative imports (JS/TS `./x`, Python `from .x`, Rust `mod x;`) are resolved; package and alias imports are not read until the tree-sitter extractor exists (record 135)
+  tests_weakened: Ran, tier static: 0 finding(s); unverified: block comments and docstrings around tests are not read; test frameworks are recognized by line patterns, not a parser (record 136)
+  unfinished: Ran, tier static: 1 finding(s) (record 138)
+  exec: Ran, tier ran: receipt: `cargo test --workspace --locked`; tier ran; exited with code 0; output hash ed04ece2d62b947c2c50e584a87f9f366a62ba30ec2332a75087284e58a5583b; output tail: e) |      Running tests\page.rs (target\debug\deps\page-6ba20509d90f3533.exe) |      Running unittests src\lib.rs (target\debug\deps\verdict_mcp-e802ea7b8319637a.exe) |      Running tests\commit_anyway.rs (target\debug\deps\commit_anyway-532fc512f4190364.exe) |      Running unittests src\main.rs (target\debug\deps\vdt_mutation_runner-4e72e98a562af975.exe) |    Doc-tests verdict_adapters |    Doc-tests verdict_checkers |    Doc-tests verdict_core |    Doc-tests verdict_desks |    Doc-tests verdict_engine |    Doc-tests verdict_extract |    Doc-tests verdict_generate |    Doc-tests verdict_gui |    Doc-tests verdict_mcp | 0 filtered out; finished in 0.00s |  |  | running 0 tests |  | test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s |  |  | running 0 tests |  | test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s |  |  | running 0 tests |  | test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s |  |  | running 0 tests |  | test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s |  |  | running 0 tests |  | test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s |  | (record 139)
+  exec: Ran, tier ran: receipt: `cargo clippy --workspace --all-targets --locked -- -D warnings`; tier ran; exited with code 0; output hash de483d541b40faacf4826fa4347024d45a46eff94b6e7e7384a785e6ad49ad03; output tail: Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.35s | (record 140)
+  exec: Ran, tier ran: 0 finding(s) (record 141)
+  mutation: FailedToRun, tier honest_red: the mutation runner did not end successfully (exit 1), so its output was not read as a mutation report (record 143)
+  firstrun: Ran, tier ran: 0 finding(s); first-run command 1 ran and passed: cargo build --workspace --locked; first-run command 2 ran and passed: target/debug/vdt --version (record 144)
+  release: FailedToRun, tier honest_red: 2 finding(s) written, but not everything could be looked up: read dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip.sha256 outside the index's snapshot; read dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256 outside the index's snapshot; release check passed: cargo test --workspace --locked (output blake3 373d481e4dad98913c50c5da3bf622b8955e406ae706b2028e955ba45b4791aa); release tags on HEAD: none; release asset dist/*.zip: dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip; dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip.sha256 was read from disk because the index holds no text for it, so the read is not covered by this run's snapshot; release asset dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip sha256 5fe18e97101803a3e5b33460cdd5560e1c6478f038291fdb2ed41ea2cc35fd9a matches dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip.sha256; release asset dist/*.tar.gz: dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz; dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256 was read from disk because the index holds no text for it, so the read is not covered by this run's snapshot; release asset dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz sha256 ad4147264680a6239a72338d6c5cb8b9a354215f2c0696558adb1f4210aeef33 matches dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256; release asset dist/*.AppImage: missing; release asset dist/*.sha256: dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip.sha256, dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256 (record 148)
+  claims_vs_code: Ran, tier static: 0 finding(s); unverified: URLs are not resolved (no network, no route extraction yet); names that start with / or point above the project are not looked up (record 149)
+  desk:engineer: Ran, tier judgment: desk engineer; provider "codex" (vendor openai, requested model "unspecified", returned model None); served vendor None (not_stated); settings Some(Object {"source": String("invocation"), "requested_model": String("unspecified"), "timeout_secs": Number(240), "cwd": String("."), "args": Array []}); usage Some(Object {"input_tokens": Number(35699), "cached_input_tokens": Number(13312), "cache_write_input_tokens": Number(0), "output_tokens": Number(260), "reasoning_output_tokens": Number(108)}); lane release; policy v1; 0 finding(s), 3 hypothesis(ies); 18198 ms (record 162)
+  desk:docs: Ran, tier judgment: desk docs; provider "codex" (vendor openai, requested model "unspecified", returned model None); served vendor None (not_stated); settings Some(Object {"source": String("invocation"), "requested_model": String("unspecified"), "timeout_secs": Number(240), "cwd": String("."), "args": Array []}); usage Some(Object {"input_tokens": Number(34924), "cached_input_tokens": Number(21376), "cache_write_input_tokens": Number(0), "output_tokens": Number(226), "reasoning_output_tokens": Number(0)}); lane release; policy v1; 0 finding(s), 2 hypothesis(ies); 12363 ms (record 165)
+  desk:qa: Ran, tier judgment: desk qa; provider "codex" (vendor openai, requested model "unspecified", returned model None); served vendor None (not_stated); settings Some(Object {"source": String("invocation"), "requested_model": String("unspecified"), "timeout_secs": Number(240), "cwd": String("."), "args": Array []}); usage Some(Object {"input_tokens": Number(35953), "cached_input_tokens": Number(13312), "cache_write_input_tokens": Number(0), "output_tokens": Number(112), "reasoning_output_tokens": Number(96)}); lane release; policy v1; 0 finding(s), 0 hypothesis(ies); 13045 ms (record 166)
+  desk:ux: Ran, tier judgment: desk ux; provider "codex" (vendor openai, requested model "unspecified", returned model None); served vendor None (not_stated); settings Some(Object {"source": String("invocation"), "requested_model": String("unspecified"), "timeout_secs": Number(240), "cwd": String("."), "args": Array []}); usage Some(Object {"input_tokens": Number(32448), "cached_input_tokens": Number(21376), "cache_write_input_tokens": Number(0), "output_tokens": Number(267), "reasoning_output_tokens": Number(29)}); lane release; policy v1; 0 finding(s), 1 hypothesis(ies); 16483 ms (record 168)
+  desk:security: Ran, tier judgment: desk security; provider "codex" (vendor openai, requested model "unspecified", returned model None); served vendor None (not_stated); settings Some(Object {"source": String("invocation"), "requested_model": String("unspecified"), "timeout_secs": Number(240), "cwd": String("."), "args": Array []}); usage Some(Object {"input_tokens": Number(32693), "cached_input_tokens": Number(21760), "cache_write_input_tokens": Number(0), "output_tokens": Number(290), "reasoning_output_tokens": Number(108)}); lane release; policy v1; 0 finding(s), 2 hypothesis(ies); 20460 ms (record 171)
+  desk:legal: Ran, tier judgment: desk legal; provider "codex" (vendor openai, requested model "unspecified", returned model None); served vendor None (not_stated); settings Some(Object {"source": String("invocation"), "requested_model": String("unspecified"), "timeout_secs": Number(240), "cwd": String("."), "args": Array []}); usage Some(Object {"input_tokens": Number(32464), "cached_input_tokens": Number(21376), "cache_write_input_tokens": Number(0), "output_tokens": Number(163), "reasoning_output_tokens": Number(25)}); lane release; policy v1; 0 finding(s), 1 hypothesis(ies); 12962 ms (record 173)
+  desk:refuter: Ran, tier judgment: desk refuter; provider "codex" (vendor openai, requested model "unspecified", returned model None); served vendor None (not_stated); settings Some(Object {"source": String("invocation"), "requested_model": String("unspecified"), "timeout_secs": Number(240), "cwd": String("."), "args": Array []}); usage Some(Object {"input_tokens": Number(33401), "cached_input_tokens": Number(13312), "cache_write_input_tokens": Number(0), "output_tokens": Number(890), "reasoning_output_tokens": Number(104)}); lane release; policy v1; 1 finding(s), 5 hypothesis(ies); 36151 ms (record 180)
+  73 of 76 checks ran.
 
 NOT ESTABLISHED
-  - mutation: skipped by policy (mutation was not required by mutation.require_when (critical_logic_changed, test_sensitivity_uncertain) for this diff: no logic file changed; 0 finding(s) recorded separately)
-  - 7 hypothesis(es) with no evidence pointer count for nothing
+  - mutation: could not run: the mutation runner did not end successfully (exit 1), so its output was not read as a mutation report
+  - release: could not run: 2 finding(s) written, but not everything could be looked up: read dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip.sha256 outside the index's snapshot; read dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256 outside the index's snapshot; release check passed: cargo test --workspace --locked (output blake3 373d481e4dad98913c50c5da3bf622b8955e406ae706b2028e955ba45b4791aa); release tags on HEAD: none; release asset dist/*.zip: dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip; dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip.sha256 was read from disk because the index holds no text for it, so the read is not covered by this run's snapshot; release asset dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip sha256 5fe18e97101803a3e5b33460cdd5560e1c6478f038291fdb2ed41ea2cc35fd9a matches dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip.sha256; release asset dist/*.tar.gz: dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz; dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256 was read from disk because the index holds no text for it, so the read is not covered by this run's snapshot; release asset dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz sha256 ad4147264680a6239a72338d6c5cb8b9a354215f2c0696558adb1f4210aeef33 matches dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256; release asset dist/*.AppImage: missing; release asset dist/*.sha256: dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip.sha256, dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256
+  - 34 hypothesis(es) with no evidence pointer count for nothing
   - whether your real app works: no page was loaded
   - whether any of the 4 claim(s) is true beyond what the checks above show: claims are the agent's words, not evidence
