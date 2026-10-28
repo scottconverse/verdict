@@ -311,7 +311,10 @@ fn session_html(
     let approval_current =
         matches!(&commands_state, Some(ApprovalChoice::Approved(h)) if *h == current_hash);
     let commands_refused = matches!(&commands_state, Some(ApprovalChoice::Refused));
-    if c.required.iter().any(|n| n == "exec") && !approval_current && !commands_refused {
+    // Show the approval card when the project actually lists commands, even if the current lane
+    // does not need them yet: the human can approve before raising the lane, and the exact list
+    // is visible where the decision is made. Nothing runs until a lane needs it.
+    if !approval_current && !commands_refused && !describe_commands(&live.policy).is_empty() {
         waiting += 1;
         let why_again = match &commands_state {
             Some(ApprovalChoice::Approved(_)) => {
