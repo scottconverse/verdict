@@ -96,12 +96,31 @@ pub fn render_report_with(
         .filter(|s| s.session_id.as_deref() == Some(id.as_str()))
         .collect();
     let integrity = ledger.verify()?;
-    // Each component that could not run is listed once: its latest record in the session.
+    // Each component that could not run is listed once: its latest record in the session. A later
+    // successful check supersedes an earlier `check_unavailable`; otherwise re-running a checker
+    // after fixing the cause would leave the old failure in the report for ever.
+    let latest_ran: std::collections::BTreeMap<&str, u64> = mine
+        .iter()
+        .filter_map(|s| match &s.record {
+            Record::Check {
+                name,
+                outcome: crate::model::CheckOutcome::Ran,
+                ..
+            } => Some((name.as_str(), s.seq)),
+            _ => None,
+        })
+        .collect();
     let latest_unavailable: Vec<&crate::ledger::Stored> = {
         let mut by_component: std::collections::BTreeMap<&str, &crate::ledger::Stored> =
             std::collections::BTreeMap::new();
         for s in &mine {
             if let Record::CheckUnavailable { component, .. } = &s.record {
+                if latest_ran
+                    .get(component.as_str())
+                    .is_some_and(|seq| *seq > s.seq)
+                {
+                    continue;
+                }
                 by_component.insert(component.as_str(), *s);
             }
         }
