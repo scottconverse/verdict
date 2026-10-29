@@ -4,44 +4,48 @@ This is the human path from the candidate on `merge-trial` to a tagged, publishe
 steps in order. Commands are written for the repository root on Windows (PowerShell); the packaging
 scripts are POSIX `sh` and also run on Linux/macOS.
 
-What is evidenced on this candidate, and what is not:
+## Current acceptance and reuse
 
-* **Windows (exercised, isolated, non-4717):** the packaged install, readiness (`/readyz` returned app
-  id + canonical project + the spawned pid), the installed-core hash matching the package, hook
-  installation writing the absolute quoted core with the unrelated `node policy-check.js hook claude
-  Stop` preserved, and the Stop hook executing as `vdt 1.0.0`.
-* **Linux (CI):** the AppImage was built, checksummed and installed in CI — run `40804156470` at
-  `08ec95c`, job `123218973466`; its SHA-256 is unavailable because the job does not upload the
-  image. The three-OS `test` run `40804156318` was green at the same head.
-* **macOS:** only the headless package/setup job (**123218973357**) ran. Finder double-click,
-  Gatekeeper trust and notarization are **not** verified.
-* **Release lane / packet:** a packet was generated, but its build/tests read **“not run”** because
-  Scott has not yet approved the repository's commands — so the release-lane exec step is **not**
-  exercised end to end.
+The current tested runtime is `a612b4d`; candidate packaging/documentation was
+finalized at `3659551`. Test `40836504796` and package/install/parity
+`40836504732` passed. Final package/install/parity `40839683038` also passed all
+six jobs. Reuse these results; a documentation correction does not require a
+new build, checker lane or desk call. `CANDIDATE-PROVENANCE.json` identifies the
+four retained, checksum-verified packages and the installed Windows core.
 
-**Not verified anywhere in this environment:** signing, publication, desktop click-through (visible
-install and editor clicks, SmartScreen/UAC/Gatekeeper trust), and the post-approval release lane.
-Authenticode and Apple credentials do not exist here, so the signing steps below are placeholders
-naming exactly what a signer must supply.
+The current installed export labels all nine unsupported individual claims
+unproven; the original 598-record ledger and head remain byte-identical.
+Earlier installed readiness, absolute hook paths, unrelated-hook preservation,
+silent fail-open, real Claude send-backs and editor-click receipts retain their
+recorded scope. They are not a new packaged end-to-end host acceptance run.
 
-## a) Approve the repo's commands (must come first)
+The authorized real Codex desk call completed, but its returned events contained
+neither a served model nor vendor. Transport success is not verified vendor
+independence. Current code refuses unavailable identity; requested settings,
+model-family hints and another identical call do not resolve the missing proof.
 
-The ledger holds a human approval for a command set. This candidate's `verdict.json` changed the
-exec and mutation commands, so the old approval no longer matches and exec correctly refuses —
-that is why a packet can read `build/tests: not run`.
+Signing/notarization and applicable real packaged-host/external-desktop evidence
+remain incomplete. SmartScreen/UAC/Gatekeeper exercises are not added acceptance
+requirements. Merge, tag, publication and post-tag CLEAR remain separate owner
+boundaries. The failed historical packet must not be relabelled or reset.
 
-Approve in the GUI: open the project page's session view and press the approval card's button
-(the card lists the exact commands). Or from a terminal:
+## a) Existing command approval — do not repeat
 
-```powershell
-target\release\vdt.exe approve-commands --i-am-the-human
-```
+Approval record 406 already records Scott's explicit authorization of the current
+command set, submitted by Codex through the real approval page. It was a delegated
+page POST, not a physical human click. Do not request the same approval again or
+attribute historical unfinished checks to missing consent.
 
-Why it must precede evidence: exec only runs commands the human approved by hash, so any packet
-produced before this step cannot contain `ran`-tier build/test evidence, and a release decision that
-leans on it would be resting on "not run".
+If the command set actually changes in future, its changed hash requires a fresh
+human decision through the GUI before execution. This runbook grants no permission
+to change that set or self-approve it.
 
-## b) Run the release lane and export the packet
+## b) Future release-lane execution and packet export
+
+The commands below describe a future authorized acceptance execution. Recover
+existing owned work and resolve its specific failed/incomplete conditions first;
+do not run this block merely because this document changed. Export/report alone
+reuse recorded evidence and do not run checkers or desks.
 
 ```powershell
 target\release\vdt.exe verdict --run --lane release --session <session-id>
@@ -124,8 +128,9 @@ xcrun stapler staple dist/vdt-1.0.0-aarch64-apple-darwin/Verdict.app
 
 Linux AppImage signing (optional, if a key exists): `gpg --detach-sign` beside the AppImage.
 
-If any of these cannot run, say so and ship unsigned with that limitation stated — do not describe an
-unsigned artifact as signed.
+If required signing cannot run, retain the unsigned candidates with that limitation
+stated. This does not satisfy required signing acceptance or authorize unsigned
+publication. Never describe an unsigned artifact as signed.
 
 ## f) Tag and publish — human only
 
