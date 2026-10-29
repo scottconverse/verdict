@@ -173,3 +173,12 @@ they must not be collapsed into Scott's final release decision.
 
 Signing/notarization; publication; desktop click-through; the post-approval release lane; DSH
 loaded-host acceptance; served-vendor enforcement beyond recording-level.
+
+October29 owner-approved signing disposition: Windows final archive now uses
+Azure-signed core/setup bytes, signer Scott Converse, Authenticode Valid with
+Microsoft timestamp. Existing sign-only workflow40935832675 succeeded; final
+archive checksum and installed-core identity are in CANDIDATE-PROVENANCE.json.
+Actual signed-archive silent install and version check passed in isolated settings.
+No rebuild, model call or application publication. macOS intentionally unsigned/not
+notarized per Scott; no certificate will be obtained. Served-vendor/model side check
+is optional and not a completion blocker per Scott; no false identity proof added.

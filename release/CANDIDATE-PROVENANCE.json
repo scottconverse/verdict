@@ -2,14 +2,14 @@
   "candidate": "300e9f4cedb9c21df79b51884293ca455cd3caf2",
   "test_run": 40930130637,
   "package_run": 40930130633,
-  "installed_core_sha256": "690f8e877a2a32d19c255e6c567a05762822364bb3af320a40ae88c16ddd4c88",
+  "installed_core_sha256": "a36af3fba34d0a26db2ac02eefe61b583898c92c133f6c2e74160ac764f12ce5",
   "unsupported_claims_unproven": 9,
   "original_ledger_unchanged": true,
   "packages": [
     {
       "name": "vdt-1.0.0-x86_64-pc-windows-msvc.zip",
-      "sha256": "4409bdffc4b374832a32a2cc1ef94fcd8250c883d85e3aa18aeed19d80369d48",
-      "bytes": 12810965
+      "sha256": "80d8379b20fbd30ee950fd1fa4defe1f0e69902afe4c50dd29c23c2ab448889a",
+      "bytes": 13797412
     },
     {
       "name": "vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz",
@@ -27,7 +27,23 @@
       "bytes": 26907587
     }
   ],
-  "scope": "Existing passed CI reused. Silent isolated installation and affected export only; no checker, desk, model, tag or publication.",
+  "scope": "Existing runtime CI reused; Azure signature and packaging checksums added; one affected signed-archive isolated install passed. No checker/model/rebuild or publication.",
   "packet_proof_reused_from": "a612b4d: nine unsupported claims unproven; original ledger unchanged; later change is GUI notices only",
-  "installed_gui_notice_acceptance": "Isolated CI Windows package served both corrected notices; original ledger unchanged; no human decision/checker/desk/model invoked; owned server stopped"
+  "installed_gui_notice_acceptance": "Isolated CI Windows package served both corrected notices; original ledger unchanged; no human decision/checker/desk/model invoked; owned server stopped",
+  "windows_signing": {
+    "timestamped": true,
+    "run": 40935832675,
+    "publication": false,
+    "signed_archive_install": "passed; installed vdt1.0.0 retains Valid timestamped signature",
+    "workflow": "scottconverse/civiccast-native/sign-native-installer.yml",
+    "signed_core_sha256": "a36af3fba34d0a26db2ac02eefe61b583898c92c133f6c2e74160ac764f12ce5",
+    "unsigned_core_sha256": "690f8e877a2a32d19c255e6c567a05762822364bb3af320a40ae88c16ddd4c88",
+    "status": "Valid",
+    "unsigned_archive_sha256": "4409bdffc4b374832a32a2cc1ef94fcd8250c883d85e3aa18aeed19d80369d48",
+    "publisher": "CN=Scott Converse, O=Scott Converse, L=Longmont, S=co, C=US"
+  },
+  "owner_dispositions": {
+    "served_identity_side_check": "Optional nice-to-have, not a completion blocker per Scott; observed identity remains unavailable; no fabricated proof",
+    "macos": "Unsigned and not notarized by explicit Scott decision; no certificate will be obtained"
+  }
 }

@@ -85,3 +85,11 @@ core `b1b32ce932dd017ab069c70c7c541d187023aab0a23d7d8ef746f477c410aa46` (equal t
 server port 4771 pid 26456 with `/readyz` app+canonical-project+pid verified, writable-ledger hook
 record landing in 442 ms, locked-ledger fast fail-open with the record lost. Receipt:
 `release/INSTALLED-FAILOPEN-RECEIPT.md`.
+October29 owner-approved signing disposition: Windows final archive now uses
+Azure-signed core/setup bytes, signer Scott Converse, Authenticode Valid with
+Microsoft timestamp. Existing sign-only workflow40935832675 succeeded; final
+archive checksum and installed-core identity are in CANDIDATE-PROVENANCE.json.
+Actual signed-archive silent install and version check passed in isolated settings.
+No rebuild, model call or application publication. macOS intentionally unsigned/not
+notarized per Scott; no certificate will be obtained. Served-vendor/model side check
+is optional and not a completion blocker per Scott; no false identity proof added.

@@ -27,10 +27,24 @@ neither a served model nor vendor. Transport success is not verified vendor
 independence. Current code refuses unavailable identity; requested settings,
 model-family hints and another identical call do not resolve the missing proof.
 
-Signing/notarization and applicable real packaged-host/external-desktop evidence
-remain incomplete. SmartScreen/UAC/Gatekeeper exercises are not added acceptance
-requirements. Merge, tag, publication and post-tag CLEAR remain separate owner
-boundaries. The failed historical packet must not be relabelled or reset.
+Scott's October 29 disposition: the served-identity side check above is optional,
+not a completion blocker. Its actual receipt remains unavailable; no vendor
+identity is inferred and the product's fail-closed checks are unchanged.
+
+Windows is signed through Scott's established Azure account/profile
+`scottconverse-signing` / `ScottConversePublic`. Sign-only workflow
+`scottconverse/civiccast-native/sign-native-installer.yml`, run `40935832675`,
+signed the exact already-tested core; the identical setup launcher uses the same
+signed bytes. Local Authenticode and timestamp verification passed, as did silent
+installation from the final signed archive. Internal and outer checksums were
+refreshed; original unsigned CI packages remain retained. No rebuild was needed.
+
+macOS is deliberately unsigned and not notarized: Scott states no macOS signing
+certificate exists or will be obtained. Do not request one again or claim signed
+macOS delivery. Applicable external-desktop evidence retains its recorded limits.
+SmartScreen/UAC/Gatekeeper exercises are not added acceptance requirements.
+Merge, tag, publication and post-tag CLEAR remain separate owner boundaries.
+The failed historical packet must not be relabelled or reset.
 
 ## a) Existing command approval — do not repeat
 
