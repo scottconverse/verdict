@@ -4,9 +4,18 @@ Code head `08ec95c` (all code receipts and CI runs refer to it). Record commits 
 `db34af3`, `d2ee4a3`, `1b02c8c`, `c2a52a4`, `49fca08`, `c06751a` and the commit that carries this
 file (docs/records only). Branch `merge-trial`; worktree clean; nothing merged, tagged or published.
 
+Two different counts, both true and not interchangeable:
+
+* **Contract rows:** `49 of 56 requirements verified` (Auditor-verified statuses; the seven open rows
+  are SPEC-8, SPEC-13, SPEC-15, F25, F27, F28, F29 — see *Open*).
+* **Packet checks at this head:** `40 of 55 checks ran`, and its build/tests read **not run** because
+  the repo's command set is not yet approved (see *What Scott can do next*). The release-lane exec
+  evidence is incomplete for that reason, not because checks failed.
+
+Requirement rows are the agreed contract; checks are what the ledger recorded at this head.
+
 Packet verdict line: `VERDICT: FAILED  (lane: release, policy v1, builder: claude/unknown
-[anthropic], verifier: none)`; the packet reports **40 of 55 checks ran**, and its build/tests read
-**not run** because the repo's command set is not yet approved (see *What Scott can do next*).
+[anthropic], verifier: none)`.
 
 ## Verified — evidence groups
 
