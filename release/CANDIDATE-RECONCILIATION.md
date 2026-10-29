@@ -168,3 +168,30 @@ fixed at `08ec95c` (prefix stripped, unit-tested). Not established: signing/nota
 click-through, publication, DSH loaded acceptance, served-vendor enforcement beyond recording level
 (`derived_vendor` is a labelled hint only; SPEC-8 still needs a real cross-vendor receipt or Scott's
 acceptance).
+## Final close-out at code head `b75010f`
+
+Code head `b75010f` (record commits to follow carry docs/packet only). CI: `test` run `40814185027` **success** on all
+three — ubuntu `123251292525`, macOS `123251292835`, windows `123251292807`; `clean-install-and-parity`
+run `40814185033` **success** (macOS `123251292687`, windows archive `123251292839`, ubuntu
+`123251292877` — whose AppImage step logged `built appdist/Verdict-1.0.0-x86_64.AppImage …`,
+`Verdict-1.0.0-x86_64.AppImage: OK`, `Installed /tmp/app-home/bin/vdt` — the byte-identical compare is
+`123251991750`).
+
+A-012 resolution: `verdict-core` gained `Ledger::open_with_busy_timeout` /
+`open_path_with_busy_timeout` (existing `open`/`open_path` keep their 5 s semantics); the adapter's
+fail-open record path opens with `Duration::ZERO`, and `fail()` writes the record synchronously (no
+detached writer that Windows can kill mid-write). Regressions: `a_locked_ledger_does_not_stop_the_agent_and_returns_inside_the_budget`
+(writable-lock ⇒ fast return, no record) and the stdin-budget test (writable ledger ⇒ exactly one
+`check_unavailable` + "did not arrive" record, silent exit 0, bounded) are both green, together with
+the rest of both hook suites. The prior seam (`VDT_HOOK_RECORD_BUDGET_MS`) was removed; the product's
+hook-exit budget is unchanged.
+
+Residue wording and the historical 258/260 release-label finding stand as previously recorded: the
+records carry no process identities (unidentifiable), and the historical designation cannot be
+rewritten; the current release check reports its findings instead of calling the run clean.
+
+Packet at this head: `VERDICT: FAILED  (lane: release, policy v1, builder: claude/unknown
+[anthropic], verifier: none)`, `99 of 130 checks ran`, with exec, mutation and firstrun all having
+run. Remaining blockers are the missing `dist/*.AppImage` asset, the absent `v1.0.0` tag, and the
+desk findings about evidence labelling (records 289/344/402) plus the historical-clean designation
+(records 290/345).

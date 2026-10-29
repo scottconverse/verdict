@@ -1,6 +1,6 @@
 # Candidate state — one page
 
-Code head `dad4476` (the head this packet was regenerated at). Earlier heads `36f47ef`/`e02323f` and their records are history; record commits after `08ec95c` include `890f423`,
+Code head `b75010f` (the head this packet was regenerated at). Earlier heads `36f47ef`/`e02323f` and their records are history; record commits after `08ec95c` include `890f423`,
 `db34af3`, `d2ee4a3`, `1b02c8c`, `c2a52a4`, `49fca08`, `c06751a` and the commit that carries this
 file (docs/records only). Branch `merge-trial`; worktree clean; nothing merged, tagged or published.
 
@@ -8,7 +8,7 @@ Two different counts, both true and not interchangeable:
 
 * **Contract rows:** `49 of 56 requirements verified` (Auditor-verified statuses; the seven open rows
   are SPEC-8, SPEC-13, SPEC-15, F25, F27, F28, F29 — see *Open*).
-* **Packet checks at this head:** `83 of 111 checks ran` at `dad4476`; build/tests, firstrun and
+* **Packet checks at this head:** `99 of 130 checks ran` at `b75010f`; build/tests, firstrun and
   mutation all ran under the Scott-authorized delegated approval (record 406 — Codex submitted the
   real `/decide` form on Scott's explicit instruction; see the reconciliation). No approval is
   outstanding, and the earlier "not run" line is history.
