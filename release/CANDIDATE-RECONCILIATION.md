@@ -211,3 +211,26 @@ Head and CI above are current (`b75010f`; test `40814185027` green on all three,
   records 414/418/420/423 is unidentifiable (no pid/command/parent anywhere). External boundaries
   unchanged: signing/notarization, desktop click-through, publication, DSH loaded acceptance,
   served-vendor enforcement beyond recording.
+## Reconciled receipts and the installed fail-open acceptance
+
+Two earlier receipts are reconciled rather than relabelled: the **actual Install click and real
+Claude Stop** were exercised in
+`C:/Users/scott/Documents/Codex/2026-10-28/verdict-installed-acceptance` (the Codex-authored
+INSTALL-RECEIPT.json / HOOK-PATH-FINDING.md there), and the three-role/DSH run is recorded in
+`THREE-ROLE-STATE.md` under `C:/Users/scott/Documents/Codex/2026-10-27/dsh-web-incident`. Those are
+evidence of exercised steps; SmartScreen/UAC/Gatekeeper trust screens and the visible editor click
+are **environment limitations noted, not outstanding requirements** of the agreed scope.
+
+New, bounded installed acceptance against the current packaged core: `b75010f` package (zip
+`9533eacf…3827`) was installed into a fresh isolated root
+`C:\Users\scott\AppData\Local\Temp\vdt-installed-acc-20261028-235706`; installed core
+`b1b32ce932dd017ab069c70c7c541d187023aab0a23d7d8ef746f477c410aa46` equals the package inner core; its
+server ran on port 4771, pid 26456, `/readyz` app+canonical-project+pid verified, then stopped. The
+fail-open path was exercised only: writable ledger ⇒ exit 0, 442 ms, exactly one
+`check_unavailable`/“did not arrive” record; held write lock ⇒ exit 0, 1.897 s, no new record (fast
+fail-open, verdict unverified). Full receipt: `release/INSTALLED-FAILOPEN-RECEIPT.md`.
+
+Provenance correction: the earlier installed retest cited in `CANDIDATE-ARTIFACTS.txt` used the
+`08ec95c` package's installed core `f8c3b18b…ae63`, **not** the current `b75010f` archive; the
+artifact record now says so, and the current package install above is the first recorded install of
+the `b75010f` build.
