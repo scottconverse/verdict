@@ -1,4 +1,4 @@
-# Candidate reconciliation at code head `08ec95c` (the head all code receipts and CI runs refer to); record commits after it: `890f423`, `db34af3`, `d2ee4a3` (docs/packet records only). Earlier heads are history.
+# Candidate reconciliation at code head `08ec95c` (the head all code receipts and CI runs refer to); record commits after it: `890f423`, `db34af3`, `d2ee4a3`, `1b02c8c` and the commit that carries this record (docs/packet records only). Earlier heads are history.
 
 Fresh full-claim session `s-60679a9557` in the same ledger (no ledger reset, nothing archived):
 9 claim lines naming the files/symbols of the agreed acceptance, then the release lane, then
@@ -40,13 +40,12 @@ reported unverified.
 
 ## FULL-12-0 item 9 and items 1–8
 
-9. **This artifact.** At code head `08ec95c` (record commits after it: `890f423`, `db34af3`, `d2ee4a3`, docs/packet only) the candidate packet was regenerated from a fresh
+9. **This artifact.** At code head `08ec95c` (record commits after it: `890f423`, `db34af3`, `d2ee4a3`, `1b02c8c` and the commit that carries this record; docs/packet only) the candidate packet was regenerated from a fresh
    full-claim session with the real export command (`release/CANDIDATE-PACKET.txt`,
    `release/CANDIDATE-REPORT.txt`) and `release/CANDIDATE-ARTIFACTS.txt` was refreshed with the
    Windows binary/archive rebuilt locally at that head; earlier-head packets and hashes are retained
    as history, not replaced. The artifact record says plainly that the Linux archive predates this
-   head and that the AppImage exists only as a CI-built artifact (run 40793472907, hash
-   unavailable). Merge, tag, publication and signing remain Scott's decision or an external
+   head and that the AppImage exists only as a CI-built artifact (run 40804156470 at `08ec95c`, job 123218973466; history: run 40793472907 at `92a72b9`; hash unavailable). Merge, tag, publication and signing remain Scott's decision or an external
    credential dependency. Candidate commits and pushes only.
 1–8 (as previously stated): fresh verification now runs from Stop with the final gate record;
    snapshot binding and the mutation/browser/first-run evidence semantics were repaired; the
@@ -65,8 +64,7 @@ This record proves: the Windows archive and `target/release/vdt.exe` were rebuil
 host from this tree at code head `08ec95c`, with their sizes and SHA-256 recorded, and that the same core
 produced the candidate packet (earlier `1d60138` sizes/hashes are history, not current evidence). It
 does **not** prove: that the pre-existing Linux `tar.gz` came from
-this head, that the AppImage on this host exists (the AppImage is CI-built only, run 40793472907 at
-head `92a72b9`, hash unavailable), that packaged behavior was exercised (installed acceptance),
+this head, that the AppImage on this host exists (the AppImage is CI-built only, run 40804156470 at code head `08ec95c` job 123218973466; history: run 40793472907 at `92a72b9`; hash unavailable), that packaged behavior was exercised (installed acceptance),
 or that anything was published. It is not signing evidence.
 
 ## WORK-ORDER
@@ -79,8 +77,7 @@ hook-core fix (quoted absolute installed core, verbatim-prefix strip) and the in
 separation landed by `08ec95c`.
 
 Evidence at `08ec95c`: the three-OS `test` run **40804156318** is green (ubuntu 123218973230, macOS
-123218972950, windows 123218973242); clean-install-and-parity **40804156470** was still in flight
-when this was written and is **not claimed**.
+123218972950, windows 123218973242); clean-install-and-parity **40804156470** also completed successfully at that head (ubuntu job 123218973466, macOS 123218973357, Windows 123218973526, byte-identical compare 123219733415); it was in flight when first noted and is now confirmed.
 
 Build/tests inside the packet read **not run**: `verdict.json`'s exec and mutation command set is
 unapproved in the ledger (the approval hash predates it), so exec correctly refuses until Scott
