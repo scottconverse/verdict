@@ -1,4 +1,4 @@
-# Candidate reconciliation at the frozen head `d89dd9c` (earlier heads are history)
+# Candidate reconciliation at code head `b75010f` (earlier heads are history; record commits after it are docs/packet only)
 
 Fresh full-claim session `s-60679a9557` in the same ledger (no ledger reset, nothing archived):
 9 claim lines naming the files/symbols of the agreed acceptance, then the release lane, then

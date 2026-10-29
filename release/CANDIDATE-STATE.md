@@ -6,7 +6,7 @@ file (docs/records only). Branch `merge-trial`; worktree clean; nothing merged, 
 
 Two different counts, both true and not interchangeable:
 
-* **Contract rows:** `49 of 56 requirements verified` (Auditor-verified statuses). Open: SPEC-8,
+* **Contract rows:** `45 of 56 requirements verified` until the Auditor closes the four roll-up rows. Open: SPEC-8,
   SPEC-13, SPEC-15, F25, F27, F28, F29, plus the four roll-up rows (FULL-12-0, VALIDATION,
   WORK-ORDER, SAFE-DELIVERY) pending the Auditor's close-out on this docs-only head.
 * **Packet checks at this head:** `99 of 130 checks ran` at `b75010f`; build/tests, firstrun and
@@ -27,7 +27,7 @@ Unit + consumer tests, red-before/green-after captured.
 
 (b) **AppImage / FUSE packaging + checksums** — `release/package-appimage.sh` runs appimagetool under
 `APPIMAGE_EXTRACT_AND_RUN=1`, no FUSE fallback; `release/package.sh` writes standard `*.sha256`.
-CI (agent-provided): clean-install run `40804156470` at `08ec95c` — Ubuntu job `123218973466` built
+CI (agent-provided) at `b75010f`: test run `40814185027` green on ubuntu `123251292525` / macOS `123251292835` / windows `123251292807`; clean-install run `40814185033` green — Ubuntu job `123251292877` built
 and installed `Verdict-1.0.0-x86_64.AppImage` (checksum OK; hash not uploaded), macOS `123218973357`,
 Windows `123218973526`.
 
