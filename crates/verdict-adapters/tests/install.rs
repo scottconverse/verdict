@@ -303,18 +303,33 @@ fn reinstall_with_a_different_program_path_replaces_ours_without_duplicating() {
     assert_eq!(stop[0]["hooks"].as_array().unwrap().len(), 1);
     assert_eq!(
         stop[0]["hooks"][0]["command"],
-        "C:/tools/vdt.exe hook claude Stop"
+        r"C:\tools\vdt.exe hook claude Stop"
     );
 }
 
 #[test]
-fn a_program_path_that_needs_quoting_is_refused() {
+fn a_spaced_core_path_is_quoted_and_removed_and_a_metacharacter_path_is_refused() {
+    // A path with spaces is written quoted, so it runs from cmd/PowerShell/sh, and uninstalling
+    // with the same path removes exactly that entry.
     let proj = TempDir::new("inst");
     let mut r = req(Host::Claude, proj.path(), None, true, true);
-    r.vdt_path = Some("C:\\Program Files\\vdt\\vdt.exe".into());
-    let err = hooks_command(&r, proj.path(), &mut Vec::new()).unwrap_err();
-    assert!(err.contains("PATH"), "{err}");
-    assert!(!proj.path().join(".claude").exists());
+    r.vdt_path = Some("C:\\Program Files\\Verdict\\vdt.exe".into());
+    run(&r, proj.path());
+    let doc = read(&proj.path().join(".claude").join("settings.json"));
+    assert_eq!(
+        doc["hooks"]["Stop"][0]["hooks"][0]["command"],
+        "\"C:\\Program Files\\Verdict\\vdt.exe\" hook claude Stop"
+    );
+    r.install = false;
+    let out = run(&r, proj.path());
+    assert!(out.contains("removed 5"), "{out}");
+
+    // A path the host shells would expand inside quotes is refused, naming the character.
+    let mut bad = req(Host::Claude, proj.path(), None, true, true);
+    bad.vdt_path = Some("C:\\tmp\\$vdt\\vdt.exe".into());
+    let err = hooks_command(&bad, proj.path(), &mut Vec::new()).unwrap_err();
+    assert!(err.contains("'$'"), "{err}");
+    assert!(err.contains("expand"), "{err}");
 }
 
 #[test]
@@ -564,4 +579,57 @@ fn no_temporary_file_is_left_beside_the_settings() {
         .filter(|n| n.contains("vdt-tmp"))
         .collect();
     assert!(leftovers.is_empty(), "{leftovers:?}");
+}
+
+#[test]
+fn another_programs_hook_survives_install_and_uninstall() {
+    // Same four-word shape, different program: never Verdict's, never removed.
+    let proj = TempDir::new("inst");
+    let file = proj.path().join(".claude").join("settings.json");
+    std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+    let mine = "node policy-check.js hook claude Stop";
+    std::fs::write(
+        &file,
+        serde_json::to_string_pretty(&json!({
+            "hooks": { "Stop": [ { "hooks": [ { "type": "command", "command": mine } ] } ] }
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+    run(
+        &req(Host::Claude, proj.path(), None, true, true),
+        proj.path(),
+    );
+    let doc = read(&file);
+    let commands: Vec<&str> = doc["hooks"]["Stop"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|g| g["hooks"].as_array())
+        .flatten()
+        .filter_map(|h| h["command"].as_str())
+        .collect();
+    assert!(commands.contains(&mine), "survives install: {commands:?}");
+    assert!(
+        commands.iter().any(|c| c.starts_with("vdt hook claude")),
+        "{commands:?}"
+    );
+    run(
+        &req(Host::Claude, proj.path(), None, true, false),
+        proj.path(),
+    );
+    let doc = read(&file);
+    let commands: Vec<&str> = doc["hooks"]["Stop"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|g| g["hooks"].as_array())
+        .flatten()
+        .filter_map(|h| h["command"].as_str())
+        .collect();
+    assert_eq!(
+        commands,
+        vec![mine],
+        "uninstall removes only Verdict's entry"
+    );
 }

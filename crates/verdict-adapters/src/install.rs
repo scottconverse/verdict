@@ -48,21 +48,26 @@ pub fn hook_command(vdt: &str, host: Host, event: EventKind) -> String {
     format!("{vdt} hook {} {}", host.as_str(), host.event_name(event))
 }
 
-/// The program word to use. Plain `vdt` works from PowerShell, cmd and POSIX shells alike; a
-/// custom path is accepted only when it needs no quoting (quotes behave differently per shell).
+/// The program word to use. No path means plain `vdt`; a path with spaces is wrapped in double
+/// quotes (understood by cmd, PowerShell and POSIX sh); a path containing a character those
+/// shells expand inside quotes is refused rather than written as a command that could run
+/// something else.
 pub fn vdt_program(custom: Option<&str>) -> Result<String, String> {
     match custom {
         None => Ok("vdt".to_string()),
         Some(p) => {
-            let p = p.replace('\\', "/");
-            if p.chars()
-                .any(|c| c.is_whitespace() || "\"'`$&|;<>()".contains(c))
-            {
-                Err(format!(
-                    "the path {p:?} needs quoting, and quotes mean different things in PowerShell, cmd and bash. Put vdt on your PATH (or copy it to a folder without spaces) and leave out --vdt-path"
-                ))
+            if p.trim().is_empty() {
+                return Err("the core path is empty".into());
+            }
+            if let Some(c) = p.chars().find(|c| "\"'`$!%".contains(*c)) {
+                return Err(format!(
+                    "the core path {p:?} contains {c:?}, which the host shells expand inside quotes; refusing to write a command that could run something else"
+                ));
+            }
+            if p.chars().any(char::is_whitespace) {
+                Ok(format!("\"{p}\""))
             } else {
-                Ok(p)
+                Ok(p.to_string())
             }
         }
     }
@@ -122,19 +127,36 @@ pub fn hook_block(vdt: &str, host: Host) -> Value {
 /// any path given with `--vdt-path` (for example `C:/tools/verdict-debug.exe`), so a hook
 /// installed with a custom path can still be found and removed. A command with more words (for
 /// example `vdt hook claude Stop && node policy-check.js`) is the user's own and is never touched.
+/// Is this the legacy literal form, exactly `vdt hook <host> <Event>` (four whitespace-separated
+/// words, first word exactly `vdt`)? Anything else — another program, a path, extra words — is
+/// not Verdict's and must never be removed as ours.
 pub fn is_ours(command: &str, host: Host) -> bool {
     let words: Vec<&str> = command.split_whitespace().collect();
     let [prog, hook, h, ev] = words.as_slice() else {
         return false;
     };
-    let prog = prog.trim_matches(['"', '\'']);
-    !prog.is_empty()
+    *prog == "vdt"
         && *hook == "hook"
         && h.eq_ignore_ascii_case(host.as_str())
         && EventKind::parse(ev).is_some()
 }
 
-fn owned_entries(hooks: &Map<String, Value>, host: Host) -> Vec<(String, Value)> {
+/// Is this the exact command Verdict wrote for `program` (`<program> hook <host> <Event>`)?
+fn is_ours_for(command: &str, host: Host, program: &str) -> bool {
+    let Some(rest) = command.strip_prefix(program) else {
+        return false;
+    };
+    let Some(rest) = rest.strip_prefix(" hook ") else {
+        return false;
+    };
+    let words: Vec<&str> = rest.split_whitespace().collect();
+    let [h, ev] = words.as_slice() else {
+        return false;
+    };
+    h.eq_ignore_ascii_case(host.as_str()) && EventKind::parse(ev).is_some()
+}
+
+fn owned_entries(hooks: &Map<String, Value>, host: Host, program: &str) -> Vec<(String, Value)> {
     let mut v = Vec::new();
     for (event, groups) in hooks {
         for g in groups.as_array().into_iter().flatten() {
@@ -146,7 +168,7 @@ fn owned_entries(hooks: &Map<String, Value>, host: Host) -> Vec<(String, Value)>
             {
                 if h.get("command")
                     .and_then(Value::as_str)
-                    .is_some_and(|c| is_ours(c, host))
+                    .is_some_and(|c| is_ours_for(c, host, program) || is_ours(c, host))
                 {
                     v.push((event.clone(), h.clone()));
                 }
@@ -194,7 +216,7 @@ pub fn merge_into(root: &mut Value, vdt: &str, host: Host) -> Result<Change, Str
         v
     };
     if let Some(h) = hooks_object(root)?
-        && sorted(owned_entries(h, host)) == sorted(want.clone())
+        && sorted(owned_entries(h, host, vdt)) == sorted(want.clone())
     {
         return Ok(Change {
             added: 0,
@@ -240,6 +262,13 @@ pub fn merge_into(root: &mut Value, vdt: &str, host: Host) -> Result<Change, Str
 /// Remove our entries for `host` from `root`, in place. Emptied groups and events are dropped;
 /// an emptied `hooks` key is dropped; nothing else is touched.
 pub fn remove_from(root: &mut Value, host: Host) -> Result<Change, String> {
+    remove_from_with(root, host, "vdt")
+}
+
+/// [`remove_from`] for the exact program word that was written (plain `vdt` or a quoted absolute
+/// core path). Only commands equal to that program plus `hook <host> <Event>` are removed, plus
+/// the legacy literal-`vdt` form.
+pub fn remove_from_with(root: &mut Value, host: Host, program: &str) -> Result<Change, String> {
     match host {
         Host::Cursor => return cursor_remove(root),
         Host::Antigravity => return antigravity_remove(root),
@@ -257,9 +286,8 @@ pub fn remove_from(root: &mut Value, host: Host) -> Result<Change, String> {
                 if let Some(list) = g.get_mut("hooks").and_then(Value::as_array_mut) {
                     let before = list.len();
                     list.retain(|h| {
-                        !h.get("command")
-                            .and_then(Value::as_str)
-                            .is_some_and(|c| is_ours(c, host))
+                        let command = h.get("command").and_then(Value::as_str).unwrap_or("");
+                        !(is_ours_for(command, host, program) || is_ours(command, host))
                     });
                     removed += before - list.len();
                     if list.is_empty() && before > 0 {
@@ -703,7 +731,13 @@ pub fn install_file(path: &Path, vdt: &str, host: Host) -> Result<Outcome, Strin
 
 /// Remove our hooks from `path`, with a backup. A missing file is nothing to do.
 pub fn uninstall_file(path: &Path, host: Host) -> Result<Outcome, String> {
-    change_file(path, false, &|doc| remove_from(doc, host))
+    uninstall_file_with(path, host, "vdt")
+}
+
+/// [`uninstall_file`] for the exact program word the install wrote (plain `vdt` or a quoted
+/// absolute core path). The legacy literal-`vdt` form is removed too.
+pub fn uninstall_file_with(path: &Path, host: Host, program: &str) -> Result<Outcome, String> {
+    change_file(path, false, &|doc| remove_from_with(doc, host, program))
 }
 
 /// Run `vdt hooks install|uninstall`. Returns the exit code (0 fine, 1 error).
@@ -747,7 +781,7 @@ pub fn hooks_command(req: &HooksRequest, cwd: &Path, out: &mut dyn Write) -> Res
     let outcome = if req.install {
         install_file(&path, &vdt, req.host)?
     } else {
-        uninstall_file(&path, req.host)?
+        uninstall_file_with(&path, req.host, &vdt)?
     };
     let summary = match (req.install, outcome.change.changed) {
         (true, true) => format!(
