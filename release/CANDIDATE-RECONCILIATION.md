@@ -217,8 +217,9 @@ Two earlier receipts are reconciled rather than relabelled: the **actual Install
 Claude Stop** were exercised in
 `C:/Users/scott/Documents/Codex/2026-10-28/verdict-installed-acceptance` (the Codex-authored
 INSTALL-RECEIPT.json / HOOK-PATH-FINDING.md there), and the three-role/DSH run is recorded in
-`THREE-ROLE-STATE.md` under `C:/Users/scott/Documents/Codex/2026-10-27/dsh-web-incident`. Those are
-evidence of exercised steps; SmartScreen/UAC/Gatekeeper trust screens and the visible editor click
+`THREE-ROLE-STATE.md` under `C:/Users/scott/Documents/Codex/2026-10-27/dsh-web-incident`.
+Those are evidence of exercised steps (**external to this worktree, so not machine-verifiable here**);
+SmartScreen/UAC/Gatekeeper trust screens and the visible editor click
 are **environment limitations noted, not outstanding requirements** of the agreed scope.
 
 New, bounded installed acceptance against the current packaged core: `b75010f` package (zip

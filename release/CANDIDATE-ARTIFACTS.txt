@@ -12,7 +12,7 @@ nothing more.
 | `dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz` | 6629510 | `ad4147264680a6239a72338d6c5cb8b9a354215f2c0696558adb1f4210aeef33` | pre-existing file in `dist` from an earlier build on this host (history: `08ec95c`); **not rebuilt from `b75010f`** | Only that this file, with this hash, was present; its provenance to `08ec95c` is unverified |
 | `Verdict-1.0.0-x86_64.AppImage` | built inside the CI container; no copy on this host | **unavailable** — the job does not upload the image, so no hash was exposed | Linux CI at head `b75010f`: run `40814185033`, job `123251292877` (history: run `40804156470` at `08ec95c`, job `123218973466`) "README install in a clean Ubuntu container", step "Build and run the Linux AppImage setup" (history: run `40793472907` at `92a72b9`, job `123184105391`) | That the AppImage packaging path built and installed on Linux from this tree: the step logged `built appdist/Verdict-1.0.0-x86_64.AppImage and appdist/Verdict-1.0.0-x86_64.AppImage.sha256`, `Verdict-1.0.0-x86_64.AppImage: OK`, `Installed /tmp/app-home/bin/vdt`, `vdt 1.0.0`. It is a CI-built package, **not** a signed package or a locally installed desktop application. |
 
-## Packaged-install retest (Windows, this host, package above)
+## Packaged-install retest (Windows, this host, `08ec95c` package — history)
 
 * Isolated root `C:\Users\scott\AppData\Local\Temp\vdt-f28e-20261028-200435`: isolated
   `HOME`/`USERPROFILE`, project (pre-seeded with an unrelated
@@ -45,10 +45,11 @@ nothing more.
   provenance text and hashes only.
 * The Linux `tar.gz` predates this head; a release must rebuild it from the tag (or cite a CI run at
   that head) before publishing. The AppImage is a CI-only artifact with no hash here.
-* The AppImage row now cites the CI run at `08ec95c` (`40804156470`); its hash remains unavailable because the job does not upload the image.
-* Unverified on this host: a signed/notarized package (no credentials), a real double-click Finder/
-  Explorer launch and SmartScreen/UAC trust, a human-visible Install click (the POST was scripted),
-  and editor/enforce/fail-open behaviour. Those need Scott's desktop click-through.
+* The AppImage row cites the CI run at `b75010f` (`40814185033`, job `123251292877`); the `08ec95c` run (`40804156470`) is kept only as history, and the hash remains unavailable because the job does not upload the image.
+* Environment limitations, not outstanding requirements: no signing/notarization credentials exist
+  here, so the SmartScreen/UAC/Gatekeeper trust screens cannot be reproduced on this host; the visible
+  editor click and a human-visible Install click are likewise not machine-verifiable in this worktree.
+  The installed behaviour behind them was exercised (see the installed acceptance receipts).
 * Tree-kill regression evidence split (kept for the record): `e47d4b0` (run 40795187701; ubuntu
   123189835274, macOS 123189835674, windows 123189835842) proves fixture lifetime and the F11 usage
   handling; the bounded stdin writer first lands at `d89dd9c` (run 40796396150, green on ubuntu
