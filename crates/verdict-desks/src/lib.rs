@@ -398,6 +398,9 @@ pub struct Receipt {
     pub vendor: String,
     /// The vendor the answer says served it, when the provider says.
     pub served_vendor: Option<String>,
+    /// A vendor suggested by the observed model family. Never confirmed served identity: the desk
+    /// reads only `served_vendor` for that, and this is rendered as "suggests".
+    pub derived_vendor: Option<String>,
     /// The model asked for.
     pub requested_model: String,
     /// The model the answer says served it, when the provider says.
@@ -467,6 +470,9 @@ struct RawAnswer {
     /// What the provider says actually served the answer (the design's served identity).
     #[serde(default)]
     served: Option<ServedInfo>,
+    /// A vendor suggested by the observed model family. Never confirmed served identity.
+    #[serde(default)]
+    derived_vendor: Option<String>,
     /// Effective settings observed from the invocation itself, when the adapter reports them.
     #[serde(default)]
     settings: Option<Value>,
@@ -1035,6 +1041,7 @@ pub fn run(
                 provider: String::new(),
                 vendor: String::new(),
                 served_vendor: None,
+                derived_vendor: None,
                 requested_model: String::new(),
                 returned_model: None,
                 settings: None,
@@ -1063,6 +1070,7 @@ pub fn run(
         let mut usage = None;
         let mut returned_model = None;
         let mut served_vendor: Option<String> = None;
+        let mut derived_vendor: Option<String> = None;
         let mut settings: Option<Value> = None;
         let mut identity = "not_stated";
         let (outcome, error) = match answer.and_then(|t| parse_answer(&t)) {
@@ -1082,6 +1090,7 @@ pub fn run(
             Ok(raw) => {
                 usage = raw.usage.clone();
                 returned_model = raw.model.clone();
+                derived_vendor = raw.derived_vendor.clone();
                 if let Some(s) = &raw.served {
                     served_vendor = s.vendor.clone();
                     settings = s.settings.clone();
@@ -1270,15 +1279,21 @@ pub fn run(
                 }
             }
         };
+        // A derived vendor is never rendered as confirmed: it reads as a suggestion beside
+        // `not_stated`, while only an observed/stated vendor reads as confirmed identity.
+        let vendor_line = match (&served_vendor, &derived_vendor) {
+            (Some(v), _) => format!("{v:?} ({identity})"),
+            (None, Some(hint)) => format!("not_stated (model family suggests {hint})"),
+            (None, None) => "not_stated".to_string(),
+        };
         let detail = format!(
             "desk {desk}; provider {:?} (vendor {}, requested model {:?}, returned model {:?}); \
-             served vendor {:?} ({identity}); settings {:?}; usage {:?}; lane {}; policy v{policy_version}; \
+             served vendor {vendor_line}; settings {:?}; usage {:?}; lane {}; policy v{policy_version}; \
              {} finding(s), {} hypothesis(ies); {} ms",
             provider.name(),
             provider.vendor(),
             provider.model(),
             returned_model,
-            served_vendor,
             settings,
             usage,
             lane_name(opts.lane),
@@ -1312,6 +1327,7 @@ pub fn run(
             provider: provider.name().to_string(),
             vendor: provider.vendor().to_string(),
             served_vendor,
+            derived_vendor,
             requested_model: provider.model().to_string(),
             returned_model,
             settings,

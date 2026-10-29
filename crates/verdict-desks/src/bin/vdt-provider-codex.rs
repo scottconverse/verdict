@@ -224,8 +224,8 @@ fn ask(args: &Args, prompt: &str, requested_model: &str) -> Result<String, Strin
     let answer_text = std::fs::read_to_string(&last).unwrap_or_default();
     let _ = std::fs::remove_file(&last);
     let answer = normalize_answer(extract_json(&answer_text)?);
-    let (observed_model, usage) = observed_from_events(&stdout);
-    let mut answer = apply_observation(answer, observed_model, usage);
+    let (observed_model, observed_vendor, usage) = observed_from_events(&stdout);
+    let mut answer = apply_observation(answer, observed_model, observed_vendor, usage);
     // Effective settings are observable from the invocation itself: what was run, with which
     // model flag and deadline, where. They are never taken from the answer's words.
     if let Some(obj) = answer.as_object_mut() {
@@ -243,12 +243,37 @@ fn ask(args: &Args, prompt: &str, requested_model: &str) -> Result<String, Strin
     Ok(answer.to_string())
 }
 
+/// Derive a vendor from the *served model* with a small, explicit prefix table, so a provider that
+/// states a model but no vendor is not recorded as `not_stated` when the model name is unambiguous.
+/// This is a derivation from the served model, not a vendor claim from the host app, transport or
+/// workstation; an unknown model stays `not_stated` and is never guessed.
+fn derive_vendor(model: &str) -> Option<&'static str> {
+    let m = model.trim().to_ascii_lowercase();
+    for (prefix, vendor) in [
+        ("claude", "anthropic"),
+        ("gpt", "openai"),
+        ("o1", "openai"),
+        ("o3", "openai"),
+        ("codex", "openai"),
+        ("gemini", "google"),
+        ("llama", "meta"),
+        ("mistral", "mistral"),
+        ("qwen", "alibaba"),
+    ] {
+        if m.starts_with(prefix) {
+            return Some(vendor);
+        }
+    }
+    None
+}
+
 /// Observation outranks the answer's own words. `model` and `served` hold what the CLI reported;
 /// anything the answer claimed about its identity is kept only under `claimed`, and when nothing
 /// was observed no served identity is asserted at all (the receipt then reads `not_stated`).
 fn apply_observation(
     mut answer: serde_json::Value,
     observed_model: Option<String>,
+    observed_vendor: Option<String>,
     usage: Option<serde_json::Value>,
 ) -> serde_json::Value {
     if let Some(obj) = answer.as_object_mut() {
@@ -273,10 +298,25 @@ fn apply_observation(
         }
         obj.remove("served");
         match &observed_model {
-            // Only an observed model is reported as served; no vendor is ever inferred.
+            // The served identity is the observed model; its vendor is the vendor the CLI stated,
+            // or the one derived from that served model by an explicit table (below).
             Some(model) => {
                 obj.insert("model".into(), serde_json::Value::String(model.clone()));
-                obj.insert("served".into(), serde_json::json!({ "model": model }));
+                let mut served = serde_json::json!({ "model": model });
+                // Only a vendor actually observed/stated by the CLI becomes the served vendor.
+                if let Some(vendor) = observed_vendor.clone() {
+                    served["vendor"] = serde_json::Value::String(vendor);
+                }
+                obj.insert("served".into(), served);
+                // A vendor derived from the model name is labelled separately, never confirmed
+                // identity: the desk reads only `served.vendor`, so this cannot overstate what was
+                // served.
+                if let Some(hint) = derive_vendor(model) {
+                    obj.insert(
+                        "derived_vendor".into(),
+                        serde_json::Value::String(hint.to_string()),
+                    );
+                }
             }
             None => {
                 obj.remove("model");
@@ -297,8 +337,11 @@ fn apply_observation(
 }
 
 /// The model and usage the CLI itself reported, if any. Never inferred.
-fn observed_from_events(stdout: &str) -> (Option<String>, Option<serde_json::Value>) {
+fn observed_from_events(
+    stdout: &str,
+) -> (Option<String>, Option<String>, Option<serde_json::Value>) {
     let mut model = None;
+    let mut vendor = None;
     let mut usage = None;
     for line in stdout.lines() {
         let Ok(v) = serde_json::from_str::<serde_json::Value>(line) else {
@@ -310,6 +353,13 @@ fn observed_from_events(stdout: &str) -> (Option<String>, Option<serde_json::Val
         if let Some(u) = v.get("usage").filter(|u| u.is_object()) {
             usage = Some(u.clone());
         }
+        if let Some(vd) = v
+            .get("vendor")
+            .or_else(|| v.get("provider"))
+            .and_then(serde_json::Value::as_str)
+        {
+            vendor = Some(vd.to_string());
+        }
         // Some events carry the fields one level down.
         if let Some(obj) = v.get("item").and_then(serde_json::Value::as_object) {
             if let Some(m) = obj.get("model").and_then(serde_json::Value::as_str) {
@@ -318,9 +368,16 @@ fn observed_from_events(stdout: &str) -> (Option<String>, Option<serde_json::Val
             if let Some(u) = obj.get("usage").filter(|u| u.is_object()) {
                 usage = Some(u.clone());
             }
+            if let Some(vd) = obj
+                .get("vendor")
+                .or_else(|| obj.get("provider"))
+                .and_then(serde_json::Value::as_str)
+            {
+                vendor = Some(vd.to_string());
+            }
         }
     }
-    (model, usage)
+    (model, vendor, usage)
 }
 
 /// Turn a mostly-right model answer into the exact answer shape the desk protocol reads. It never
@@ -525,13 +582,18 @@ mod tests {
         let out = apply_observation(
             answer,
             Some("gpt-observed".into()),
+            None,
             Some(serde_json::json!({"input_tokens": 9})),
         );
         assert_eq!(out["model"], "gpt-observed", "observation wins");
         assert_eq!(out["served"]["model"], "gpt-observed");
         assert!(
             out["served"].get("vendor").is_none(),
-            "no vendor is observed"
+            "a derived vendor is never confirmed served identity"
+        );
+        assert_eq!(
+            out["derived_vendor"], "openai",
+            "the model family is recorded only as a derived hint"
         );
         assert_eq!(
             out["claimed"]["model"], "claimed-model",
@@ -542,7 +604,7 @@ mod tests {
 
         // With nothing observed, the answer asserts no served identity at all.
         let answer = serde_json::json!({"findings": [], "model": "claimed-model", "served": {"vendor": "x"}});
-        let out = apply_observation(answer, None, None);
+        let out = apply_observation(answer, None, None, None);
         assert!(
             out.get("served").is_none(),
             "nothing was served as far as we know"
@@ -555,7 +617,7 @@ mod tests {
             "findings": [],
             "usage": {"input_tokens": 500, "output_tokens": 50}
         });
-        let out = apply_observation(answer, Some("gpt-observed".into()), None);
+        let out = apply_observation(answer, Some("gpt-observed".into()), None, None);
         assert!(
             out.get("usage").is_none(),
             "unobserved usage must not be presented as observed"
@@ -568,13 +630,84 @@ mod tests {
 
     #[test]
     fn observed_events_are_not_inferred() {
-        let (model, usage) = observed_from_events("{\"type\":\"turn.completed\"}");
+        let (model, vendor, usage) = observed_from_events("{\"type\":\"turn.completed\"}");
         assert!(model.is_none());
+        assert!(vendor.is_none());
         assert!(usage.is_none());
-        let (model, usage) = observed_from_events(
+        let (model, vendor, usage) = observed_from_events(
             "{\"type\":\"turn.completed\",\"model\":\"gpt-observed\",\"usage\":{\"input_tokens\":3}}",
         );
         assert_eq!(model.as_deref(), Some("gpt-observed"));
+        assert!(vendor.is_none(), "no vendor is stated by these events");
         assert!(usage.is_some());
+        // A vendor the events do state is observed, not inferred.
+        let (_, vendor, _) = observed_from_events(
+            "{\"type\":\"turn.completed\",\"model\":\"gpt-observed\",\"vendor\":\"openai\"}",
+        );
+        assert_eq!(vendor.as_deref(), Some("openai"));
+    }
+
+    #[test]
+    fn a_served_model_derives_its_vendor_and_unknown_models_stay_unstated() {
+        assert_eq!(derive_vendor("gpt-5-codex"), Some("openai"));
+        assert_eq!(derive_vendor("GPT-5"), Some("openai"));
+        assert_eq!(derive_vendor("o3-mini"), Some("openai"));
+        assert_eq!(derive_vendor("codex-mini"), Some("openai"));
+        assert_eq!(derive_vendor("claude-sonnet-4-5"), Some("anthropic"));
+        assert_eq!(derive_vendor("gemini-2.5-pro"), Some("google"));
+        assert_eq!(derive_vendor("llama-3-70b"), Some("meta"));
+        assert_eq!(derive_vendor("mistral-large"), Some("mistral"));
+        assert_eq!(derive_vendor("qwen3-coder"), Some("alibaba"));
+        assert_eq!(
+            derive_vendor("acme-1"),
+            None,
+            "unknown models are not guessed"
+        );
+
+        // A model with no stated vendor: served.vendor stays absent, the family is a hint only.
+        let out = apply_observation(
+            serde_json::json!({"findings": []}),
+            Some("gpt-5-codex".into()),
+            None,
+            None,
+        );
+        assert!(
+            out["served"].get("vendor").is_none(),
+            "a derived vendor is not confirmed served identity"
+        );
+        assert_eq!(out["derived_vendor"], "openai");
+        let out = apply_observation(
+            serde_json::json!({"findings": []}),
+            Some("claude-sonnet-4-5".into()),
+            None,
+            None,
+        );
+        assert!(out["served"].get("vendor").is_none());
+        assert_eq!(out["derived_vendor"], "anthropic");
+        let out = apply_observation(
+            serde_json::json!({"findings": []}),
+            Some("acme-1".into()),
+            None,
+            None,
+        );
+        assert!(
+            out["served"].get("vendor").is_none(),
+            "an unmatched model stays not_stated"
+        );
+        assert!(
+            out.get("derived_vendor").is_none(),
+            "an unmatched model has no hint either"
+        );
+        // A vendor stated in the events is not overridden by the prefix table.
+        let out = apply_observation(
+            serde_json::json!({"findings": []}),
+            Some("gpt-5-codex".into()),
+            Some("acme".into()),
+            None,
+        );
+        assert_eq!(
+            out["served"]["vendor"], "acme",
+            "a stated vendor wins over derivation"
+        );
     }
 }
