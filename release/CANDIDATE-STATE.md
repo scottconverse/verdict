@@ -36,7 +36,14 @@ work directly; the triad's existing goal and evidence are preserved. The prior
   Existing check receipts retain their own tiers and results. The affected test
   reproduces the overclaim before the fix and passes for all five aggregate
   check types on unchanged and changed trees. All six export tests pass. This
-  production change requires its own CI and current package before delivery.
+  production change passed test run `40836504796` and package/install/parity run
+  `40836504732` at `a612b4d70b0badbc9725855b0f5edfa28ce55810`. The four
+  checksum-verified retained platform packages are staged in `dist`. The current
+  Windows package was silently installed in an isolated directory; its core
+  `f98d5763de1c9cb52c419863d76190c439f161faf3eaa5481ac41027ad170a0e`
+  exported the existing session with all nine unsupported claims unproven.
+  Original ledger/head byte hashes stayed unchanged. No checker, desk or model
+  was rerun. `release/CANDIDATE-PROVENANCE.json` records the package identities.
 * Approval 406 remains valid: Scott authorized Codex to submit the real page form.
   No repeat command approval is required. The retired ports 4761 and 63341 must
   not be advertised as running pages.
@@ -52,8 +59,9 @@ work directly; the triad's existing goal and evidence are preserved. The prior
   They are not a new end-to-end packaged-host run. SmartScreen/UAC/Gatekeeper
   exercises are not added requirements.
 
-Remaining: resolve usable served-identity evidence, complete applicable installed
-acceptance and reconcile current candidate artifacts/packet. Signing/notarization,
+Remaining: resolve usable real served-identity evidence and applicable packaged
+host acceptance. Current candidate artifacts and affected packet output are
+reconciled. Signing/notarization,
 unavailable external desktop acceptance, safe loaded-host DSH acceptance, and final
 human merge/tag/publication/post-tag CLEAR remain explicitly incomplete. The
 historical partial/killed lane and unclassified process-survivor receipts are not

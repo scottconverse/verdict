@@ -1,0 +1,31 @@
+{
+  "candidate": "a612b4d70b0badbc9725855b0f5edfa28ce55810",
+  "test_run": 40836504796,
+  "package_run": 40836504732,
+  "installed_core_sha256": "f98d5763de1c9cb52c419863d76190c439f161faf3eaa5481ac41027ad170a0e",
+  "unsupported_claims_unproven": 9,
+  "original_ledger_unchanged": true,
+  "packages": [
+    {
+      "name": "vdt-1.0.0-aarch64-apple-darwin.tar.gz",
+      "sha256": "781357f964e5640cdffded9494caa8b829015896cb3e24b9901f0b574ae7856a",
+      "bytes": 26907486
+    },
+    {
+      "name": "vdt-1.0.0-x86_64-pc-windows-msvc.zip",
+      "sha256": "fcd80c163ce572ec2b0b8b10198f05e5ae5de087de2607a155aa7c5907599c32",
+      "bytes": 12810143
+    },
+    {
+      "name": "Verdict-1.0.0-x86_64.AppImage",
+      "sha256": "8af8ebd0a50219f460a0a4fa2dac018b761c386b84e7695f3748607f4a5468b5",
+      "bytes": 7715320
+    },
+    {
+      "name": "vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz",
+      "sha256": "927610b23e2c2496bcd3b9d48d721600255a43f6763d5ac2cb56a57da740e56d",
+      "bytes": 15002841
+    }
+  ],
+  "scope": "Existing passed CI reused. Silent isolated installation and affected export only; no checker, desk, model, tag or publication."
+}
