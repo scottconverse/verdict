@@ -60,8 +60,12 @@ Stop hook executed to `vdt 1.0.0`.
 otherwise prints FIX FIRST / NOT ESTABLISHED and exits 1; it never tags, releases or publishes.
 
 (i) **Docs / roll-up** — `release/CANDIDATE-PACKET.txt`, `CANDIDATE-REPORT.txt`,
-`CANDIDATE-ARTIFACTS.txt`, `CANDIDATE-RECONCILIATION.md`, `RELEASE-RUNBOOK.md`; three-OS `test` run
-`40804156318` green at `08ec95c` (ubuntu `123218973230`, macOS `123218972950`, windows `123218973242`).
+`CANDIDATE-ARTIFACTS.txt`, `CANDIDATE-RECONCILIATION.md`, `RELEASE-RUNBOOK.md`,
+`INSTALLED-FAILOPEN-RECEIPT.md`. Frozen-head CI: `test` run `40814185027` green at `b75010f`
+(ubuntu `123251292525`, macOS `123251292835`, windows `123251292807`) and `clean-install-and-parity`
+`40814185033` green (AppImage job `123251292877`, hash unavailable; macOS `123251292687`, Windows
+archive `123251292839`, compare `123251991750`). History only: `test` `40804156318` at `08ec95c`
+(ubuntu `123218973230`, macOS `123218972950`, windows `123218973242`).
 
 ## Open
 
