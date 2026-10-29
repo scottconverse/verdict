@@ -370,8 +370,7 @@ fn session_html(
         match d.decision {
             DecisionKind::InstallHooks => {
                 waiting += 1;
-                // The card is a button: pressing it records the human's decision and shows the
-                // block to add. The link to the sessions page stays, for the block itself.
+                // Pressing the button installs the hooks and records the human decision.
                 let host = d
                     .key
                     .split_once(':')
@@ -381,8 +380,8 @@ fn session_html(
                 body.push_str(&card(
                     &esc(&d.question),
                     &format!(
-                        "<p>This records your decision and shows you the exact block to add. It \
-                         does not edit any of your files.</p>\
+                        "<p>This adds Verdict hooks to the selected agent settings file, preserves unrelated \
+                         settings, and records your decision.</p>\
                          <form method=\"post\" action=\"/install-hooks\">\
                          <input type=\"hidden\" name=\"host\" value=\"{host_link}\">\
                          <input type=\"hidden\" name=\"token\" value=\"{}\">\

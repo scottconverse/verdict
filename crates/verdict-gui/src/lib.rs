@@ -465,8 +465,8 @@ fn home_html(root: &std::path::Path, token: &str) -> Result<String, LedgerError>
     }
     body.push_str(
         "<h2>Hooks</h2><p>Hooks let Verdict see your agent's prompts and tool calls. \
-         This button records your decision and shows you the block to add. It does not edit \
-         any of your files.</p>",
+         This button adds Verdict hooks to the selected agent settings file, preserves unrelated \
+         settings, and records your decision. You can preview the hook block before installing.</p>",
     );
     for (h, seq) in hook_done {
         body.push_str(&format!("<div class=\"card\"><h3>{}</h3>", esc(h.title())));
