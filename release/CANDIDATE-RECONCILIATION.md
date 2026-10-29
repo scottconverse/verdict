@@ -40,12 +40,14 @@ reported unverified.
 
 ## FULL-12-0 item 9 and items 1–8
 
-9. **This artifact.** The candidate packet was regenerated from a fresh full-claim session at the
-   frozen head with the real export command; the accumulated packet `release/PACKET-BEFORE-TAG.txt`
-   is retained as history, not replaced. `release/CANDIDATE-ARTIFACTS.txt` records provenance
-   honestly, including that the AppImage does not exist here and the Linux archive predates the
-   head. Merge, tag, publication and signing remain Scott's decision or an external credential
-   dependency. Candidate commits and pushes only.
+9. **This artifact.** At head `d89dd9c` the candidate packet was regenerated from a fresh
+   full-claim session with the real export command (`release/CANDIDATE-PACKET.txt`,
+   `release/CANDIDATE-REPORT.txt`) and `release/CANDIDATE-ARTIFACTS.txt` was refreshed with the
+   Windows binary/archive rebuilt locally at that head; earlier-head packets and hashes are retained
+   as history, not replaced. The artifact record says plainly that the Linux archive predates this
+   head and that the AppImage exists only as a CI-built artifact (run 40793472907, hash
+   unavailable). Merge, tag, publication and signing remain Scott's decision or an external
+   credential dependency. Candidate commits and pushes only.
 1–8 (as previously stated): fresh verification now runs from Stop with the final gate record;
    snapshot binding and the mutation/browser/first-run evidence semantics were repaired; the
    command-approval card lists every command; the specified human decisions and stale citations;
@@ -93,9 +95,12 @@ or the human's.
   click-through and live enforce/fail-open acceptance remain unestablished.
 * **F29 (optional DSH integration):** recording-only plugin plus MCP connection; a loaded DSH host
   acceptance is not established and is Codex-owned; the generic core does not depend on it.
-* **SAFE-DELIVERY:** work confined to this `merge-trial` worktree; main, history, receipts and
-  settings preserved; no evidence reset or weakened claim; candidate commits/pushes only; no merge,
-  tag or publish.
+* **SAFE-DELIVERY:** the final candidate packet and artifact record are refreshed at
+  `d89dd9c` before re-verification (`release/CANDIDATE-PACKET.txt`,
+  `release/CANDIDATE-ARTIFACTS.txt`); signing/notarization, installed desktop acceptance, DSH
+  deployment and tag/publication remain external; work confined to this `merge-trial` worktree;
+  main, history, receipts and settings preserved; no evidence reset or weakened claim; candidate
+  commits/pushes only; no merge, tag or publish.
 
 ## Artifacts in this record
 
