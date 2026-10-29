@@ -161,16 +161,17 @@ signs or publishes on its own.
 ## Current release decision, October 29
 
 No merge, v1.0.0 tag or product release has been created. The current preserved
-session's read-only export is still FAILED, with 16 open blocking findings:
+session's read-only export is still FAILED, with 29 open blocking findings (16 displayed plus 13 hidden by the per-desk report cap):
 
 | Records | Subject | Current disposition |
 | --- | --- | --- |
 | 267, 319, 378, 561 | AppImage missing | Superseded artifact situation: actual CI-built AppImage now staged and checksummed; old findings remain open. |
-| 274, 325 | GUI readiness receipt inadequate | New exact installed-core readiness and GUI receipts exist; old findings remain open. |
-| 275, 327 | Platform packaging behavior not established | Current six-job clean-install/parity CI passed; its limits remain recorded. |
-| 289, 344, 402 | Static CONNECTED labels overstate execution proof | Static file existence remains a static tier; current export no longer promotes aggregate checks into individual claim proof. Historical overclaims are preserved. |
-| 290, 345 | Earlier release record wrongly called clean | Historical contradiction retained; never relabel record260 or the old packet clean. |
+| 274, 325, 386, 483, 579 | GUI readiness receipt inadequate | New exact installed-core readiness and GUI receipts exist; old findings remain open. |
+| 275, 327, 484, 580 | Platform packaging behavior not established | Current six-job clean-install/parity CI passed; its limits remain recorded. |
+| 289, 344, 402, 499, 546, 595 | Static CONNECTED labels overstate execution proof | Static file existence remains a static tier; current export no longer promotes aggregate checks into individual claim proof. Historical overclaims are preserved. |
+| 290, 345, 403, 498, 545, 596 | Earlier release record wrongly called clean | Historical contradiction retained; never relabel record260 or the old packet clean. |
 | 326 | Earlier mutation run failed | Later completed evidence retained; do not rerun it just to clear a historical judgment. |
+| 385 | Earlier exec/first-run attempts lack execution evidence | Historical failed attempts remain failed; newer CI and installed receipts are separate evidence, not a relabeling of these attempts. |
 | 268, 562 | v1.0.0 tag missing | Expected until Scott authorizes the actual release tag. |
 
 Human-owned finding decisions have not been fabricated. The release gate still

@@ -74,7 +74,7 @@ unsigned/not notarized is the owner's explicit disposition; the served-identity
 side check is optional. Both DSH hosts have loaded the delivered triad repairs.
 No blanket external-desktop exercise is promoted to a new release requirement.
 
-The preserved598-record session still computes FAILED, with16 open blocking
+The preserved598-record session still computes FAILED, with29 open blocking
 findings and stale/missing evidence inputs. See the current read-only report and
 RELEASE-RUNBOOK.md's exact record table. These do not establish a new code defect;
 they also must not be silently closed or relabelled CLEAR TO SHIP. Owner finding
