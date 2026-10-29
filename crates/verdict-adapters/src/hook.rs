@@ -28,10 +28,13 @@ pub const MAX_STOP_BUDGET: Duration = Duration::from_secs(600);
 /// Extra time allowed for writing the `check_unavailable` record after a failure.
 pub const UNAVAILABLE_BUDGET: Duration = Duration::from_secs(2);
 
-/// How long the hook waits for the "unavailable" record to be written. The default is
-/// [`UNAVAILABLE_BUDGET`]; a test may raise it with `VDT_HOOK_RECORD_BUDGET_MS` so that an assertion
-/// about the record is not a race with a loaded machine's filesystem. This never changes how long an
-/// agent is held — the payload budget is separate and unaffected.
+/// How long the hook waits for the "unavailable" record to be written. This is a **test/operations
+/// override only**: the default is the unchanged [`UNAVAILABLE_BUDGET`] of 2 seconds, and
+/// `VDT_HOOK_RECORD_BUDGET_MS` exists so a test can stop an assertion about the record from racing a
+/// loaded machine's filesystem. It is **not** the gate/Stop hold budget: that is
+/// `VDT_HOOK_BUDGET_MS` (`budget_for`), which this function never reads, never clamps and never
+/// changes. Raising this value cannot hold an agent longer; it only waits longer for the record
+/// after the hook has already decided not to hold.
 fn record_budget() -> Duration {
     std::env::var("VDT_HOOK_RECORD_BUDGET_MS")
         .ok()
