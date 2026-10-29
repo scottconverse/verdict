@@ -15,7 +15,7 @@ completion claim.
 | Wire installer hooks end to end | Button calls the real merge/backup implementation; a real-host recording exists from an earlier session; full installed no-terminal workflow unestablished |
 | Redact MCP claim text | Implemented on the claim/done-when paths through the shared redactor; not a proof that every unknown secret is recognizable |
 | Route-call regressions | Source and fixture evidence retained; not re-run for this packet |
-| Windows Job Object grandchild escape | Checker exec starts suspended, assigns the job, resumes; tests pass. The desk provider path now has its own tree kill (Job Object / `/T`; Unix process group) with bounded timeout and tests |
+| Windows Job Object grandchild escape | Checker exec starts suspended, assigns the job, resumes; tests pass. F13 verified at `e47d4b0`: 1 s deadline, helper-written marker alive before the deadline, total <3 s, tree kill before child kill and a bounded stdin writer; CI green on ubuntu/macOS/windows (run 40795187701, agent-provided); the 40.81 s red-before receipt is retained. |
 | change_file/tree-stamp timing gap | Repaired: `cache_matches_tree` (content digest) and `cache_matches_changes` (diff fingerprint) both bind the stamp; torn reads record no stamp and every requested checker FailedToRun |
 | Extra backup on retry | Retry cleanup/reuse implemented with existing test evidence; no contrary defect found |
 
@@ -49,7 +49,7 @@ reported unverified.
 1–8 (as previously stated): fresh verification now runs from Stop with the final gate record;
    snapshot binding and the mutation/browser/first-run evidence semantics were repaired; the
    command-approval card lists every command; the specified human decisions and stale citations;
-   desk artifacts/proposals/dissent and served identity (limitation above); generic release checks
+   desk artifacts/proposals/dissent and served identity (limitation above); item 4 cites F13 verified at `e47d4b0` (1 s deadline, helper-written marker alive before the deadline, total <3 s, bounded stdin writer, CI green on ubuntu/macOS/windows, run 40795187701 agent-provided); generic release checks
    and packets; archive/install/checksum/shortcut/publish paths; DSH optional integration.
 
 ## VALIDATION — provenance
@@ -67,7 +67,7 @@ or that anything was published. It is not signing evidence.
 FIRST-SEVERITY and FIRST-APPIMAGE were closed with Auditor verification (A-001…A-008 dispositions
 recorded). `HANDOFF.md`, `STARTER-PROMPT.md` and the original worker reports were read; their
 backlog rows, thirteen design questions, seven generic corrections and five phase conditions are
-reconciled above. The remaining executable work is this packet and provenance; signing/notarization,
+reconciled above. The stdin-writer deadline and the Windows job-comment truthfulness cleanup have landed at `d89dd9c`; remaining executable work is this provenance/packet refresh at the current head; signing/notarization,
 installed desktop click-through/enforce/fail-open, DSH deployment, and tag/publication are external
 or the human's.
 
