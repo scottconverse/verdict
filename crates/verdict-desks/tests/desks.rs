@@ -552,7 +552,7 @@ fn a_timed_out_provider_ends_its_whole_process_tree() {
             let providers = vec![provider_with_desk_timeout(&[
                 "--sleep-ms",
                 "60000",
-                "--spawn-child",
+                "--spawn-early-child",
                 &pid_path,
             ])];
             let out = run(
