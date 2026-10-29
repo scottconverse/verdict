@@ -534,18 +534,18 @@ fn an_early_helper_is_ended_by_the_tree_kill() {
 
 #[test]
 fn a_timed_out_provider_ends_its_whole_process_tree() {
-    // A provider that starts a helper which holds the inherited pipes. Killing only the direct
-    // child would leave the helper running and the run waiting on its pipes; the whole tree has
-    // to end, and the desk must read as failed rather than clean.
     let (dir, home, sid) = project("tree", None);
     let policy = Policy::load(dir.path(), Some(home.path())).unwrap();
     let mut l = Ledger::open(dir.path()).unwrap();
     let pidfile = dir.path().join("helper.pid");
     let pid_path = pidfile.to_string_lossy().to_string();
+    // The lane thread gets a cloned root, not the `Tmp`: dropping the fixture inside the thread
+    // would delete the marker (and the ledger) before the parent makes its post-run assertions.
+    let root = dir.path().to_path_buf();
     let started = std::time::Instant::now();
     // The lane runs on a scoped thread so the test can observe the helper while the provider is
     // still held at its deadline: a helper that died at startup must fail this, not pass it.
-    let (out, l) = std::thread::scope(|s| {
+    let (out, l, pid) = std::thread::scope(|s| {
         let lane = s.spawn(move || {
             let providers = vec![provider_with_desk_timeout(&[
                 "--sleep-ms",
@@ -555,28 +555,28 @@ fn a_timed_out_provider_ends_its_whole_process_tree() {
             ])];
             let out = run(
                 &mut l,
-                dir.path(),
+                &root,
                 &sid,
                 &policy,
                 &DeskOptions {
                     lane: Lane::Standard,
-                    timeout: Duration::from_secs(5),
+                    timeout: Duration::from_secs(1),
                 },
                 &providers,
             )
             .unwrap();
             (out, l)
         });
-        // CI start-up is slower than a desktop: the provider has 5 s, so the marker may take a few
-        // seconds to appear. The assertion stays strict: alive before the deadline.
-        let until = started + Duration::from_secs(4);
+        // The marker is tight to the configured deadline: it must exist, and the helper must be
+        // alive, before that deadline passes.
+        let until = started + Duration::from_millis(900);
         while !pidfile.exists() && std::time::Instant::now() < until {
             std::thread::sleep(Duration::from_millis(5));
         }
         if !pidfile.exists() {
             let why = std::fs::read_to_string(format!("{}.error", pidfile.display()))
                 .unwrap_or_else(|_| "no spawn error recorded".into());
-            panic!("the helper wrote no marker within 4 s: {why}");
+            panic!("the helper wrote no marker before the deadline: {why}");
         }
         let pid = marker_pid(&pidfile);
         assert!(
@@ -584,14 +584,17 @@ fn a_timed_out_provider_ends_its_whole_process_tree() {
             "the helper must be alive while the provider is held at its deadline (pid {pid})"
         );
         assert!(
-            started.elapsed() < Duration::from_secs(5),
-            "the marker must arrive before the 5 s deadline"
+            started.elapsed() < Duration::from_secs(1),
+            "the marker must arrive before the 1 s deadline"
         );
-        lane.join().unwrap()
+        let (out, l) = lane.join().unwrap();
+        (out, l, pid)
     });
+    // Deadline + 2 s: a regression that reintroduced the old sequential pipe graces would take
+    // about 15 s and must fail this bound rather than hide under a loose one.
     assert!(
-        started.elapsed() < Duration::from_secs(20),
-        "a timed-out provider must not hold the run past its deadline"
+        started.elapsed() < Duration::from_secs(3),
+        "two 1 s provider deadlines plus the marker wait must stay tight; measured {started:?}"
     );
     let Outcome::Ran { receipts, .. } = out else {
         panic!("{out:?}");
@@ -607,12 +610,6 @@ fn a_timed_out_provider_ends_its_whole_process_tree() {
             .any(|s| matches!(s.record, Record::Finding(_))),
         "nothing a timed-out provider said may count"
     );
-    // The helper process itself is gone.
-    let pid: u32 = marker_pid(&pidfile);
-    let deadline = std::time::Instant::now() + Duration::from_secs(10);
-    while process_alive(pid) && std::time::Instant::now() < deadline {
-        std::thread::sleep(Duration::from_millis(200));
-    }
     assert!(
         !process_alive(pid),
         "the provider's child outlived the deadline (pid {pid})"

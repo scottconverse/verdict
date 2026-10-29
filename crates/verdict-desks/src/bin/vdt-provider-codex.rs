@@ -257,13 +257,17 @@ fn apply_observation(
             .get("model")
             .and_then(serde_json::Value::as_str)
             .map(str::to_string);
-        if claimed_served.is_some() || claimed_model.is_some() {
+        let claimed_usage = obj.get("usage").filter(|v| v.is_object()).cloned();
+        if claimed_served.is_some() || claimed_model.is_some() || claimed_usage.is_some() {
             let mut claimed = serde_json::Map::new();
             if let Some(m) = claimed_model {
                 claimed.insert("model".into(), serde_json::Value::String(m));
             }
             if let Some(s) = claimed_served {
                 claimed.insert("served".into(), s);
+            }
+            if let Some(u) = claimed_usage {
+                claimed.insert("usage".into(), u);
             }
             obj.insert("claimed".into(), serde_json::Value::Object(claimed));
         }
@@ -278,8 +282,15 @@ fn apply_observation(
                 obj.remove("model");
             }
         }
-        if let Some(usage) = usage {
-            obj.insert("usage".into(), usage);
+        // Usage the answer reports is not usage the CLI was observed to spend: only an observed
+        // usage block is recorded as `usage`; an unobserved one stays under `claimed` only.
+        match usage {
+            Some(usage) => {
+                obj.insert("usage".into(), usage);
+            }
+            None => {
+                obj.remove("usage");
+            }
         }
     }
     answer
@@ -538,6 +549,21 @@ mod tests {
         );
         assert!(out.get("model").is_none());
         assert_eq!(out["claimed"]["model"], "claimed-model");
+
+        // Usage the answer reports is not observed usage: it is kept as a claim only.
+        let answer = serde_json::json!({
+            "findings": [],
+            "usage": {"input_tokens": 500, "output_tokens": 50}
+        });
+        let out = apply_observation(answer, Some("gpt-observed".into()), None);
+        assert!(
+            out.get("usage").is_none(),
+            "unobserved usage must not be presented as observed"
+        );
+        assert_eq!(
+            out["claimed"]["usage"]["input_tokens"], 500,
+            "the claim is kept, labelled"
+        );
     }
 
     #[test]

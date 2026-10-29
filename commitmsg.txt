@@ -1,0 +1,14 @@
+test(desks): keep the fixture alive past the run; claim usage only when observed
+
+Root cause of the Unix CI failure was fixture lifetime, not slow startup:
+the scoped lane closure moved the Tmp and dropped it on return, deleting
+helper.pid before the parent asserted. The parent now owns the fixture and
+the thread gets a cloned root; the pid captured before the deadline is
+reused for the final liveness check. The 1 s desk deadline and tight marker
+window are restored, with a hard total bound of 3 s (deadline + 2 s) so a
+reintroduced pipe-grace regression cannot hide. Helper marker and .error
+surfacing and the product tree-kill path are unchanged.
+
+F11: usage the answer reports is no longer recorded as observed usage. Only
+a usage block seen in the CLI events becomes the usage field; an
+answer-supplied one is kept under claimed, with a test for that case.
