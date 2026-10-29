@@ -87,12 +87,28 @@ jobs:
             --install-dir /tmp/app-home/bin --no-open
           test -x /tmp/app-home/bin/vdt
           /tmp/app-home/bin/vdt --version
+      - name: Retain the tested Linux candidate packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: candidate-linux-${{ github.sha }}
+          path: |
+            /tmp/dist/*.tar.gz
+            /tmp/dist/*.sha256
+            appdist/*.AppImage
+            appdist/*.sha256
+          if-no-files-found: error
   windows-archive-install:
     name: Windows archive install (silent, exact layout)
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+      - name: Check acceptance ledger preservation (no model calls)
+        shell: pwsh
+        run: |
+          python -B release/test-copy-ledger.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ./release/test-ledger-receipt-delta.ps1
       - run: cargo build --release --locked --bin vdt
       - name: Package and install the exact archive
         shell: bash
@@ -111,6 +127,14 @@ jobs:
             --project "$project" --install-dir "$bin" --no-open
           test -f "$bin/vdt.exe"
           "$bin/vdt.exe" --version
+      - name: Retain the tested Windows candidate package
+        uses: actions/upload-artifact@v4
+        with:
+          name: candidate-windows-${{ github.sha }}
+          path: |
+            dist/*.zip
+            dist/*.sha256
+          if-no-files-found: error
   macos-package:
     name: macOS package and setup entry (headless)
     runs-on: macos-14
@@ -157,6 +181,14 @@ jobs:
             --install-dir "$PWD/bin" --no-open
           test -x bin/vdt
           bin/vdt --version
+      - name: Retain the tested macOS candidate package
+        uses: actions/upload-artifact@v4
+        with:
+          name: candidate-macos-${{ github.sha }}
+          path: |
+            dist/*.tar.gz
+            dist/*.sha256
+          if-no-files-found: error
   generate:
     name: generate on ${{ matrix.os }}
     strategy:
@@ -187,6 +219,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
+          pattern: generated-*
           path: out
           merge-multiple: false
       - name: Compare every byte
