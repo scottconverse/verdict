@@ -28,8 +28,8 @@ Unit + consumer tests, red-before/green-after captured.
 (b) **AppImage / FUSE packaging + checksums** — `release/package-appimage.sh` runs appimagetool under
 `APPIMAGE_EXTRACT_AND_RUN=1`, no FUSE fallback; `release/package.sh` writes standard `*.sha256`.
 CI (agent-provided) at `b75010f`: test run `40814185027` green on ubuntu `123251292525` / macOS `123251292835` / windows `123251292807`; clean-install run `40814185033` green — Ubuntu job `123251292877` built
-and installed `Verdict-1.0.0-x86_64.AppImage` (checksum OK; hash not uploaded), macOS `123218973357`,
-Windows `123218973526`.
+and installed `Verdict-1.0.0-x86_64.AppImage` (checksum OK; hash not uploaded), macOS `123251292687`,
+Windows archive `123251292839`, byte-identical compare `123251991750`.
 
 (c) **Snapshot binding** — `crates/verdict-checkers/src/context.rs` `cache_matches_tree` (content
 digest) + `cache_matches_changes` (diff fingerprint) bind the recorded stamp; torn reads record no
