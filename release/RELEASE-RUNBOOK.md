@@ -4,10 +4,25 @@ This is the human path from the candidate on `merge-trial` to a tagged, publishe
 steps in order. Commands are written for the repository root on Windows (PowerShell); the packaging
 scripts are POSIX `sh` and also run on Linux/macOS.
 
-Everything **above the signing step** has been exercised on this candidate (packaged Windows
-install, readiness/identity, hook path, Linux AppImage in CI). **Signing and publication have not been
-exercised**: no Authenticode or Apple credentials exist in this environment, so those steps are
-placeholders that name exactly what a signer must supply.
+What is evidenced on this candidate, and what is not:
+
+* **Windows (exercised, isolated, non-4717):** the packaged install, readiness (`/readyz` returned app
+  id + canonical project + the spawned pid), the installed-core hash matching the package, hook
+  installation writing the absolute quoted core with the unrelated `node policy-check.js hook claude
+  Stop` preserved, and the Stop hook executing as `vdt 1.0.0`.
+* **Linux (CI):** the AppImage was built, checksummed and installed in CI — run `40804156470` at
+  `08ec95c`, job `123218973466`; its SHA-256 is unavailable because the job does not upload the
+  image. The three-OS `test` run `40804156318` was green at the same head.
+* **macOS:** only the headless package/setup job (**123218973357**) ran. Finder double-click,
+  Gatekeeper trust and notarization are **not** verified.
+* **Release lane / packet:** a packet was generated, but its build/tests read **“not run”** because
+  Scott has not yet approved the repository's commands — so the release-lane exec step is **not**
+  exercised end to end.
+
+**Not verified anywhere in this environment:** signing, publication, desktop click-through (visible
+install and editor clicks, SmartScreen/UAC/Gatekeeper trust), and the post-approval release lane.
+Authenticode and Apple credentials do not exist here, so the signing steps below are placeholders
+naming exactly what a signer must supply.
 
 ## a) Approve the repo's commands (must come first)
 
