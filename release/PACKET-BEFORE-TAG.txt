@@ -10,15 +10,15 @@ Ledger: intact
 CLAIMS
 ------
 1. [prompt_translation] crates/verdict-core/src/lane.rs is present in the project
-   status: proven (wiring ran at the static tier (record 130) and reported no open finding about it)
+   status: proven (wiring ran at the static tier (record 185) and reported no open finding about it)
    names: crates/verdict-core/src/lane.rs
    record 4
 2. [prompt_translation] crates/verdict-engine/src/lib.rs is present in the project
-   status: proven (wiring ran at the static tier (record 130) and reported no open finding about it)
+   status: proven (wiring ran at the static tier (record 185) and reported no open finding about it)
    names: crates/verdict-engine/src/lib.rs
    record 6
 3. [prompt_translation] release/package.sh is present in the project
-   status: proven (wiring ran at the static tier (record 130) and reported no open finding about it)
+   status: proven (wiring ran at the static tier (record 185) and reported no open finding about it)
    names: release/package.sh
    record 8
 4. [final_message] Checked crates/verdict-core/src/lane.rs and crates/verdict-engine/src/lib.rs; release/package.sh is present.
@@ -103,17 +103,17 @@ FINDINGS
     evidence: command `ledger record 59`
     evidence: command `ledger record 62`
     evidence: command `ledger record 65`
-- [major] new file crates/verdict-checkers/tests/freshness.rs that nothing in this session's prompts or accepted claims asked for (static, record 131, open)
+- [major] new file crates/verdict-checkers/tests/freshness.rs that nothing in this session's prompts or accepted claims asked for (static, record 131, resolved)
     evidence: crates/verdict-checkers/tests/freshness.rs:1
-- [major] new dependency libc in crates/verdict-desks/Cargo.toml:20 that nothing in this session's prompts or accepted claims asked for (static, record 132, open)
+- [major] new dependency libc in crates/verdict-desks/Cargo.toml:20 that nothing in this session's prompts or accepted claims asked for (static, record 132, resolved)
     evidence: crates/verdict-desks/Cargo.toml:20
-- [major] new dependency windows-sys in crates/verdict-desks/Cargo.toml:25 that nothing in this session's prompts or accepted claims asked for (static, record 133, open)
+- [major] new dependency windows-sys in crates/verdict-desks/Cargo.toml:25 that nothing in this session's prompts or accepted claims asked for (static, record 133, resolved)
     evidence: crates/verdict-desks/Cargo.toml:25
-- [minor] TODO/FIXME left in added code at crates/verdict-checkers/tests/freshness.rs:143 (static, record 137, open)
+- [minor] TODO/FIXME left in added code at crates/verdict-checkers/tests/freshness.rs:143 (static, record 137, resolved)
     evidence: crates/verdict-checkers/tests/freshness.rs:143
-- [blocker] the release asset dist/*.AppImage does not exist in the candidate (asset, record 145, open)
+- [blocker] the release asset dist/*.AppImage does not exist in the candidate (asset, record 145, resolved)
     evidence: command `release asset dist/*.AppImage`
-- [blocker] the release candidate is not tagged v1.0.0 (tags on HEAD: none) (asset, record 146, open)
+- [blocker] the release candidate is not tagged v1.0.0 (tags on HEAD: none) (asset, record 146, resolved)
     evidence: command `git tag --points-at HEAD (v1.0.0)`
 - [blocker] The clean-result inventory includes checks whose ledger records explicitly report findings or execution failures (judgment, record 179, open)
     evidence: command `ledger record 30`
@@ -122,6 +122,39 @@ FINDINGS
     evidence: command `ledger record 59`
     evidence: command `ledger record 62`
     evidence: command `ledger record 65`
+- [blocker] the release asset dist/*.AppImage does not exist in the candidate (asset, record 182, resolved)
+    evidence: command `release asset dist/*.AppImage`
+- [blocker] the release candidate is not tagged v1.0.0 (tags on HEAD: none) (asset, record 183, resolved)
+    evidence: command `git tag --points-at HEAD (v1.0.0)`
+- [major] new file crates/verdict-checkers/tests/assets.rs that nothing in this session's prompts or accepted claims asked for (static, record 186, open)
+    evidence: crates/verdict-checkers/tests/assets.rs:1
+- [major] new file crates/verdict-checkers/tests/freshness.rs that nothing in this session's prompts or accepted claims asked for (static, record 187, open)
+    evidence: crates/verdict-checkers/tests/freshness.rs:1
+- [major] new dependency libc in crates/verdict-desks/Cargo.toml:20 that nothing in this session's prompts or accepted claims asked for (static, record 188, open)
+    evidence: crates/verdict-desks/Cargo.toml:20
+- [major] new dependency windows-sys in crates/verdict-desks/Cargo.toml:25 that nothing in this session's prompts or accepted claims asked for (static, record 189, open)
+    evidence: crates/verdict-desks/Cargo.toml:25
+- [minor] TODO/FIXME left in added code at crates/verdict-checkers/tests/freshness.rs:143 (static, record 193, open)
+    evidence: crates/verdict-checkers/tests/freshness.rs:143
+- [blocker] the release asset dist/*.AppImage does not exist in the candidate (asset, record 200, open)
+    evidence: command `release asset dist/*.AppImage`
+- [blocker] the release candidate is not tagged v1.0.0 (tags on HEAD: none) (asset, record 201, open)
+    evidence: command `git tag --points-at HEAD (v1.0.0)`
+- [blocker] The clean-result list includes a release check that explicitly recorded a blocker (judgment, record 231, open)
+    evidence: command `ledger record 29`
+    evidence: command `ledger record 30`
+- [blocker] The clean-result list includes failed execution and first-run checks (judgment, record 232, open)
+    evidence: command `ledger record 59`
+    evidence: command `ledger record 62`
+    evidence: command `ledger record 64`
+    evidence: command `ledger record 65`
+- [blocker] The clean-result list includes static checks with recorded findings (judgment, record 233, open)
+    evidence: command `ledger record 50`
+    evidence: command `ledger record 51`
+    evidence: command `ledger record 52`
+    evidence: command `ledger record 53`
+    evidence: command `ledger record 56`
+    evidence: command `ledger record 57`
 
 HYPOTHESES (move nothing)
 ------------------------
@@ -159,6 +192,19 @@ HYPOTHESES (move nothing)
 - [minor] Execution hashes and freshness cannot be independently reconciled from the supplied receipt summaries (record 176)
 - [minor] Matching archive checksums do not establish candidate provenance (record 177)
 - [minor] Mutation kills may reflect execution failures rather than test sensitivity (record 178)
+- [minor] The Windows access-denied failures in records 59 and 81 may reflect an executable file lock rather than a source regression; passing tests on a separate baseline copy do not isolate that cause. (record 212)
+- [minor] Release asset provenance remains unestablished by the supplied receipts: matching archive checksums do not connect the packaged binaries to the tested source tree. (record 213)
+- [minor] The truncated ledger and absence of source contents in the supplied evidence prevent assessment of current architecture, correctness, performance, and dependency changes; the core should provide the candidate diff and current release-check record for targeted inspection. (record 214)
+- [minor] The documented GUI installer path is not established by the supplied evidence (record 216)
+- [minor] Documentation link validity remains unverified (record 217)
+- [minor] The earlier test failures may reflect an executable lock or access restriction rather than a source regression (record 219)
+- [minor] First-use usability is not established by the supplied evidence (record 221)
+- [minor] Source and dependency security remain unassessed in this desk run (record 223)
+- [minor] Dependency licensing and attribution remain unverified (record 225)
+- [minor] The supplied ledger is truncated, so later clean-result claims cannot be examined (record 227)
+- [minor] The baseline execution receipt may identify the surrounding candidate rather than the tree actually executed (record 228)
+- [minor] Execution output hashes and current candidate identity cannot be independently reconciled (record 229)
+- [minor] Matching archive checksums do not establish provenance from the tested candidate (record 230)
 
 DECISIONS
 ---------
@@ -170,10 +216,10 @@ OVERRIDES
 
 RELEASE EVIDENCE
 ----------------
-- release: could not run (2 finding(s) written, but not everything could be looked up: read dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip.sha256 outside the index's snapshot; read dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256 outside the index's snapshot; release check passed: cargo test --workspace --locked (output blake3 373d481e4dad98913c50c5da3bf622b8955e406ae706b2028e955ba45b4791aa); release tags on HEAD: none; release asset dist/*.zip: dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip; dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip.sha256 was read from disk because the index holds no text for it, so the read is not covered by this run's snapshot; release asset dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip sha256 5fe18e97101803a3e5b33460cdd5560e1c6478f038291fdb2ed41ea2cc35fd9a matches dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip.sha256; release asset dist/*.tar.gz: dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz; dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256 was read from disk because the index holds no text for it, so the read is not covered by this run's snapshot; release asset dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz sha256 ad4147264680a6239a72338d6c5cb8b9a354215f2c0696558adb1f4210aeef33 matches dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256; release asset dist/*.AppImage: missing; release asset dist/*.sha256: dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip.sha256, dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256)
-- firstrun: ran at the ran tier (record 144): 0 finding(s); first-run command 1 ran and passed: cargo build --workspace --locked; first-run command 2 ran and passed: target/debug/vdt --version
+- release: ran at the ran tier (record 202): 2 finding(s); release check passed: cargo test --workspace --locked (output blake3 f507482a63e72c786def9337019a00cef18a79ca2a1c22e7628ea8e4ff778729); release tags on HEAD: none; release asset dist/*.zip: dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip; release asset dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip sha256 5fe18e97101803a3e5b33460cdd5560e1c6478f038291fdb2ed41ea2cc35fd9a matches dist/vdt-1.0.0-x8...
+- firstrun: ran at the ran tier (record 199): 0 finding(s); first-run command 1 ran and passed: cargo build --workspace --locked; first-run command 2 ran and passed: target/debug/vdt --version
 - firstrun at the browsed tier: no
-- release coherence ran: false
+- release coherence ran: true
 - open commit-anyway override: no
 - release version: 1.0.0
 - asset dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip: 6327583 bytes, SHA-256 5fe18e97101803a3e5b33460cdd5560e1c6478f038291fdb2ed41ea2cc35fd9a
@@ -189,6 +235,8 @@ NOT ESTABLISHED
 - lane: Cargo.lock matches high_if_touches Cargo.lock
 - lane: crates/verdict-checkers/src/context.rs matches high_if_touches crates/**
 - lane: crates/verdict-checkers/src/lib.rs matches high_if_touches crates/**
+- lane: crates/verdict-checkers/src/release.rs matches high_if_touches crates/**
+- lane: crates/verdict-checkers/tests/assets.rs matches high_if_touches crates/**
 - lane: crates/verdict-checkers/tests/freshness.rs matches high_if_touches crates/**
 - lane: crates/verdict-desks/Cargo.toml matches high_if_touches crates/**
 - lane: crates/verdict-desks/src/bin/vdt-fake-desk.rs matches high_if_touches crates/**
@@ -199,21 +247,20 @@ NOT ESTABLISHED
 - lane: crates/verdict-gui/src/setup.rs matches high_if_touches crates/**
 - lane: crates/verdict-gui/tests/page.rs matches high_if_touches crates/**
 - lane: release/PACKET-BEFORE-TAG.txt matches release_if_touches release/**
+- lane: release/REPORT-BEFORE-TAG.txt matches release_if_touches release/**
 - lane: release/dogfood-gate.sh matches release_if_touches release/**
 - lane: release/findings.sarif matches release_if_touches release/**
 - lane: release/package-appimage.sh matches release_if_touches release/**
 - lane: release/package.sh matches release_if_touches release/**
 - lane: verdict.json changes code or configuration
-- mutation: could not run: the mutation runner did not end successfully (exit 1), so its output was not read as a mutation report
-- release: could not run: 2 finding(s) written, but not everything could be looked up: read dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip.sha256 outside the index's snapshot; read dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256 outside the index's snapshot; release check passed: cargo test --workspace --locked (output blake3 373d481e4dad98913c50c5da3bf622b8955e406ae706b2028e955ba45b4791aa); release tags on HEAD: none; release asset dist/*.zip: dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip; dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip.sha256 was read from disk because the index holds no text for it, so the read is not covered by this run's snapshot; release asset dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip sha256 5fe18e97101803a3e5b33460cdd5560e1c6478f038291fdb2ed41ea2cc35fd9a matches dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip.sha256; release asset dist/*.tar.gz: dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz; dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256 was read from disk because the index holds no text for it, so the read is not covered by this run's snapshot; release asset dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz sha256 ad4147264680a6239a72338d6c5cb8b9a354215f2c0696558adb1f4210aeef33 matches dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256; release asset dist/*.AppImage: missing; release asset dist/*.sha256: dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip.sha256, dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256
-- 34 hypothesis(es) with no evidence pointer count for nothing
+- 47 hypothesis(es) with no evidence pointer count for nothing
 - whether your real app works: no page was loaded
 
 THE REPORT AS PRINTED
 ---------------------
 VERDICT: FAILED  (lane: release, policy v1, builder: claude/unknown [anthropic], verifier: none)
 read from code: done  |  your build and tests: ran, passed  |  your real app: not run
-session s-58be697247, started 2026-10-28T21:41:56.996Z  |  ledger: intact, 181 records  |  baseline 5f6334ff582a
+session s-58be697247, started 2026-10-28T21:41:56.996Z  |  ledger: intact, 235 records  |  baseline 5f6334ff582a
 
 FIX FIRST
   1. [Blocker] The release candidate lacks the required v1.0.0 tag on HEAD. (judgment, command `ledger record 29`; record 32)
@@ -224,51 +271,65 @@ FIX FIRST
   6. [Blocker] The configured source-build first-run flow cannot complete (judgment, command `ledger record 64`; record 115)
   7. [Blocker] The clean-result list includes release record 30, which explicitly reports a blocker (judgment, command `ledger record 29`; record 126)
   8. [Blocker] The clean-result list includes checks that explicitly report findings and failed commands (judgment, command `ledger record 53`; record 127)
-  9. [Major] new file crates/verdict-checkers/tests/freshness.rs that nothing in this session's prompts or accepted claims asked for (static, crates/verdict-checkers/tests/freshness.rs:1; record 131)
-  10. [Major] new dependency libc in crates/verdict-desks/Cargo.toml:20 that nothing in this session's prompts or accepted claims asked for (static, crates/verdict-desks/Cargo.toml:20; record 132)
-  11. [Major] new dependency windows-sys in crates/verdict-desks/Cargo.toml:25 that nothing in this session's prompts or accepted claims asked for (static, crates/verdict-desks/Cargo.toml:25; record 133)
-  12. [Blocker] the release asset dist/*.AppImage does not exist in the candidate (asset, command `release asset dist/*.AppImage`; record 145)
-  13. [Blocker] the release candidate is not tagged v1.0.0 (tags on HEAD: none) (asset, command `git tag --points-at HEAD (v1.0.0)`; record 146)
-  14. [Blocker] The clean-result inventory includes checks whose ledger records explicitly report findings or execution failures (judgment, command `ledger record 30`; record 179)
+  9. [Blocker] The clean-result inventory includes checks whose ledger records explicitly report findings or execution failures (judgment, command `ledger record 30`; record 179)
+  10. [Major] new file crates/verdict-checkers/tests/assets.rs that nothing in this session's prompts or accepted claims asked for (static, crates/verdict-checkers/tests/assets.rs:1; record 186)
+  11. [Major] new file crates/verdict-checkers/tests/freshness.rs that nothing in this session's prompts or accepted claims asked for (static, crates/verdict-checkers/tests/freshness.rs:1; record 187)
+  12. [Major] new dependency libc in crates/verdict-desks/Cargo.toml:20 that nothing in this session's prompts or accepted claims asked for (static, crates/verdict-desks/Cargo.toml:20; record 188)
+  13. [Major] new dependency windows-sys in crates/verdict-desks/Cargo.toml:25 that nothing in this session's prompts or accepted claims asked for (static, crates/verdict-desks/Cargo.toml:25; record 189)
+  14. [Blocker] the release asset dist/*.AppImage does not exist in the candidate (asset, command `release asset dist/*.AppImage`; record 200)
+  15. [Blocker] the release candidate is not tagged v1.0.0 (tags on HEAD: none) (asset, command `git tag --points-at HEAD (v1.0.0)`; record 201)
+  16. [Blocker] The clean-result list includes a release check that explicitly recorded a blocker (judgment, command `ledger record 29`; record 231)
+  (+2 more from the refuter desk, in the ledger)
 
 YOURS TO SETTLE
-  1. [Minor] TODO/FIXME left in added code at crates/verdict-checkers/tests/freshness.rs:143 (static, crates/verdict-checkers/tests/freshness.rs:143; record 137)
-  2. check unavailable: mutation: the mutation runner did not end successfully (exit 1), so its output was not read as a mutation report (record 142)
-  3. check unavailable: release: 2 finding(s) written, but not everything could be looked up: read dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip.sha256 outside the index's snapshot; read dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256 outside the index's snapshot; release check passed: cargo test --workspace --locked (output blake3 373d481e4dad98913c50c5da3bf622b8955e406ae706b2028e955ba45b4791aa); release tags on HEAD: none; release asset dist/*.zip: dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip; dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip.sha256 was read from disk because the index holds no text for it, so the read is not covered by this run's snapshot; release asset dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip sha256 5fe18e97101803a3e5b33460cdd5560e1c6478f038291fdb2ed41ea2cc35fd9a matches dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip.sha256; release asset dist/*.tar.gz: dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz; dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256 was read from disk because the index holds no text for it, so the read is not covered by this run's snapshot; release asset dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz sha256 ad4147264680a6239a72338d6c5cb8b9a354215f2c0696558adb1f4210aeef33 matches dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256; release asset dist/*.AppImage: missing; release asset dist/*.sha256: dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip.sha256, dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256 (record 147)
-  4. hypothesis (no evidence pointer, counts for nothing): The documented installer paths are not verified by the supplied first-run evidence (record 34)
-  5. hypothesis (no evidence pointer, counts for nothing): Documentation link validity remains unverified (record 35)
-  6. hypothesis (no evidence pointer, counts for nothing): First-use usability remains unassessed by the supplied evidence (record 38)
-  7. hypothesis (no evidence pointer, counts for nothing): Source and dependency security remain unassessed (record 40)
-  8. hypothesis (no evidence pointer, counts for nothing): Dependency licensing and attribution remain unverified from the supplied evidence (record 42)
-  9. hypothesis (no evidence pointer, counts for nothing): The execution output hashes and current tree identity cannot be independently reconciled from the supplied ledger (record 44)
-  10. hypothesis (no evidence pointer, counts for nothing): Matching release checksums do not establish that the packaged binaries came from the tested tree (record 45)
-  11. hypothesis (no evidence pointer, counts for nothing): The candidate's test failure may be environmental rather than a source regression: records 59 and 81 show Windows denying removal of target/debug/vdt.exe, while records 60 and 82 test a baseline copy in a different execution context; the core should run `cargo test --workspace --locked --target-dir target/engineer-isolated` on the unchanged candidate to distinguish a target-directory conflict from a code failure. (record 103)
-  12. hypothesis (no evidence pointer, counts for nothing): The supplied receipts do not establish that the release archives were built from the current candidate: record 69 reports the same archive hashes as record 30 despite a changed tree identity; the core should inspect packaging receipts that bind those archives to their source tree. (record 104)
-  13. hypothesis (no evidence pointer, counts for nothing): The documented GUI and POSIX installer paths lack acceptance evidence in the supplied records (record 106)
-  14. hypothesis (no evidence pointer, counts for nothing): Documentation link validity remains unverified (record 107)
-  15. hypothesis (no evidence pointer, counts for nothing): A running executable or another filesystem access constraint may explain the repeated inability to replace vdt.exe (record 109)
-  16. hypothesis (no evidence pointer, counts for nothing): Usability beyond build and version output remains unassessed (record 114)
-  17. hypothesis (no evidence pointer, counts for nothing): Source and dependency security are not established by the supplied evidence (record 117)
-  18. hypothesis (no evidence pointer, counts for nothing): Dependency licensing and release attribution remain unverified (record 119)
-  19. hypothesis (no evidence pointer, counts for nothing): Records after 73 cannot be audited from the truncated ledger (record 121)
-  20. hypothesis (no evidence pointer, counts for nothing): The claim that this session broke the tests may conflate a build-environment failure with a source regression (record 122)
-  21. hypothesis (no evidence pointer, counts for nothing): The successful version command may have exercised an older executable after the candidate build failed (record 123)
-  22. hypothesis (no evidence pointer, counts for nothing): The mutation summary does not establish that all three mutants were killed by meaningful test failures (record 124)
-  23. hypothesis (no evidence pointer, counts for nothing): Execution-output hashes and release-asset provenance cannot be independently reconciled from the supplied summaries (record 125)
-  24. hypothesis (no evidence pointer, counts for nothing): The regression attribution in record 58 is not established by records 59 and 60: the candidate failed while removing target/debug/vdt.exe with Windows error 5, whereas the baseline ran in a separate copy; the core should check executable ownership and target-directory access before attributing this difference to source changes. (record 159)
-  25. hypothesis (no evidence pointer, counts for nothing): Records 139 and 140 report successful tests and Clippy, but the supplied excerpts omit their tree identities, so their applicability to the current release candidate remains unverified. (record 160)
-  26. hypothesis (no evidence pointer, counts for nothing): The supplied material contains no source contents or dependency diff, so architecture, implementation correctness and dependency changes remain unassessed by this desk. (record 161)
-  27. hypothesis (no evidence pointer, counts for nothing): The documented GUI and POSIX installation paths are not established by the supplied execution evidence (record 163)
-  28. hypothesis (no evidence pointer, counts for nothing): Documentation link validity remains unverified (record 164)
-  29. hypothesis (no evidence pointer, counts for nothing): First-use usability is not established by the supplied evidence (record 167)
-  30. hypothesis (no evidence pointer, counts for nothing): Security of the added process-control dependencies remains unverified (record 169)
-  31. hypothesis (no evidence pointer, counts for nothing): Source-level security coverage is not established by the supplied ledger (record 170)
-  32. hypothesis (no evidence pointer, counts for nothing): Dependency licensing and release attribution remain unverified (record 172)
-  33. hypothesis (no evidence pointer, counts for nothing): The supplied ledger is truncated, so the later checks cannot be refuted or their citations inspected (record 174)
-  34. hypothesis (no evidence pointer, counts for nothing): The successful version invocation may have exercised an older executable (record 175)
-  35. hypothesis (no evidence pointer, counts for nothing): Execution hashes and freshness cannot be independently reconciled from the supplied receipt summaries (record 176)
-  36. hypothesis (no evidence pointer, counts for nothing): Matching archive checksums do not establish candidate provenance (record 177)
-  37. hypothesis (no evidence pointer, counts for nothing): Mutation kills may reflect execution failures rather than test sensitivity (record 178)
+  1. [Minor] TODO/FIXME left in added code at crates/verdict-checkers/tests/freshness.rs:143 (static, crates/verdict-checkers/tests/freshness.rs:143; record 193)
+  2. hypothesis (no evidence pointer, counts for nothing): The documented installer paths are not verified by the supplied first-run evidence (record 34)
+  3. hypothesis (no evidence pointer, counts for nothing): Documentation link validity remains unverified (record 35)
+  4. hypothesis (no evidence pointer, counts for nothing): First-use usability remains unassessed by the supplied evidence (record 38)
+  5. hypothesis (no evidence pointer, counts for nothing): Source and dependency security remain unassessed (record 40)
+  6. hypothesis (no evidence pointer, counts for nothing): Dependency licensing and attribution remain unverified from the supplied evidence (record 42)
+  7. hypothesis (no evidence pointer, counts for nothing): The execution output hashes and current tree identity cannot be independently reconciled from the supplied ledger (record 44)
+  8. hypothesis (no evidence pointer, counts for nothing): Matching release checksums do not establish that the packaged binaries came from the tested tree (record 45)
+  9. hypothesis (no evidence pointer, counts for nothing): The candidate's test failure may be environmental rather than a source regression: records 59 and 81 show Windows denying removal of target/debug/vdt.exe, while records 60 and 82 test a baseline copy in a different execution context; the core should run `cargo test --workspace --locked --target-dir target/engineer-isolated` on the unchanged candidate to distinguish a target-directory conflict from a code failure. (record 103)
+  10. hypothesis (no evidence pointer, counts for nothing): The supplied receipts do not establish that the release archives were built from the current candidate: record 69 reports the same archive hashes as record 30 despite a changed tree identity; the core should inspect packaging receipts that bind those archives to their source tree. (record 104)
+  11. hypothesis (no evidence pointer, counts for nothing): The documented GUI and POSIX installer paths lack acceptance evidence in the supplied records (record 106)
+  12. hypothesis (no evidence pointer, counts for nothing): Documentation link validity remains unverified (record 107)
+  13. hypothesis (no evidence pointer, counts for nothing): A running executable or another filesystem access constraint may explain the repeated inability to replace vdt.exe (record 109)
+  14. hypothesis (no evidence pointer, counts for nothing): Usability beyond build and version output remains unassessed (record 114)
+  15. hypothesis (no evidence pointer, counts for nothing): Source and dependency security are not established by the supplied evidence (record 117)
+  16. hypothesis (no evidence pointer, counts for nothing): Dependency licensing and release attribution remain unverified (record 119)
+  17. hypothesis (no evidence pointer, counts for nothing): Records after 73 cannot be audited from the truncated ledger (record 121)
+  18. hypothesis (no evidence pointer, counts for nothing): The claim that this session broke the tests may conflate a build-environment failure with a source regression (record 122)
+  19. hypothesis (no evidence pointer, counts for nothing): The successful version command may have exercised an older executable after the candidate build failed (record 123)
+  20. hypothesis (no evidence pointer, counts for nothing): The mutation summary does not establish that all three mutants were killed by meaningful test failures (record 124)
+  21. hypothesis (no evidence pointer, counts for nothing): Execution-output hashes and release-asset provenance cannot be independently reconciled from the supplied summaries (record 125)
+  22. hypothesis (no evidence pointer, counts for nothing): The regression attribution in record 58 is not established by records 59 and 60: the candidate failed while removing target/debug/vdt.exe with Windows error 5, whereas the baseline ran in a separate copy; the core should check executable ownership and target-directory access before attributing this difference to source changes. (record 159)
+  23. hypothesis (no evidence pointer, counts for nothing): Records 139 and 140 report successful tests and Clippy, but the supplied excerpts omit their tree identities, so their applicability to the current release candidate remains unverified. (record 160)
+  24. hypothesis (no evidence pointer, counts for nothing): The supplied material contains no source contents or dependency diff, so architecture, implementation correctness and dependency changes remain unassessed by this desk. (record 161)
+  25. hypothesis (no evidence pointer, counts for nothing): The documented GUI and POSIX installation paths are not established by the supplied execution evidence (record 163)
+  26. hypothesis (no evidence pointer, counts for nothing): Documentation link validity remains unverified (record 164)
+  27. hypothesis (no evidence pointer, counts for nothing): First-use usability is not established by the supplied evidence (record 167)
+  28. hypothesis (no evidence pointer, counts for nothing): Security of the added process-control dependencies remains unverified (record 169)
+  29. hypothesis (no evidence pointer, counts for nothing): Source-level security coverage is not established by the supplied ledger (record 170)
+  30. hypothesis (no evidence pointer, counts for nothing): Dependency licensing and release attribution remain unverified (record 172)
+  31. hypothesis (no evidence pointer, counts for nothing): The supplied ledger is truncated, so the later checks cannot be refuted or their citations inspected (record 174)
+  32. hypothesis (no evidence pointer, counts for nothing): The successful version invocation may have exercised an older executable (record 175)
+  33. hypothesis (no evidence pointer, counts for nothing): Execution hashes and freshness cannot be independently reconciled from the supplied receipt summaries (record 176)
+  34. hypothesis (no evidence pointer, counts for nothing): Matching archive checksums do not establish candidate provenance (record 177)
+  35. hypothesis (no evidence pointer, counts for nothing): Mutation kills may reflect execution failures rather than test sensitivity (record 178)
+  36. hypothesis (no evidence pointer, counts for nothing): The Windows access-denied failures in records 59 and 81 may reflect an executable file lock rather than a source regression; passing tests on a separate baseline copy do not isolate that cause. (record 212)
+  37. hypothesis (no evidence pointer, counts for nothing): Release asset provenance remains unestablished by the supplied receipts: matching archive checksums do not connect the packaged binaries to the tested source tree. (record 213)
+  38. hypothesis (no evidence pointer, counts for nothing): The truncated ledger and absence of source contents in the supplied evidence prevent assessment of current architecture, correctness, performance, and dependency changes; the core should provide the candidate diff and current release-check record for targeted inspection. (record 214)
+  39. hypothesis (no evidence pointer, counts for nothing): The documented GUI installer path is not established by the supplied evidence (record 216)
+  40. hypothesis (no evidence pointer, counts for nothing): Documentation link validity remains unverified (record 217)
+  41. hypothesis (no evidence pointer, counts for nothing): The earlier test failures may reflect an executable lock or access restriction rather than a source regression (record 219)
+  42. hypothesis (no evidence pointer, counts for nothing): First-use usability is not established by the supplied evidence (record 221)
+  43. hypothesis (no evidence pointer, counts for nothing): Source and dependency security remain unassessed in this desk run (record 223)
+  44. hypothesis (no evidence pointer, counts for nothing): Dependency licensing and attribution remain unverified (record 225)
+  45. hypothesis (no evidence pointer, counts for nothing): The supplied ledger is truncated, so later clean-result claims cannot be examined (record 227)
+  46. hypothesis (no evidence pointer, counts for nothing): The baseline execution receipt may identify the surrounding candidate rather than the tree actually executed (record 228)
+  47. hypothesis (no evidence pointer, counts for nothing): Execution output hashes and current candidate identity cannot be independently reconciled (record 229)
+  48. hypothesis (no evidence pointer, counts for nothing): Matching archive checksums do not establish provenance from the tested candidate (record 230)
 
 CLOSED FINDINGS
   [Blocker] the release candidate is not tagged v1.0.0 (tags on HEAD: none) (record 29): resolved (correction record 93)
@@ -290,6 +351,14 @@ CLOSED FINDINGS
   [Blocker] the release asset dist/*.AppImage does not exist in the candidate (record 88): resolved (correction record 156)
   [Blocker] release check `cargo test --workspace --locked` did not pass: it exited 101 (record 89): resolved (correction record 157)
   [Blocker] the release candidate is not tagged v1.0.0 (tags on HEAD: none) (record 90): resolved (correction record 158)
+  [Major] new file crates/verdict-checkers/tests/freshness.rs that nothing in this session's prompts or accepted claims asked for (record 131): resolved (correction record 204)
+  [Major] new dependency libc in crates/verdict-desks/Cargo.toml:20 that nothing in this session's prompts or accepted claims asked for (record 132): resolved (correction record 205)
+  [Major] new dependency windows-sys in crates/verdict-desks/Cargo.toml:25 that nothing in this session's prompts or accepted claims asked for (record 133): resolved (correction record 206)
+  [Minor] TODO/FIXME left in added code at crates/verdict-checkers/tests/freshness.rs:143 (record 137): resolved (correction record 207)
+  [Blocker] the release asset dist/*.AppImage does not exist in the candidate (record 145): resolved (correction record 208)
+  [Blocker] the release candidate is not tagged v1.0.0 (tags on HEAD: none) (record 146): resolved (correction record 209)
+  [Blocker] the release asset dist/*.AppImage does not exist in the candidate (record 182): resolved (correction record 210)
+  [Blocker] the release candidate is not tagged v1.0.0 (tags on HEAD: none) (record 183): resolved (correction record 211)
 
 DECISIONS BY THE HUMAN
   record 18: run_project_commands = approved:37aae06f692b60dc721c5e1ca63a8c006beba776cf1e4364a7f8299f58ee53ba
@@ -387,11 +456,29 @@ CHECKS
   desk:security: Ran, tier judgment: desk security; provider "codex" (vendor openai, requested model "unspecified", returned model None); served vendor None (not_stated); settings Some(Object {"source": String("invocation"), "requested_model": String("unspecified"), "timeout_secs": Number(240), "cwd": String("."), "args": Array []}); usage Some(Object {"input_tokens": Number(32693), "cached_input_tokens": Number(21760), "cache_write_input_tokens": Number(0), "output_tokens": Number(290), "reasoning_output_tokens": Number(108)}); lane release; policy v1; 0 finding(s), 2 hypothesis(ies); 20460 ms (record 171)
   desk:legal: Ran, tier judgment: desk legal; provider "codex" (vendor openai, requested model "unspecified", returned model None); served vendor None (not_stated); settings Some(Object {"source": String("invocation"), "requested_model": String("unspecified"), "timeout_secs": Number(240), "cwd": String("."), "args": Array []}); usage Some(Object {"input_tokens": Number(32464), "cached_input_tokens": Number(21376), "cache_write_input_tokens": Number(0), "output_tokens": Number(163), "reasoning_output_tokens": Number(25)}); lane release; policy v1; 0 finding(s), 1 hypothesis(ies); 12962 ms (record 173)
   desk:refuter: Ran, tier judgment: desk refuter; provider "codex" (vendor openai, requested model "unspecified", returned model None); served vendor None (not_stated); settings Some(Object {"source": String("invocation"), "requested_model": String("unspecified"), "timeout_secs": Number(240), "cwd": String("."), "args": Array []}); usage Some(Object {"input_tokens": Number(33401), "cached_input_tokens": Number(13312), "cache_write_input_tokens": Number(0), "output_tokens": Number(890), "reasoning_output_tokens": Number(104)}); lane release; policy v1; 1 finding(s), 5 hypothesis(ies); 36151 ms (record 180)
-  73 of 76 checks ran.
+  release: Ran, tier ran: 2 finding(s); release check passed: cargo test --workspace --locked (output blake3 1765be3664769e9d5bc32886a5efed8657ff09cc04dccce8d67514d8a15b01f1); release tags on HEAD: none; release asset dist/*.zip: dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip; release asset dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip sha256 5fe18e97101803a3e5b33460cdd5560e1c6478f038291fdb2ed41ea2cc35fd9a matches dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip.sha256; release asset dist/*.tar.gz: dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz; release asset dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz sha256 ad4147264680a6239a72338d6c5cb8b9a354215f2c0696558adb1f4210aeef33 matches dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256; release asset dist/*.AppImage: missing; release asset dist/*.sha256: dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip.sha256, dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256 (record 184)
+  wiring: Ran, tier static: 0 finding(s); 4 CONNECTED  0 BROKEN  0 NOT BUILT  0 HALF BUILT  0 SKIPPED; claim 4 (unticked): CONNECTED - crates/verdict-core/src/lane.rs: crates/verdict-core/src/lane.rs: 0 route(s) or command(s), 0 call(s), 0 control(s), 35 definition(s) read; nothing broken; claim 6 (unticked): CONNECTED - crates/verdict-engine/src/lib.rs: crates/verdict-engine/src/lib.rs: 0 route(s) or command(s), 0 call(s), 0 control(s), 15 definition(s) read; nothing broken; claim 8 (unticked): CONNECTED - release/package.sh: release/package.sh exists (not source code; nothing to wire); claim 11 (ticked): CONNECTED - crates/verdict-core/src/lane.rs: crates/verdict-core/src/lane.rs: 0 route(s) or command(s), 0 call(s), 0 control(s), 35 definition(s) read; nothing broken; unverified: 1 source file(s) in stacks no extractor in this build reads (crates/verdict-checkers/fixtures/wiring/word_skipped/red/change/svc.go) (record 185)
+  baseline_diff: Ran, tier static: 4 finding(s); unverified: routes, pages and tables are recognized by file location and line patterns only (no tree-sitter extractor yet); data-changing buttons are not read (record 190)
+  regressions: Ran, tier static: 0 finding(s); unverified: only relative imports (JS/TS `./x`, Python `from .x`, Rust `mod x;`) are resolved; package and alias imports are not read until the tree-sitter extractor exists (record 191)
+  tests_weakened: Ran, tier static: 0 finding(s); unverified: block comments and docstrings around tests are not read; test frameworks are recognized by line patterns, not a parser (record 192)
+  unfinished: Ran, tier static: 1 finding(s) (record 194)
+  exec: Ran, tier ran: receipt: `cargo test --workspace --locked`; tier ran; exited with code 0; output hash 3aa6141e3659af388b2f5b2eabbfd40470d8ebe819b28c610f34d6b2bbfca90f; output tail: e) |      Running tests\page.rs (target\debug\deps\page-6ba20509d90f3533.exe) |      Running unittests src\lib.rs (target\debug\deps\verdict_mcp-e802ea7b8319637a.exe) |      Running tests\commit_anyway.rs (target\debug\deps\commit_anyway-532fc512f4190364.exe) |      Running unittests src\main.rs (target\debug\deps\vdt_mutation_runner-4e72e98a562af975.exe) |    Doc-tests verdict_adapters |    Doc-tests verdict_checkers |    Doc-tests verdict_core |    Doc-tests verdict_desks |    Doc-tests verdict_engine |    Doc-tests verdict_extract |    Doc-tests verdict_generate |    Doc-tests verdict_gui |    Doc-tests verdict_mcp | 0 filtered out; finished in 0.00s |  |  | running 0 tests |  | test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s |  |  | running 0 tests |  | test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s |  |  | running 0 tests |  | test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s |  |  | running 0 tests |  | test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s |  |  | running 0 tests |  | test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s |  | (record 195)
+  exec: Ran, tier ran: receipt: `cargo clippy --workspace --all-targets --locked -- -D warnings`; tier ran; exited with code 0; output hash abd7cf030f6f60774a96a227737b4c83933dd4bdeb8dea8bfe261b65789ebdce; output tail: verdict-adapters v1.0.0 (C:\Users\scott\Desktop\Code\verdict-wt\merge-trial\crates\verdict-adapters) |     Checking verdict-gui v1.0.0 (C:\Users\scott\Desktop\Code\verdict-wt\merge-trial\crates\verdict-gui) |     Checking verdict-mcp v1.0.0 (C:\Users\scott\Desktop\Code\verdict-wt\merge-trial\crates\verdict-mcp) |     Checking verdict-generate v1.0.0 (C:\Users\scott\Desktop\Code\verdict-wt\merge-trial\crates\verdict-generate) |     Checking verdict-gate v1.0.0 (C:\Users\scott\Desktop\Code\verdict-wt\merge-trial\crates\verdict-cli) |     Finished `dev` profile [unoptimized + debuginfo] target(s) in 2.24s | (record 196)
+  exec: Ran, tier ran: 0 finding(s) (record 197)
+  mutation: Ran, tier ran: 0 finding(s); mutation required: critical logic changed (crates/verdict-checkers/src/context.rs, crates/verdict-checkers/src/lib.rs, crates/verdict-checkers/src/release.rs); mutation: 0 survivor(s), 3 killed of 3 mutant(s); seeds:  (record 198)
+  firstrun: Ran, tier ran: 0 finding(s); first-run command 1 ran and passed: cargo build --workspace --locked; first-run command 2 ran and passed: target/debug/vdt --version (record 199)
+  release: Ran, tier ran: 2 finding(s); release check passed: cargo test --workspace --locked (output blake3 f507482a63e72c786def9337019a00cef18a79ca2a1c22e7628ea8e4ff778729); release tags on HEAD: none; release asset dist/*.zip: dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip; release asset dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip sha256 5fe18e97101803a3e5b33460cdd5560e1c6478f038291fdb2ed41ea2cc35fd9a matches dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip.sha256; release asset dist/*.tar.gz: dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz; release asset dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz sha256 ad4147264680a6239a72338d6c5cb8b9a354215f2c0696558adb1f4210aeef33 matches dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256; release asset dist/*.AppImage: missing; release asset dist/*.sha256: dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip.sha256, dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256 (record 202)
+  claims_vs_code: Ran, tier static: 0 finding(s); unverified: URLs are not resolved (no network, no route extraction yet); names that start with / or point above the project are not looked up (record 203)
+  desk:engineer: Ran, tier judgment: desk engineer; provider "codex" (vendor openai, requested model "unspecified", returned model None); served vendor None (not_stated); settings Some(Object {"source": String("invocation"), "requested_model": String("unspecified"), "timeout_secs": Number(240), "cwd": String("."), "args": Array []}); usage Some(Object {"input_tokens": Number(36758), "cached_input_tokens": Number(21760), "cache_write_input_tokens": Number(0), "output_tokens": Number(201), "reasoning_output_tokens": Number(76)}); lane release; policy v1; 0 finding(s), 3 hypothesis(ies); 18791 ms (record 215)
+  desk:docs: Ran, tier judgment: desk docs; provider "codex" (vendor openai, requested model "unspecified", returned model None); served vendor None (not_stated); settings Some(Object {"source": String("invocation"), "requested_model": String("unspecified"), "timeout_secs": Number(240), "cwd": String("."), "args": Array []}); usage Some(Object {"input_tokens": Number(35765), "cached_input_tokens": Number(0), "cache_write_input_tokens": Number(0), "output_tokens": Number(324), "reasoning_output_tokens": Number(51)}); lane release; policy v1; 0 finding(s), 2 hypothesis(ies); 15463 ms (record 218)
+  desk:qa: Ran, tier judgment: desk qa; provider "codex" (vendor openai, requested model "unspecified", returned model None); served vendor None (not_stated); settings Some(Object {"source": String("invocation"), "requested_model": String("unspecified"), "timeout_secs": Number(240), "cwd": String("."), "args": Array []}); usage Some(Object {"input_tokens": Number(36191), "cached_input_tokens": Number(21376), "cache_write_input_tokens": Number(0), "output_tokens": Number(298), "reasoning_output_tokens": Number(111)}); lane release; policy v1; 0 finding(s), 1 hypothesis(ies); 17381 ms (record 220)
+  desk:ux: Ran, tier judgment: desk ux; provider "codex" (vendor openai, requested model "unspecified", returned model None); served vendor None (not_stated); settings Some(Object {"source": String("invocation"), "requested_model": String("unspecified"), "timeout_secs": Number(240), "cwd": String("."), "args": Array []}); usage Some(Object {"input_tokens": Number(32499), "cached_input_tokens": Number(13312), "cache_write_input_tokens": Number(0), "output_tokens": Number(279), "reasoning_output_tokens": Number(37)}); lane release; policy v1; 0 finding(s), 1 hypothesis(ies); 15669 ms (record 222)
+  desk:security: Ran, tier judgment: desk security; provider "codex" (vendor openai, requested model "unspecified", returned model None); served vendor None (not_stated); settings Some(Object {"source": String("invocation"), "requested_model": String("unspecified"), "timeout_secs": Number(240), "cwd": String("."), "args": Array []}); usage Some(Object {"input_tokens": Number(102471), "cached_input_tokens": Number(77952), "cache_write_input_tokens": Number(0), "output_tokens": Number(379), "reasoning_output_tokens": Number(26)}); lane release; policy v1; 0 finding(s), 1 hypothesis(ies); 21195 ms (record 224)
+  desk:legal: Ran, tier judgment: desk legal; provider "codex" (vendor openai, requested model "unspecified", returned model None); served vendor None (not_stated); settings Some(Object {"source": String("invocation"), "requested_model": String("unspecified"), "timeout_secs": Number(240), "cwd": String("."), "args": Array []}); usage Some(Object {"input_tokens": Number(32576), "cached_input_tokens": Number(21376), "cache_write_input_tokens": Number(0), "output_tokens": Number(169), "reasoning_output_tokens": Number(35)}); lane release; policy v1; 0 finding(s), 1 hypothesis(ies); 12172 ms (record 226)
+  desk:refuter: Ran, tier judgment: desk refuter; provider "codex" (vendor openai, requested model "unspecified", returned model None); served vendor None (not_stated); settings Some(Object {"source": String("invocation"), "requested_model": String("unspecified"), "timeout_secs": Number(240), "cwd": String("."), "args": Array []}); usage Some(Object {"input_tokens": Number(33226), "cached_input_tokens": Number(21376), "cache_write_input_tokens": Number(0), "output_tokens": Number(934), "reasoning_output_tokens": Number(97)}); lane release; policy v1; 3 finding(s), 4 hypothesis(ies); 43244 ms (record 234)
+  93 of 96 checks ran.
 
 NOT ESTABLISHED
-  - mutation: could not run: the mutation runner did not end successfully (exit 1), so its output was not read as a mutation report
-  - release: could not run: 2 finding(s) written, but not everything could be looked up: read dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip.sha256 outside the index's snapshot; read dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256 outside the index's snapshot; release check passed: cargo test --workspace --locked (output blake3 373d481e4dad98913c50c5da3bf622b8955e406ae706b2028e955ba45b4791aa); release tags on HEAD: none; release asset dist/*.zip: dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip; dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip.sha256 was read from disk because the index holds no text for it, so the read is not covered by this run's snapshot; release asset dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip sha256 5fe18e97101803a3e5b33460cdd5560e1c6478f038291fdb2ed41ea2cc35fd9a matches dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip.sha256; release asset dist/*.tar.gz: dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz; dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256 was read from disk because the index holds no text for it, so the read is not covered by this run's snapshot; release asset dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz sha256 ad4147264680a6239a72338d6c5cb8b9a354215f2c0696558adb1f4210aeef33 matches dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256; release asset dist/*.AppImage: missing; release asset dist/*.sha256: dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip.sha256, dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256
-  - 34 hypothesis(es) with no evidence pointer count for nothing
+  - 47 hypothesis(es) with no evidence pointer count for nothing
   - whether your real app works: no page was loaded
   - whether any of the 4 claim(s) is true beyond what the checks above show: claims are the agent's words, not evidence
