@@ -276,17 +276,18 @@ fn fail(
         host_arg.to_string()
     };
     let reason = format!("{event_arg}: {failure}");
-    let (tx2, rx2) = mpsc::channel();
-    let spawned = std::thread::Builder::new().spawn(move || {
-        let _ = tx2.send(record_unavailable(
-            &label,
-            cwd.as_deref(),
-            sid.as_deref(),
-            &reason,
-        ));
-    });
-    if spawned.is_ok() {
-        let _ = rx2.recv_timeout(UNAVAILABLE_BUDGET);
+    // Fail-open, but the record must not be lost: write it inside the same exit bound, retrying
+    // while the ledger is briefly locked by another writer (lane/ledger contention). The hook still
+    // prints nothing and exits 0; the bound below is the unchanged UNAVAILABLE_BUDGET.
+    let deadline = std::time::Instant::now() + UNAVAILABLE_BUDGET;
+    loop {
+        match record_unavailable(&label, cwd.as_deref(), sid.as_deref(), &reason) {
+            Ok(()) => break,
+            Err(_) if std::time::Instant::now() < deadline => {
+                std::thread::sleep(std::time::Duration::from_millis(25));
+            }
+            Err(_) => break,
+        }
     }
     None
 }
