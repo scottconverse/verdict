@@ -10,7 +10,7 @@ nothing more.
 | `dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip` | 12818785 | `c7af8759b282475022d8eddf809c0b814085cff875a03c68f2a2b469974645ba` | `sh release/package.sh 1.0.0 x86_64-pc-windows-msvc zip target/release/vdt.exe dist` on this host, after the build above | The Windows archive layout the packaging script produces from this tree, with its own `vdt.exe`/`vdt-setup`/`vdt.sha256` inside; the packaged install retest used this archive |
 | `dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip.sha256` | 103 | (checksum file, sha256sum `*` form `<hash> *<name>`) | written by the same packaging run | The outer download checksum, in `sha256sum -c` form |
 | `dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz` | 6629510 | `ad4147264680a6239a72338d6c5cb8b9a354215f2c0696558adb1f4210aeef33` | pre-existing file in `dist` from an earlier build on this host; **not rebuilt from this head** | Only that this file, with this hash, was present; its provenance to `08ec95c` is unverified |
-| `Verdict-1.0.0-x86_64.AppImage` | built inside the CI container; no copy on this host | **unavailable** — the job does not upload the image, so no hash was exposed | Linux CI: run `40793472907` (head `92a72b9`), job `123184105391` "README install in a clean Ubuntu container", step "Build and run the Linux AppImage setup" | That the AppImage packaging path built and installed on Linux at that head: the step logged `built appdist/Verdict-1.0.0-x86_64.AppImage and appdist/Verdict-1.0.0-x86_64.AppImage.sha256`, `Verdict-1.0.0-x86_64.AppImage: OK`, `Installed /tmp/app-home/bin/vdt`, `vdt 1.0.0`. Not yet re-observed at `08ec95c`. |
+| `Verdict-1.0.0-x86_64.AppImage` | built inside the CI container; no copy on this host | **unavailable** — the job does not upload the image, so no hash was exposed | Linux CI at head `08ec95c`: run `40804156470`, job `123218973466` "README install in a clean Ubuntu container", step "Build and run the Linux AppImage setup" (history: run `40793472907` at `92a72b9`, job `123184105391`) | That the AppImage packaging path built and installed on Linux from this tree: the step logged `built appdist/Verdict-1.0.0-x86_64.AppImage and appdist/Verdict-1.0.0-x86_64.AppImage.sha256`, `Verdict-1.0.0-x86_64.AppImage: OK`, `Installed /tmp/app-home/bin/vdt`, `vdt 1.0.0`. It is a CI-built package, **not** a signed package or a locally installed desktop application. |
 
 ## Packaged-install retest (Windows, this host, package above)
 
@@ -45,6 +45,7 @@ nothing more.
   provenance text and hashes only.
 * The Linux `tar.gz` predates this head; a release must rebuild it from the tag (or cite a CI run at
   that head) before publishing. The AppImage is a CI-only artifact with no hash here.
+* The AppImage row now cites the CI run at `08ec95c` (`40804156470`); its hash remains unavailable because the job does not upload the image.
 * Unverified on this host: a signed/notarized package (no credentials), a real double-click Finder/
   Explorer launch and SmartScreen/UAC trust, a human-visible Install click (the POST was scripted),
   and editor/enforce/fail-open behaviour. Those need Scott's desktop click-through.
