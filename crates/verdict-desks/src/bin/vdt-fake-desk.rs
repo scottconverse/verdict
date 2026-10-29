@@ -64,7 +64,9 @@ fn args() -> Args {
 }
 
 /// Start a long-lived copy of this program that holds the inherited output pipes. The helper itself
-/// writes the start marker, so a helper that died at startup leaves no marker.
+/// writes the start marker, so a helper that died at startup leaves no marker. A failure to start
+/// it is written beside the marker path (`<marker>.error`) so a test can see why, rather than
+/// waiting for a marker that can never appear.
 fn spawn_helper(path: &str) {
     let exe = std::env::current_exe().unwrap_or_default();
     if let Err(e) = std::process::Command::new(exe)
@@ -73,6 +75,7 @@ fn spawn_helper(path: &str) {
         .spawn()
     {
         eprintln!("cannot start the helper: {e}");
+        let _ = std::fs::write(format!("{path}.error"), format!("spawn helper: {e}"));
     }
 }
 
@@ -92,7 +95,10 @@ fn main() {
                 .unwrap_or(0)
         );
         if let Err(e) = std::fs::write(marker, token) {
+            // A marker that cannot be written must fail loudly: the test waits for it, and a
+            // silent sleep would look like a slow start rather than a broken helper.
             eprintln!("cannot write the helper marker: {e}");
+            std::process::exit(3);
         }
         std::thread::sleep(std::time::Duration::from_secs(600));
         return;

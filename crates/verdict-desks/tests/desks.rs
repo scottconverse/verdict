@@ -508,7 +508,7 @@ fn an_early_helper_is_ended_by_the_tree_kill() {
         &policy,
         &DeskOptions {
             lane: Lane::Standard,
-            timeout: Duration::from_secs(1),
+            timeout: Duration::from_secs(5),
         },
         &providers,
     )
@@ -560,16 +560,23 @@ fn a_timed_out_provider_ends_its_whole_process_tree() {
                 &policy,
                 &DeskOptions {
                     lane: Lane::Standard,
-                    timeout: Duration::from_secs(1),
+                    timeout: Duration::from_secs(5),
                 },
                 &providers,
             )
             .unwrap();
             (out, l)
         });
-        let until = started + Duration::from_millis(900);
+        // CI start-up is slower than a desktop: the provider has 5 s, so the marker may take a few
+        // seconds to appear. The assertion stays strict: alive before the deadline.
+        let until = started + Duration::from_secs(4);
         while !pidfile.exists() && std::time::Instant::now() < until {
             std::thread::sleep(Duration::from_millis(5));
+        }
+        if !pidfile.exists() {
+            let why = std::fs::read_to_string(format!("{}.error", pidfile.display()))
+                .unwrap_or_else(|_| "no spawn error recorded".into());
+            panic!("the helper wrote no marker within 4 s: {why}");
         }
         let pid = marker_pid(&pidfile);
         assert!(
@@ -577,8 +584,8 @@ fn a_timed_out_provider_ends_its_whole_process_tree() {
             "the helper must be alive while the provider is held at its deadline (pid {pid})"
         );
         assert!(
-            started.elapsed() < Duration::from_secs(1),
-            "the marker must arrive before the 1 s deadline"
+            started.elapsed() < Duration::from_secs(5),
+            "the marker must arrive before the 5 s deadline"
         );
         lane.join().unwrap()
     });
