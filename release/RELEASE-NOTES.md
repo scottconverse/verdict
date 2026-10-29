@@ -37,7 +37,8 @@ adjacent `.sha256`, installs `vdt`, and opens the page at `http://127.0.0.1:4717
   `check_unavailable`, never a clean result.
 - The Windows process tree uses a suspended start and a job object; the Unix path is covered by CI
   but was not run by hand on this machine.
-- Signed installers need certificates the project does not hold.
+- Windows signing uses the existing ScottConversePublic Azure profile. No macOS
+  signing certificate is planned; do not describe the macOS package as notarized.
 
 ## Licence
 

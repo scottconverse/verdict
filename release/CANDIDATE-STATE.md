@@ -69,13 +69,17 @@ work directly; the triad's existing goal and evidence are preserved. The prior
   They are not a new end-to-end packaged-host run. SmartScreen/UAC/Gatekeeper
   exercises are not added requirements.
 
-Remaining: resolve usable real served-identity evidence and applicable packaged
-host acceptance. Current candidate artifacts and affected packet output are
-reconciled. Signing/notarization,
-unavailable external desktop acceptance, safe loaded-host DSH acceptance, and final
-human merge/tag/publication/post-tag CLEAR remain explicitly incomplete. The
-historical partial/killed lane and unclassified process-survivor receipts are not
-converted into passes. No further broad/model lane was repeated.
+Current closeout: Windows signing and signed installation are complete; macOS
+unsigned/not notarized is the owner's explicit disposition; the served-identity
+side check is optional. Both DSH hosts have loaded the delivered triad repairs.
+No blanket external-desktop exercise is promoted to a new release requirement.
+
+The preserved598-record session still computes FAILED, with16 open blocking
+findings and stale/missing evidence inputs. See the current read-only report and
+RELEASE-RUNBOOK.md's exact record table. These do not establish a new code defect;
+they also must not be silently closed or relabelled CLEAR TO SHIP. Owner finding
+reconciliation/release disposition and the actual merge/tag/publication remain.
+No completed tests, desks, models or broad release lane have been repeated.
 
 ## Historical native snapshot (retained for provenance, superseded above)
 
