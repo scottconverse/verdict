@@ -497,14 +497,26 @@ fn copy_dir(src: &Path, dst: &Path) -> Result<(), String> {
     Ok(())
 }
 
+/// The argv used to start the page for `project` on `port`. Factored out so a test can assert the
+/// port is actually passed: the installer verifies and opens the same server it started.
+fn serve_args(project: &Path, port: u16) -> Vec<String> {
+    vec![
+        "serve".into(),
+        "--project".into(),
+        project.to_string_lossy().to_string(),
+        "--port".into(),
+        port.to_string(),
+    ]
+}
+
 fn open_project_page(project: &Path, vdt: &Path, port: u16) -> Result<(), String> {
+    let args = serve_args(project, port);
     #[cfg(windows)]
     let spawned = {
         use std::os::windows::process::CommandExt;
         const CREATE_NO_WINDOW: u32 = 0x0800_0000;
         std::process::Command::new(vdt)
-            .args(["serve", "--project"])
-            .arg(project)
+            .args(&args)
             .creation_flags(CREATE_NO_WINDOW)
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
@@ -512,8 +524,7 @@ fn open_project_page(project: &Path, vdt: &Path, port: u16) -> Result<(), String
     };
     #[cfg(not(windows))]
     let spawned = std::process::Command::new(vdt)
-        .args(["serve", "--project"])
-        .arg(project)
+        .args(&args)
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
         .spawn();
@@ -727,6 +738,18 @@ mod tests {
         assert_eq!(last_project_in(&state), None);
         let _ = std::fs::remove_dir_all(&state);
         let _ = std::fs::remove_dir_all(&project);
+    }
+
+    #[test]
+    fn the_serve_argv_carries_the_chosen_port() {
+        let args = serve_args(std::path::Path::new("C:/proj"), 4731);
+        assert_eq!(args[0], "serve");
+        assert!(
+            args.windows(2).any(|w| w == ["--project", "C:/proj"]),
+            "{args:?}"
+        );
+        assert!(args.windows(2).any(|w| w == ["--port", "4731"]), "{args:?}");
+        assert_ne!(args.last().unwrap(), &crate::DEFAULT_PORT.to_string());
     }
 
     #[test]
