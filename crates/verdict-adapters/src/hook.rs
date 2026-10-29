@@ -276,18 +276,11 @@ fn fail(
         host_arg.to_string()
     };
     let reason = format!("{event_arg}: {failure}");
-    let (tx2, rx2) = mpsc::channel();
-    let spawned = std::thread::Builder::new().spawn(move || {
-        let _ = tx2.send(record_unavailable(
-            &label,
-            cwd.as_deref(),
-            sid.as_deref(),
-            &reason,
-        ));
-    });
-    if spawned.is_ok() {
-        let _ = rx2.recv_timeout(UNAVAILABLE_BUDGET);
-    }
+    // Fail open stays fast and the record lands whenever the ledger is writable: the adapter opens
+    // with a zero busy timeout, so a locked ledger fails immediately (record lost, verdict reads
+    // unverified) while a writable one is written synchronously before this hook returns. No
+    // detached writer, so Windows cannot kill it mid-write.
+    let _ = record_unavailable(&label, cwd.as_deref(), sid.as_deref(), &reason);
     None
 }
 

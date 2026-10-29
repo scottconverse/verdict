@@ -206,10 +206,38 @@ impl Ledger {
         Self::open_path(&path).map(Some)
     }
 
+    /// Open the ledger of the project at `root` with an explicit busy timeout. `Duration::ZERO`
+    /// makes a locked ledger fail **immediately** instead of waiting; the caller decides what to do
+    /// (the hook fail-open path uses it so a locked ledger returns fast and a writable one can be
+    /// written before the process exits). Every other caller keeps [`Ledger::open`] and its 5 s.
+    pub fn open_with_busy_timeout(
+        root: &Path,
+        busy: std::time::Duration,
+    ) -> Result<Ledger, LedgerError> {
+        let path = ledger_path(root);
+        if let Some(dir) = path.parent() {
+            std::fs::create_dir_all(dir)?;
+            let ignore = dir.join(".gitignore");
+            if !ignore.exists() {
+                let _ = std::fs::write(&ignore, "*\n");
+            }
+        }
+        Self::open_path_with_busy_timeout(&path, busy)
+    }
+
     /// Open a ledger at an explicit database path.
     pub fn open_path(path: &Path) -> Result<Ledger, LedgerError> {
+        Self::open_path_with_busy_timeout(path, std::time::Duration::from_secs(5))
+    }
+
+    /// [`Ledger::open_path`] with an explicit busy timeout (`Duration::ZERO`: fail immediately when
+    /// another writer holds the lock, rather than waiting).
+    pub fn open_path_with_busy_timeout(
+        path: &Path,
+        busy: std::time::Duration,
+    ) -> Result<Ledger, LedgerError> {
         let conn = Connection::open(path)?;
-        conn.busy_timeout(std::time::Duration::from_secs(5))?;
+        conn.busy_timeout(busy)?;
         let _mode: String = conn.query_row("PRAGMA journal_mode = WAL", [], |r| r.get(0))?;
         Self::init(conn, Some(path.to_path_buf()))
     }

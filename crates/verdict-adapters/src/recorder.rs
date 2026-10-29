@@ -390,7 +390,11 @@ pub fn record_unavailable(
         .zip(host_session_id)
         .and_then(|(host, sid)| state::load(&state::state_path(&root, host, sid)))
         .map(|s| s.ledger_session);
-    let mut ledger = Ledger::open(&root).map_err(|e| format!("cannot open the ledger: {e}"))?;
+    // Fail-open: a locked ledger fails immediately instead of waiting, so the hook returns fast;
+    // a writable one is written synchronously before the hook exits (no detached writer to be
+    // killed mid-write on Windows).
+    let mut ledger = Ledger::open_with_busy_timeout(&root, std::time::Duration::ZERO)
+        .map_err(|e| format!("cannot open the ledger: {e}"))?;
     ledger
         .append(
             Writer::Adapter,
