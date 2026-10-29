@@ -1,6 +1,6 @@
 # Candidate artifacts at the frozen head
 
-Git head: `08ec95c` (branch `merge-trial`, pushed). Earlier head records (`d89dd9c`, `1d60138`) are
+Code head `08ec95c` (the head all code receipts and CI runs refer to); record commits after it: `890f423`, `db34af3`, `d2ee4a3` (docs/packet records only). Earlier head records (`d89dd9c`, `1d60138`) are
 retained as history. This note names what exists on disk, how it was produced and what it proves —
 nothing more.
 

@@ -1,4 +1,4 @@
-# Candidate reconciliation at the frozen head `08ec95c` (earlier heads are history)
+# Candidate reconciliation at code head `08ec95c` (the head all code receipts and CI runs refer to); record commits after it: `890f423`, `db34af3`, `d2ee4a3` (docs/packet records only). Earlier heads are history.
 
 Fresh full-claim session `s-60679a9557` in the same ledger (no ledger reset, nothing archived):
 9 claim lines naming the files/symbols of the agreed acceptance, then the release lane, then
@@ -40,7 +40,7 @@ reported unverified.
 
 ## FULL-12-0 item 9 and items 1–8
 
-9. **This artifact.** At head `08ec95c` the candidate packet was regenerated from a fresh
+9. **This artifact.** At code head `08ec95c` (record commits after it: `890f423`, `db34af3`, `d2ee4a3`, docs/packet only) the candidate packet was regenerated from a fresh
    full-claim session with the real export command (`release/CANDIDATE-PACKET.txt`,
    `release/CANDIDATE-REPORT.txt`) and `release/CANDIDATE-ARTIFACTS.txt` was refreshed with the
    Windows binary/archive rebuilt locally at that head; earlier-head packets and hashes are retained
@@ -62,7 +62,7 @@ reported unverified.
 Before this record, provenance was **UNVERIFIED**: earlier archive hashes predated the head, no
 AppImage was built locally, and nothing proved the packaged binaries came from the tested tree.
 This record proves: the Windows archive and `target/release/vdt.exe` were rebuilt on this Windows
-host from this tree at head `08ec95c`, with their sizes and SHA-256 recorded, and that the same core
+host from this tree at code head `08ec95c`, with their sizes and SHA-256 recorded, and that the same core
 produced the candidate packet (earlier `1d60138` sizes/hashes are history, not current evidence). It
 does **not** prove: that the pre-existing Linux `tar.gz` came from
 this head, that the AppImage on this host exists (the AppImage is CI-built only, run 40793472907 at
