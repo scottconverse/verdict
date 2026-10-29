@@ -98,8 +98,8 @@ or the human's.
   click-through and live enforce/fail-open acceptance remain unestablished.
 * **F29 (optional DSH integration):** recording-only plugin plus MCP connection; a loaded DSH host
   acceptance is not established and is Codex-owned; the generic core does not depend on it.
-* **SAFE-DELIVERY:** the final candidate packet and artifact record are refreshed at
-  `d89dd9c` before re-verification (`release/CANDIDATE-PACKET.txt`,
+* **SAFE-DELIVERY:** the final candidate packet and artifact record are refreshed at code head
+  `b75010f` (earlier heads as history) before re-verification (`release/CANDIDATE-PACKET.txt`,
   `release/CANDIDATE-ARTIFACTS.txt`); signing/notarization, installed desktop acceptance, DSH
   deployment and tag/publication remain external; work confined to this `merge-trial` worktree;
   main, history, receipts and settings preserved; no evidence reset or weakened claim; candidate
