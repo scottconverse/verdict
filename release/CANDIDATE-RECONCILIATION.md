@@ -1,4 +1,4 @@
-# Candidate reconciliation at the frozen head `d89dd9c` (earlier heads are history)
+# Candidate reconciliation at the frozen head `08ec95c` (earlier heads are history)
 
 Fresh full-claim session `s-60679a9557` in the same ledger (no ledger reset, nothing archived):
 9 claim lines naming the files/symbols of the agreed acceptance, then the release lane, then
@@ -40,7 +40,7 @@ reported unverified.
 
 ## FULL-12-0 item 9 and items 1–8
 
-9. **This artifact.** At head `d89dd9c` the candidate packet was regenerated from a fresh
+9. **This artifact.** At head `08ec95c` the candidate packet was regenerated from a fresh
    full-claim session with the real export command (`release/CANDIDATE-PACKET.txt`,
    `release/CANDIDATE-REPORT.txt`) and `release/CANDIDATE-ARTIFACTS.txt` was refreshed with the
    Windows binary/archive rebuilt locally at that head; earlier-head packets and hashes are retained
@@ -62,7 +62,7 @@ reported unverified.
 Before this record, provenance was **UNVERIFIED**: earlier archive hashes predated the head, no
 AppImage was built locally, and nothing proved the packaged binaries came from the tested tree.
 This record proves: the Windows archive and `target/release/vdt.exe` were rebuilt on this Windows
-host from this tree at head `d89dd9c`, with their sizes and SHA-256 recorded, and that the same core
+host from this tree at head `08ec95c`, with their sizes and SHA-256 recorded, and that the same core
 produced the candidate packet (earlier `1d60138` sizes/hashes are history, not current evidence). It
 does **not** prove: that the pre-existing Linux `tar.gz` came from
 this head, that the AppImage on this host exists (the AppImage is CI-built only, run 40793472907 at
@@ -74,7 +74,7 @@ or that anything was published. It is not signing evidence.
 FIRST-SEVERITY and FIRST-APPIMAGE were closed with Auditor verification (A-001…A-008 dispositions
 recorded). `HANDOFF.md`, `STARTER-PROMPT.md` and the original worker reports were read; their
 backlog rows, thirteen design questions, seven generic corrections and five phase conditions are
-reconciled above. The stdin-writer deadline and the Windows job-comment truthfulness cleanup have landed at `d89dd9c`; remaining executable work is this provenance/packet refresh at the current head; signing/notarization,
+reconciled above. The stdin-writer deadline, the Windows job-comment truthfulness cleanup, the F28 hook-core fix (quoted absolute installed core, verbatim-prefix strip) and the installer port separation have landed by `08ec95c`; `d89dd9c`; remaining executable work is this provenance/packet refresh at the current head; signing/notarization,
 installed desktop click-through/enforce/fail-open, DSH deployment, and tag/publication are external
 or the human's.
 
@@ -99,7 +99,7 @@ or the human's.
 * **F29 (optional DSH integration):** recording-only plugin plus MCP connection; a loaded DSH host
   acceptance is not established and is Codex-owned; the generic core does not depend on it.
 * **SAFE-DELIVERY:** the final candidate packet and artifact record are refreshed at
-  `d89dd9c` before re-verification (`release/CANDIDATE-PACKET.txt`,
+  `08ec95c` before re-verification (`release/CANDIDATE-PACKET.txt`,
   `release/CANDIDATE-ARTIFACTS.txt`); signing/notarization, installed desktop acceptance, DSH
   deployment and tag/publication remain external; work confined to this `merge-trial` worktree;
   main, history, receipts and settings preserved; no evidence reset or weakened claim; candidate
@@ -114,3 +114,39 @@ or the human's.
 
 Verdict line of this candidate: `VERDICT: FAILED  (lane: release, policy v1, builder: claude/unknown
 [anthropic], verifier: none)`.
+
+## F28 — packaged install, hooks, readiness (head  8ec95c)
+
+Established from the packaged Windows artifact (zip c7af8759…645ba, inner core
+8c3b18b…ae63): the wizard on its own port (4753, not 4717) completed the real install form;
+the installed server got its own free port (63341, pid 16584); /readyz returned app id +
+canonical project + matching pid; the installed core hash equals the package's inner hash; and the
+installed page's Install-hooks action wrote "C:\…\install\vdt.exe" hook claude <Event> — quoted
+absolute core, no bare dt, unrelated 
+ode policy-check.js hook claude Stop preserved. The Stop
+command executed verbatim through cmd exits 0 and resolves to dt 1.0.0. A \\?\ verbatim-path
+defect found in the first run is fixed at  8ec95c (prefix stripped, unit-tested).
+
+Still needs Scott's visible click-through (not claimed): SmartScreen/UAC trust of the unsigned
+package, a real double-click launch, a human-visible Install click (the POST here was scripted), and
+editor/enforce/fail-open behaviour. Signing and notarization remain external.
+
+### Exec/test evidence in this packet is blocked on a human decision (expected)
+
+The candidate packet's build/tests line reads **not run** because the repo's approved command set no
+longer matches the policy: erdict.json now declares xec.commands
+(cargo test --workspace --locked, cargo clippy --workspace --all-targets --locked -- -D warnings)
+plus mutation.command (cargo run --quiet --bin vdt-mutation-runner), and the ledger's approval
+hash predates that command set, so exec correctly refuses to run. This is the designed human-decision
+boundary, not a defect: it was not forced, not self-approved and the packet was not hand-edited.
+
+Scott must approve the repository's commands — in the GUI (the decision card on the project page) or
+with dt approve-commands --i-am-the-human — before exec/test evidence can appear in a packet. The
+
+ot run line stays visible until then.
+
+The isolated installed server for the click-through is running at **http://127.0.0.1:63341/** with
+pid 45164 (it was restarted standalone: the earlier instance, pid 16584, exited with the setup job
+that spawned it). Its log/state root is
+C:\Users\scott\AppData\Local\Temp\vdt-f28e-20261028-200435; stop it with
+Stop-Process -Id 45164 (or 	askkill /PID 45164 /F). The wizard itself has exited.

@@ -1,38 +1,57 @@
 # Candidate artifacts at the frozen head
 
-Git head: `d89dd9c` (branch `merge-trial`, pushed). Earlier head `1d60138` records are retained as history. This note names what exists on disk, how it
-was produced and what it proves — nothing more.
+Git head: `08ec95c` (branch `merge-trial`, pushed). Earlier head records (`d89dd9c`, `1d60138`) are
+retained as history. This note names what exists on disk, how it was produced and what it proves —
+nothing more.
 
 | Artifact | Size (bytes) | SHA-256 | Built how | What it proves |
 | --- | --- | --- | --- | --- |
-| `target/release/vdt.exe` | 21249536 | `845347689de7cc1830412be498198dfd02e7b85d24b2db3e35cbcf5e3e408bf9` | `cargo build --release --locked --bin vdt` on this Windows host from this tree | The core this host ran for the candidate packet |
-| `dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip` | 12811137 | `d8b932a78683ae52598df8e20e20ecb0e716bc620e750ba4d8751982b57710e3` | `sh release/package.sh 1.0.0 x86_64-pc-windows-msvc zip target/release/vdt.exe dist` on this host, after the release build above | The Windows archive layout the packaging script produces from this tree, with its own `vdt` and `vdt.sha256` inside |
-| `dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip.sha256` | 103 | (checksum file, 103 bytes: sha256sum `*` form `<hash> *<name>`, verified by `sha256sum -c` in CI run 40784295562) | written by the same packaging run | The outer download checksum, verifiable with `sha256sum -c` |
-| `dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz` | 6629510 | `ad4147264680a6239a72338d6c5cb8b9a354215f2c0696558adb1f4210aeef33` | pre-existing file in `dist` from an earlier build on this host; **not rebuilt from this head** | Only that this file, with this hash, was present; it was not rebuilt from `d89dd9c`, and its provenance to the current head is unverified |
-| `Verdict-1.0.0-x86_64.AppImage` | built inside the CI container; no copy on this host | **unavailable** — the job does not upload the image, so no hash was exposed | Linux CI: run `40793472907` (head `92a72b9`), job `123184105391` "README install in a clean Ubuntu container", step "Build and run the Linux AppImage setup" | That the AppImage packaging path builds and installs on Linux from this tree: the step logged `built appdist/Verdict-1.0.0-x86_64.AppImage and appdist/Verdict-1.0.0-x86_64.AppImage.sha256`, `Verdict-1.0.0-x86_64.AppImage: OK`, `Installed /tmp/app-home/bin/vdt`, `vdt 1.0.0` |
+| `target/release/vdt.exe` | 21262336 | `f8c3b18b0a183df39930291ca4e53284ddacff73c572234be57078296766ae63` | `cargo build --release --locked --bin vdt` on this Windows host from this tree at `08ec95c` | The core this host ran for the candidate packet and packaged |
+| `dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip` | 12818785 | `c7af8759b282475022d8eddf809c0b814085cff875a03c68f2a2b469974645ba` | `sh release/package.sh 1.0.0 x86_64-pc-windows-msvc zip target/release/vdt.exe dist` on this host, after the build above | The Windows archive layout the packaging script produces from this tree, with its own `vdt.exe`/`vdt-setup`/`vdt.sha256` inside; the packaged install retest used this archive |
+| `dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip.sha256` | 103 | (checksum file, sha256sum `*` form `<hash> *<name>`) | written by the same packaging run | The outer download checksum, in `sha256sum -c` form |
+| `dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz` | 6629510 | `ad4147264680a6239a72338d6c5cb8b9a354215f2c0696558adb1f4210aeef33` | pre-existing file in `dist` from an earlier build on this host; **not rebuilt from this head** | Only that this file, with this hash, was present; its provenance to `08ec95c` is unverified |
+| `Verdict-1.0.0-x86_64.AppImage` | built inside the CI container; no copy on this host | **unavailable** — the job does not upload the image, so no hash was exposed | Linux CI: run `40793472907` (head `92a72b9`), job `123184105391` "README install in a clean Ubuntu container", step "Build and run the Linux AppImage setup" | That the AppImage packaging path built and installed on Linux at that head: the step logged `built appdist/Verdict-1.0.0-x86_64.AppImage and appdist/Verdict-1.0.0-x86_64.AppImage.sha256`, `Verdict-1.0.0-x86_64.AppImage: OK`, `Installed /tmp/app-home/bin/vdt`, `vdt 1.0.0`. Not yet re-observed at `08ec95c`. |
 
-Notes:
+## Packaged-install retest (Windows, this host, package above)
+
+* Isolated root `C:\Users\scott\AppData\Local\Temp\vdt-f28e-20261028-200435`: isolated
+  `HOME`/`USERPROFILE`, project (pre-seeded with an unrelated
+  `node policy-check.js hook claude Stop`), and `VERDICT_STATE_DIR`. Wizard log:
+  `…\wizard.log`.
+* Wizard started from the extracted package on **port 4753** (not 4717) and the real install form
+  POST completed: “Verdict is installed … Installed at …\install\vdt.exe”.
+* Installed server: **pid 16584**, listening on **port 63341** (its own free port, not the wizard's).
+  `GET /readyz` → `{"app":"verdict","project":"\\\\?\\C:\\Users\\scott\\AppData\\Local\\Temp\\vdt-f28e-20261028-200435\\project","pid":16584}`
+  — app id, canonical project, pid matching the spawned `install\vdt.exe`.
+* Installed core SHA-256 `f8c3b18b0a183df39930291ca4e53284ddacff73c572234be57078296766ae63`
+  **equals** the package's inner `vdt.exe`; installed `vdt --version` → `vdt 1.0.0`;
+  `last-project` holds the canonical project.
+* Hooks after the installed page's real Install-hooks action (`POST /install-hooks`,
+  `claude_code`, 200) in the isolated project's `.claude/settings.json`:
+  - `"C:\…\install\vdt.exe" hook claude Stop` (and SessionStart/UserPromptSubmit/PreToolUse/PostToolUse),
+  - **no** bare `vdt hook …` entry,
+  - the unrelated `node policy-check.js hook claude Stop` entry survived.
+  Executing the Stop command verbatim through cmd: exit 0; its program token prints `vdt 1.0.0`.
+* Defect found and fixed during this retest: `fs::canonicalize` produced a `\\?\` verbatim path,
+  which cmd cannot execute even quoted; `vdt_program` now strips the prefix (fixed at `08ec95c`,
+  unit-tested). The record above is the post-fix run.
+* The installed page `http://127.0.0.1:63341/` (pid 16584) is left running for Scott's visible
+  click-through. Stop it with `Stop-Process -Id 16584` (or `taskkill /PID 16584 /F`); the wizard
+  itself already exited after the successful install.
+
+## Notes
 
 * No binary is committed. `dist/` and `target/` are build output; this repository records the
   provenance text and hashes only.
-* The Windows archive above was built from the same `target/release/vdt.exe` the candidate lane ran,
-  so its contents correspond to this tree's core.
-* The Linux `tar.gz` predates this head. A release must rebuild it from the tag (or cite a CI run at
-  that head) before it is published; until then it is a present-but-unverified file.
-* The AppImage is a Linux CI artifact. The CI-built one above proves the packaging path on Linux
-  and that the built image installs inside that container; it is **not** a signed package, not a
-  macOS artifact, and not evidence of a locally installed desktop application. Its SHA-256 is
-  unavailable because the job does not upload it; the earlier `.AppImage.sha256` check inside the
-  job passed against the file it had just built.
-* Tree-kill regression, the whole sequence, with the evidence split: the `test` workflow at
-  code-bearing head `3246912` was red on ubuntu (job 123174877161) and macOS (job 123174877290)
-  because the fixture's `Tmp` was dropped inside the scoped lane thread, deleting the helper marker
-  before the post-run assertion. Fixed at `e47d4b0`: parent-owned fixture, helper marker written
-  before the 1 s deadline, total run bound 3 s, and the F11 usage handling; the `test` workflow is
-  green on ubuntu (123189835274), macOS (123189835674) and windows (123189835842) in run
-  40795187701 (agent-provided). The bounded stdin writer is **not** part of that head: `git show
-  e47d4b0` still has the unbounded `writer.join()`; the bounded stdin writer first lands at
-  `d89dd9c`, CI run 40796396150, green on ubuntu 123193787872, macOS 123193787922 and windows 123193787704 (agent-provided); Windows job 123193787704 ended 00:56:35Z (verified by Coordinator).
-  The original 40.81 s red-before receipt is retained, and `test` does not run for docs-only heads.
-* Signing and notarization are not attempted: no Authenticode or Apple credentials exist in this
-  environment.
+* The Linux `tar.gz` predates this head; a release must rebuild it from the tag (or cite a CI run at
+  that head) before publishing. The AppImage is a CI-only artifact with no hash here.
+* Unverified on this host: a signed/notarized package (no credentials), a real double-click Finder/
+  Explorer launch and SmartScreen/UAC trust, a human-visible Install click (the POST was scripted),
+  and editor/enforce/fail-open behaviour. Those need Scott's desktop click-through.
+* Tree-kill regression evidence split (kept for the record): `e47d4b0` (run 40795187701; ubuntu
+  123189835274, macOS 123189835674, windows 123189835842) proves fixture lifetime and the F11 usage
+  handling; the bounded stdin writer first lands at `d89dd9c` (run 40796396150, green on ubuntu
+  123193787872, macOS 123193787922 and windows 123193787704; Windows job ended 00:56:35Z, verified
+  by Coordinator). The 40.81 s red-before receipt is retained.
+* Newer heads ran the full `test` workflow; its run ids are reported with the commit that cites them
+  rather than being guessed here.
