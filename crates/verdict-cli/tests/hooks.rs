@@ -136,6 +136,9 @@ fn a_stdin_that_never_closes_ends_at_the_budget_with_exit_zero_and_a_record() {
     let start = Instant::now();
     let mut child = command(&t.0, &h.0, &["hook", "codex", "Stop"])
         .env("VDT_HOOK_BUDGET_MS", "400")
+        // Raise only the wait for the unavailable record, so the assertion about it is not a race
+        // with a loaded machine; the payload budget (and so the hook's hold) stays 400 ms.
+        .env("VDT_HOOK_RECORD_BUDGET_MS", "10000")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())

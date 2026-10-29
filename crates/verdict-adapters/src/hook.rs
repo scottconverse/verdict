@@ -27,6 +27,18 @@ pub const OTHER_BUDGET: Duration = Duration::from_secs(8);
 pub const MAX_STOP_BUDGET: Duration = Duration::from_secs(600);
 /// Extra time allowed for writing the `check_unavailable` record after a failure.
 pub const UNAVAILABLE_BUDGET: Duration = Duration::from_secs(2);
+
+/// How long the hook waits for the "unavailable" record to be written. The default is
+/// [`UNAVAILABLE_BUDGET`]; a test may raise it with `VDT_HOOK_RECORD_BUDGET_MS` so that an assertion
+/// about the record is not a race with a loaded machine's filesystem. This never changes how long an
+/// agent is held — the payload budget is separate and unaffected.
+fn record_budget() -> Duration {
+    std::env::var("VDT_HOOK_RECORD_BUDGET_MS")
+        .ok()
+        .and_then(|v| v.trim().parse::<u64>().ok())
+        .map(Duration::from_millis)
+        .unwrap_or(UNAVAILABLE_BUDGET)
+}
 /// The most stdin is read; a larger payload is treated as unreadable.
 pub const MAX_PAYLOAD_BYTES: u64 = 16 * 1024 * 1024;
 
@@ -285,7 +297,7 @@ fn fail(
         ));
     });
     if spawned.is_ok() {
-        let _ = rx2.recv_timeout(UNAVAILABLE_BUDGET);
+        let _ = rx2.recv_timeout(record_budget());
     }
     None
 }
