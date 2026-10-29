@@ -160,30 +160,20 @@ signs or publishes on its own.
 
 ## Current release decision, October 29
 
-No merge, v1.0.0 tag or product release has been created. The current preserved
-session's read-only export is still FAILED, with 29 open blocking findings (16 displayed plus 13 hidden by the per-desk report cap):
+Scott-authorized reconciliation is complete: all 29 historical open major/blocker
+occurrences are mapped individually in CANDIDATE-RECONCILIATION.md. Existing
+evidence supersedes 27 as current product blockers; records268/562 are the still
+absent release tag. No fresh current implementation defect was established by
+that reconciliation. Original ledger history and FAILED report remain intact.
 
-| Records | Subject | Current disposition |
-| --- | --- | --- |
-| 267, 319, 378, 561 | AppImage missing | Superseded artifact situation: actual CI-built AppImage now staged and checksummed; old findings remain open. |
-| 274, 325, 386, 483, 579 | GUI readiness receipt inadequate | New exact installed-core readiness and GUI receipts exist; old findings remain open. |
-| 275, 327, 484, 580 | Platform packaging behavior not established | Current six-job clean-install/parity CI passed; its limits remain recorded. |
-| 289, 344, 402, 499, 546, 595 | Static CONNECTED labels overstate execution proof | Static file existence remains a static tier; current export no longer promotes aggregate checks into individual claim proof. Historical overclaims are preserved. |
-| 290, 345, 403, 498, 545, 596 | Earlier release record wrongly called clean | Historical contradiction retained; never relabel record260 or the old packet clean. |
-| 326 | Earlier mutation run failed | Later completed evidence retained; do not rerun it just to clear a historical judgment. |
-| 385 | Earlier exec/first-run attempts lack execution evidence | Historical failed attempts remain failed; newer CI and installed receipts are separate evidence, not a relabeling of these attempts. |
-| 268, 562 | v1.0.0 tag missing | Expected until Scott authorizes the actual release tag. |
+The remaining owner decision is final merge/tag/publication of the pinned tested
+artifacts with the historical FAILED self-verification packet and its limits
+disclosed. This is not CLEAR TO SHIP: the old session lacks accepted baseline,
+final claims and fresh ledger checks. The CLEAR-only gate is unchanged. A fresh
+CLEAR result remains incomplete if required instead of release with disclosure.
+Do not mark true historical findings "not real" merely to clear the display.
 
-Human-owned finding decisions have not been fabricated. The release gate still
-requires an actual CLEAR TO SHIP packet; no failed packet is described as clear.
-The old session also reports stale checks and missing accepted prompt/claim
-baseline. Existing external CI and installed receipts remain valid in their
-recorded scope but are not silently inserted into that ledger as fresh checks.
-Closing historical findings alone does not establish a new CLEAR TO SHIP packet.
-
-The remaining owner decision is whether to reconcile the historical session
-through its human controls before releasing, or explicitly authorize delivery
-with its FAILED/limited self-verification record disclosed. Neither is inferred
-from “finish.” Final merge, tag and publication remain deliberate human actions.
-No new Mac signing, AI-identity side check, trust-screen test or blanket external
-Desktop run is added to this list.
+Use the signed Windows artifact in CANDIDATE-PROVENANCE.json; do not replace it
+with an unsigned tag-workflow rebuild. No Mac signing certificate, optional
+served-identity side check, trust-screen test or blanket external Desktop run is
+required by this reconciliation. Final publication has not been performed.

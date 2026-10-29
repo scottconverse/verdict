@@ -1,3 +1,51 @@
+# Current evidence reconciliation — October 29, final candidate `300e9f4`
+
+This section supersedes the historical status statements below. Scott requested
+reconciliation against existing evidence; it does not erase earlier observations.
+All 29 open major/blocker occurrences in the uncapped SARIF export are accounted
+for. They are repeated historical observations, not 29 current product defects.
+
+| Historical records | Current disposition and existing evidence |
+| --- | --- |
+| 267, 319, 378, 561 | Superseded: the actual AppImage is retained and checksummed in CANDIDATE-PROVENANCE.json. |
+| 274, 325, 386, 483, 579 | Superseded: installed readiness identity and both rendered routes were observed; current GUI notice acceptance passed. Headless readback is not called a physical click. |
+| 275, 327, 484, 580 | Superseded within the recorded scope: current six-job package/install/parity CI passed; exact four artifacts retained. Native macOS headless setup plus stub-based launcher decision checks are not Finder desktop proof. |
+| 289, 344, 402, 499, 546, 595 | Historical overclaim corrected: F15 keeps all nine unsupported claims unproven. File existence remains static evidence. |
+| 290, 345, 403, 498, 545, 596 | Historical mislabel corrected: record260 and the old session remain FAILED; neither is presented as a clean result. |
+| 326 | Superseded: existing mutation records460,512,559 each report Ran, three killed mutants, zero survivors. No mutation test repeated; earlier failures retained. |
+| 385 | Superseded by later exact-code CI and installed receipts; earlier failed/unclean exec attempts and killed lane26400 remain incomplete. |
+| 268, 562 | Pending release action: v1.0.0 tag does not exist. This is not an implementation defect. |
+
+These dispositions supersede 27 entries as current product blockers, with the
+limits above. They do not alter their immutable ledger status. The only existing
+human finding control records `AcceptFindingNotReal`; that would misdescribe real
+historical failures, so no false-alarm decisions were appended. The 598-record
+ledger and head remain byte-identical. Minor record435's old surviving-process
+observation remains unresolved historically; no current survivor or product
+failure is established by it.
+
+Runtime evidence reused: [three-OS test run40930130637](https://github.com/scottconverse/verdict/actions/runs/40930130637)
+and [six-job install/parity run40930130633](https://github.com/scottconverse/verdict/actions/runs/40930130633).
+Windows Azure signing run40935832675 returned a Valid timestamped binary; the
+actual signed archive installed successfully in isolated settings. All four
+artifact hashes still match CANDIDATE-PROVENANCE.json. macOS unsigned distribution
+and the optional served-identity side check follow Scott's explicit dispositions.
+
+**Remaining release decision:** authorize final merge/tag/publication of these
+provenance-pinned artifacts with the historical FAILED self-verification packet
+and its evidence limits disclosed. No new current implementation defect is
+established by this stale-finding reconciliation. The saved session still lacks
+an accepted baseline/final claims and current ledger check inputs; external CI
+receipts are not silently inserted as fresh ledger checks. Consequently this is
+not a new CLEAR TO SHIP result, and the existing CLEAR-only gate is unchanged.
+If Scott requires a fresh CLEAR instead of delivery with that disclosure, that
+is still incomplete and cannot be obtained by relabeling these historical rows.
+
+Private audit receipt: Documents/Codex/2026-10-28/verdict-direct-completion/
+release-closeout-300e9f4/RECONCILIATION.json. No tests, desks, models, builds,
+publication, settings changes or ledger mutations were performed for this reconciliation.
+
+---
 # Historical reconciliation at code head `b75010f`
 
 The current direct-completion status is in `CANDIDATE-STATE.md`. Later changes include
