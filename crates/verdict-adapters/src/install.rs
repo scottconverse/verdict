@@ -122,20 +122,39 @@ pub fn hook_block(vdt: &str, host: Host) -> Value {
     }
 }
 
-/// Is this command one of ours for `host`? The shape is exactly four words,
-/// `<program> hook <host> <Event>`, with nothing after them. The program may be plain `vdt` or
-/// any path given with `--vdt-path` (for example `C:/tools/verdict-debug.exe`), so a hook
-/// installed with a custom path can still be found and removed. A command with more words (for
-/// example `vdt hook claude Stop && node policy-check.js`) is the user's own and is never touched.
-/// Is this the legacy literal form, exactly `vdt hook <host> <Event>` (four whitespace-separated
-/// words, first word exactly `vdt`)? Anything else — another program, a path, extra words — is
-/// not Verdict's and must never be removed as ours.
+/// Is this word Verdict's program? Strips one layer of surrounding double quotes, takes the file
+/// name component (`\` or `/`) and compares case-insensitively to `vdt` or `vdt.exe`, so plain
+/// `vdt`, a quoted installed path and an older install path all count, while `node` does not.
+pub fn program_is_vdt(word: &str) -> bool {
+    let w = word
+        .strip_prefix('"')
+        .and_then(|r| r.strip_suffix('"'))
+        .unwrap_or(word);
+    let name = w.rsplit(['/', '\\']).next().unwrap_or(w);
+    name.eq_ignore_ascii_case("vdt") || name.eq_ignore_ascii_case("vdt.exe")
+}
+
+/// Is this command Verdict's for `host`? Exactly `<program> hook <host> <Event>` with a Verdict
+/// program (plain `vdt`, a quoted path, or any installed/older path). Another program, extra words
+/// or another shape is the user's hook and is never removed.
 pub fn is_ours(command: &str, host: Host) -> bool {
-    let words: Vec<&str> = command.split_whitespace().collect();
-    let [prog, hook, h, ev] = words.as_slice() else {
+    let trimmed = command.trim();
+    let (program, rest) = if let Some(after) = trimmed.strip_prefix('"') {
+        match after.find('"') {
+            Some(end) => (&after[..end], &after[end + 1..]),
+            None => return false,
+        }
+    } else {
+        match trimmed.find(char::is_whitespace) {
+            Some(i) => (&trimmed[..i], &trimmed[i..]),
+            None => return false,
+        }
+    };
+    let words: Vec<&str> = rest.split_whitespace().collect();
+    let [hook, h, ev] = words.as_slice() else {
         return false;
     };
-    *prog == "vdt"
+    program_is_vdt(program)
         && *hook == "hook"
         && h.eq_ignore_ascii_case(host.as_str())
         && EventKind::parse(ev).is_some()

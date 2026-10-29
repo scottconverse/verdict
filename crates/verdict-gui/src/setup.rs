@@ -57,6 +57,8 @@ impl Default for SetupOptions {
 
 struct Setup {
     token: String,
+    /// The port this wizard was actually bound to (0 means a free one was chosen).
+    port: u16,
     project: Option<PathBuf>,
     install_dir: Option<PathBuf>,
     shutdown: Mutex<Option<oneshot::Sender<()>>>,
@@ -271,8 +273,9 @@ async fn install(State(st): State<St>, Form(f): Form<InstallForm>) -> Response {
         .map(str::to_string)
         .collect();
     let project_label = project.clone();
+    let port = st.port;
     let result =
-        tokio::task::spawn_blocking(move || install_core(&project, &dir, &hosts, true)).await;
+        tokio::task::spawn_blocking(move || install_core(&project, &dir, &hosts, true, port)).await;
     match result {
         Ok(Ok(installed)) => {
             if let Some(tx) = st.shutdown.lock().ok().and_then(|mut s| s.take()) {
@@ -315,6 +318,7 @@ fn install_core(
     dir: &Path,
     hosts: &[String],
     open_page: bool,
+    port: u16,
 ) -> Result<Installed, String> {
     let core = core_beside_setup()?;
     std::fs::create_dir_all(dir).map_err(|e| format!("cannot make {}: {e}", dir.display()))?;
@@ -360,7 +364,7 @@ fn install_core(
                 target.display()
             )
         })?;
-        if let Err(e) = open_project_page(project, &target) {
+        if let Err(e) = open_project_page(project, &target, port) {
             return Err(format!(
                 "installed the core at {} and the launcher, but not the page: {e}",
                 target.display()
@@ -493,7 +497,7 @@ fn copy_dir(src: &Path, dst: &Path) -> Result<(), String> {
     Ok(())
 }
 
-fn open_project_page(project: &Path, vdt: &Path) -> Result<(), String> {
+fn open_project_page(project: &Path, vdt: &Path, port: u16) -> Result<(), String> {
     #[cfg(windows)]
     let spawned = {
         use std::os::windows::process::CommandExt;
@@ -517,14 +521,14 @@ fn open_project_page(project: &Path, vdt: &Path) -> Result<(), String> {
     // Only call the page open when the server answering on the port is the instance this installer
     // started, says it is Verdict, and serves the project chosen here. A bare HTTP 200 from
     // anything else is not success.
-    wait_until_ready(
-        project,
-        crate::DEFAULT_PORT,
-        child.id(),
-        Duration::from_secs(15),
-    )?;
-    open_url(&format!("http://127.0.0.1:{}/", crate::DEFAULT_PORT));
+    wait_until_ready(project, port, child.id(), Duration::from_secs(15))?;
+    open_url(&page_url(port));
     Ok(())
+}
+
+/// The URL the installer opens for the server it started on `port`.
+fn page_url(port: u16) -> String {
+    format!("http://127.0.0.1:{port}/")
 }
 
 /// Poll `/readyz` until the page identifies itself as Verdict for `project` and is the process this
@@ -600,7 +604,8 @@ pub fn run_setup(opts: SetupOptions) -> std::io::Result<()> {
             .clone()
             .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
         let dir = opts.install_dir.clone().unwrap_or_else(default_install_dir);
-        install_core(&project, &dir, &opts.hosts, !opts.silent).map_err(std::io::Error::other)?;
+        install_core(&project, &dir, &opts.hosts, !opts.silent, opts.port)
+            .map_err(std::io::Error::other)?;
         println!(
             "Installed {} for {}",
             dir.join(exe_name()).display(),
@@ -614,6 +619,9 @@ pub fn run_setup(opts: SetupOptions) -> std::io::Result<()> {
     let (tx, rx) = oneshot::channel();
     let state: St = Arc::new(Setup {
         token: token.clone(),
+        // The port this wizard actually bound (port 0 means the free one chosen here), so the
+        // server it starts is verified and opened on that same port.
+        port: addr.port(),
         project: opts.project.clone(),
         install_dir: opts.install_dir.clone(),
         shutdown: Mutex::new(Some(tx)),
@@ -719,6 +727,14 @@ mod tests {
         assert_eq!(last_project_in(&state), None);
         let _ = std::fs::remove_dir_all(&state);
         let _ = std::fs::remove_dir_all(&project);
+    }
+
+    #[test]
+    fn the_open_url_uses_the_port_the_installer_bound() {
+        // Not the old hard-coded 4717: the URL follows the port actually chosen (including a
+        // free port picked from 0).
+        assert_eq!(page_url(51234), "http://127.0.0.1:51234/");
+        assert_ne!(page_url(51234), page_url(crate::DEFAULT_PORT));
     }
 
     #[test]

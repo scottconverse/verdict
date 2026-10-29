@@ -633,3 +633,33 @@ fn another_programs_hook_survives_install_and_uninstall() {
         "uninstall removes only Verdict's entry"
     );
 }
+
+#[test]
+fn uninstall_with_a_new_path_removes_entries_written_with_an_older_path() {
+    let proj = TempDir::new("inst");
+    let file = proj.path().join(".claude").join("settings.json");
+    let mut old = req(Host::Claude, proj.path(), None, true, true);
+    old.vdt_path = Some(r"C:\old\vdt.exe".into());
+    run(&old, proj.path());
+    let mut new = req(Host::Claude, proj.path(), None, true, false);
+    new.vdt_path = Some(r"C:\new\vdt.exe".into());
+    let out = run(&new, proj.path());
+    assert!(out.contains("removed 5"), "{out}");
+    assert!(
+        !std::fs::read_to_string(&file).unwrap().contains("vdt"),
+        "all older-path entries removed"
+    );
+}
+
+#[test]
+fn cursor_and_antigravity_custom_path_entries_are_recognised_and_removed() {
+    for host in [Host::Cursor, Host::Antigravity] {
+        let proj = TempDir::new("inst");
+        let mut r = req(host, proj.path(), None, true, true);
+        r.vdt_path = Some(r"C:\Program Files\Verdict\vdt.exe".into());
+        run(&r, proj.path());
+        r.install = false;
+        let out = run(&r, proj.path());
+        assert!(out.contains("removed 5"), "{host:?}: {out}");
+    }
+}
