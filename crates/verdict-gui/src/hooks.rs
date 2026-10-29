@@ -72,7 +72,12 @@ impl Host {
 
     /// The exact registration, in this host's own shape.
     pub fn block(self) -> String {
-        let value = verdict_adapters::install::hook_block("vdt", self.adapter_host());
+        self.block_with("vdt")
+    }
+
+    /// The registration for a specific program word (the installed core, or `vdt`).
+    pub fn block_with(self, program: &str) -> String {
+        let value = verdict_adapters::install::hook_block(program, self.adapter_host());
         serde_json::to_string_pretty(&value).unwrap_or_default()
     }
 }

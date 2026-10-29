@@ -48,10 +48,10 @@ pub fn hook_command(vdt: &str, host: Host, event: EventKind) -> String {
     format!("{vdt} hook {} {}", host.as_str(), host.event_name(event))
 }
 
-/// The program word to use. No path means plain `vdt`; a path with spaces is wrapped in double
-/// quotes (understood by cmd, PowerShell and POSIX sh); a path containing a character those
-/// shells expand inside quotes is refused rather than written as a command that could run
-/// something else.
+/// The program word to use. No path means plain `vdt`; any path is wrapped in double quotes
+/// (understood by cmd, PowerShell and POSIX sh), so a Windows path with spaces executes; a path
+/// containing a character those shells expand inside quotes is refused rather than written as a
+/// command that could run something else.
 pub fn vdt_program(custom: Option<&str>) -> Result<String, String> {
     match custom {
         None => Ok("vdt".to_string()),
@@ -59,16 +59,17 @@ pub fn vdt_program(custom: Option<&str>) -> Result<String, String> {
             if p.trim().is_empty() {
                 return Err("the core path is empty".into());
             }
+            // The plain name stays plain: it is looked up on PATH and quoting it would change
+            // nothing useful, while existing installs and tests compare the literal word.
+            if p == "vdt" {
+                return Ok("vdt".to_string());
+            }
             if let Some(c) = p.chars().find(|c| "\"'`$!%".contains(*c)) {
                 return Err(format!(
                     "the core path {p:?} contains {c:?}, which the host shells expand inside quotes; refusing to write a command that could run something else"
                 ));
             }
-            if p.chars().any(char::is_whitespace) {
-                Ok(format!("\"{p}\""))
-            } else {
-                Ok(p.to_string())
-            }
+            Ok(format!("\"{p}\""))
         }
     }
 }

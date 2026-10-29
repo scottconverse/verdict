@@ -83,7 +83,11 @@ fn fixture() -> Fixture {
         },
     );
     drop(l);
-    let page = verdict_gui::start_background_with(dir.0.clone(), 0, Some(home.0.clone())).unwrap();
+    // The page is served by an installed core, so its hook commands must name that absolute path.
+    let core = dir.0.join("install").join("vdt.exe");
+    let page =
+        verdict_gui::start_background_with_core(dir.0.clone(), 0, Some(home.0.clone()), Some(core))
+            .unwrap();
     Fixture {
         dir,
         _home: home,
@@ -376,7 +380,15 @@ fn pressing_install_hooks_records_a_human_decision_and_shows_the_block() {
     );
     assert_eq!(r.status, 200, "{}", r.body);
     assert!(r.body.contains("Your decision is recorded"));
-    assert!(unescape(&r.body).contains("vdt hook claude Stop"));
+    let installed_core = f.dir.0.join("install").join("vdt.exe");
+    let want_stop = format!("\"{}\" hook claude Stop", installed_core.display());
+    // The block on the page is JSON, so separators and quotes arrive escaped.
+    let want_escaped = want_stop.replace('\\', "\\\\").replace('"', "\\\"");
+    assert!(
+        unescape(&r.body).contains(&want_escaped),
+        "{}",
+        unescape(&r.body)
+    );
     let d = decisions(&f.dir.0);
     assert_eq!(d.len(), before + 1);
     assert_eq!(
@@ -391,8 +403,23 @@ fn pressing_install_hooks_records_a_human_decision_and_shows_the_block() {
     // entries, and the file is valid JSON.
     let settings = std::fs::read_to_string(f.dir.0.join(".claude/settings.json"))
         .expect("the install button writes the project's Claude Code settings");
-    assert!(settings.contains("vdt hook claude Stop"), "{settings}");
     let parsed: serde_json::Value = serde_json::from_str(&settings).unwrap();
+    let written: Vec<&str> = parsed["hooks"]["Stop"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|g| g["hooks"].as_array())
+        .flatten()
+        .filter_map(|h| h["command"].as_str())
+        .collect();
+    assert!(
+        written.contains(&want_stop.as_str()),
+        "the hook command must be the absolute quoted core: {written:?}"
+    );
+    assert!(
+        !written.iter().any(|c| c.starts_with("vdt hook claude")),
+        "the command must not be a bare vdt name: {written:?}"
+    );
     assert!(parsed["hooks"]["PostToolUse"].is_array(), "{settings}");
     // Codex goes to the isolated Codex home, never the real one.
     let r = http(
@@ -406,7 +433,20 @@ fn pressing_install_hooks_records_a_human_decision_and_shows_the_block() {
     assert_eq!(r.status, 200, "{}", r.body);
     let codex = std::fs::read_to_string(f._home.0.join(".codex/hooks.json"))
         .expect("the install button writes the Codex home hooks.json");
-    assert!(codex.contains("vdt hook codex Stop"), "{codex}");
+    let want_codex = format!("\"{}\" hook codex Stop", installed_core.display());
+    let codex_json: serde_json::Value = serde_json::from_str(&codex).unwrap();
+    let codex_stop: Vec<&str> = codex_json["hooks"]["Stop"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|g| g["hooks"].as_array())
+        .flatten()
+        .filter_map(|h| h["command"].as_str())
+        .collect();
+    assert!(
+        codex_stop.contains(&want_codex.as_str()),
+        "the Codex hook command must be the absolute quoted core: {codex_stop:?}"
+    );
     // The home page now says so.
     assert!(
         get(&f.page, "/")

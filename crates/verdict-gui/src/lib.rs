@@ -50,6 +50,9 @@ pub(crate) struct Shared {
     pub(crate) token: String,
     /// The folder that holds `.verdict/policy.json` (`None`: the user's home folder).
     pub(crate) home: Option<PathBuf>,
+    /// The core this page serves: the absolute path written into hook commands, so a no-terminal
+    /// install never depends on `vdt` being on PATH.
+    pub(crate) core: Option<PathBuf>,
     allowed_hosts: Vec<String>,
     allowed_origins: Vec<String>,
 }
@@ -81,10 +84,33 @@ pub fn bind(port: u16) -> std::io::Result<StdListener> {
 }
 
 fn shared(root: PathBuf, token: String, port: u16, home: Option<PathBuf>) -> St {
+    shared_with_core(root, token, port, home, detect_core())
+}
+
+/// The core this page is served by, when the running program is the installed `vdt`.
+fn detect_core() -> Option<PathBuf> {
+    let exe = std::env::current_exe().ok()?;
+    let exe = std::fs::canonicalize(exe).ok()?;
+    let name = exe
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    (name == "vdt" || name == "vdt.exe").then_some(exe)
+}
+
+fn shared_with_core(
+    root: PathBuf,
+    token: String,
+    port: u16,
+    home: Option<PathBuf>,
+    core: Option<PathBuf>,
+) -> St {
     Arc::new(Shared {
         root,
         token,
         home,
+        core,
         allowed_hosts: vec![format!("127.0.0.1:{port}"), format!("localhost:{port}")],
         allowed_origins: vec![
             format!("http://127.0.0.1:{port}"),
@@ -168,10 +194,22 @@ pub fn start_background_with(
     port: u16,
     home: Option<PathBuf>,
 ) -> std::io::Result<Page> {
+    start_background_with_core(root, port, home, None)
+}
+
+/// [`start_background_with`] with an explicit core path for the hook commands (tests, and a host
+/// that serves the page from a wrapper needing to name the installed core).
+pub fn start_background_with_core(
+    root: PathBuf,
+    port: u16,
+    home: Option<PathBuf>,
+    core: Option<PathBuf>,
+) -> std::io::Result<Page> {
     let listener = bind(port)?;
     let addr = listener.local_addr()?;
     let token = new_token();
-    let state = shared(root, token.clone(), addr.port(), home);
+    let core = core.or_else(detect_core);
+    let state = shared_with_core(root, token.clone(), addr.port(), home, core);
     std::thread::spawn(move || {
         let _ = run_blocking(listener, state);
     });
@@ -567,13 +605,13 @@ async fn sarif_download(State(st): State<St>, Path(id): Path<String>) -> Respons
     }
 }
 
-fn block_html(h: Host) -> String {
+fn block_html(h: Host, program: &str) -> String {
     format!(
         "<p>These are the hook entries for <strong>{}</strong>. The Install button on a report \
          page merges them in for you and keeps every other hook and key. To add them by hand, put \
          them in that file's \"hooks\" section.</p><pre>{}</pre>",
         esc(h.target_file()),
-        esc(&h.block())
+        esc(&h.block_with(program))
     )
 }
 
@@ -585,7 +623,7 @@ async fn hooks_page(Path(host): Path<String>) -> Response {
         &format!("{} hook block", h.title()),
         &format!(
             "<p><a href=\"/\">Back to the sessions list</a></p>{}",
-            block_html(h)
+            block_html(h, "vdt")
         ),
     ))
     .into_response()
@@ -609,6 +647,12 @@ async fn install_hooks(State(st): State<St>, Form(form): Form<InstallForm>) -> R
     };
     let root = st.root.clone();
     let codex_home = st.home.as_ref().map(|h| h.join(".codex"));
+    let core = st.core.clone().map(|p| p.to_string_lossy().to_string());
+    // The block shown is the one that was written: the quoted absolute core, never a bare name.
+    let core_for_block = core
+        .as_deref()
+        .and_then(|c| verdict_adapters::install::vdt_program(Some(c)).ok())
+        .unwrap_or_else(|| "vdt".to_string());
     let r = tokio::task::spawn_blocking(move || -> Result<(u64, String), LedgerError> {
         // The button is the human's decision, so this is where the hooks are actually merged in
         // (the adapters own the merge, the backup and the "never overwrite a file that is not
@@ -618,7 +662,21 @@ async fn install_hooks(State(st): State<St>, Form(form): Form<InstallForm>) -> R
         let path =
             verdict_adapters::install::target_path(adapter_host, &root, codex_home.as_deref())
                 .map_err(|e| LedgerError::Invalid(format!("the hooks were not installed: {e}")))?;
-        let outcome = verdict_adapters::install::install_file(&path, "vdt", adapter_host)
+        // The hook command must start the installed core, not a bare `vdt` a no-terminal install
+        // cannot rely on being on PATH. If the running core cannot be identified, refuse rather
+        // than write a command that may not resolve.
+        let Some(core) = core else {
+            return Err(LedgerError::Invalid(
+                "the hooks were not installed: this page cannot identify the Verdict core it is \
+                 served by, and a bare `vdt` name is not acceptable for an installed hook. Start \
+                 the page with the installed `vdt` (`vdt serve`) and press Install hooks again."
+                    .into(),
+            ));
+        };
+        // The program word must be the quoted absolute core, the same form the CLI writes.
+        let program = verdict_adapters::install::vdt_program(Some(&core))
+            .map_err(|e| LedgerError::Invalid(format!("the hooks were not installed: {e}")))?;
+        let outcome = verdict_adapters::install::install_file(&path, &program, adapter_host)
             .map_err(|e| LedgerError::Invalid(format!("the hooks were not installed: {e}")))?;
         let mut l = Ledger::open(&root)?;
         let session = resolve_session(&l, None)?;
@@ -656,7 +714,7 @@ async fn install_hooks(State(st): State<St>, Form(form): Form<InstallForm>) -> R
                  (written by: human). {}</div>{}\
                  <p><a href=\"/\">Back to the sessions list</a></p>",
                 esc(&summary),
-                block_html(h)
+                block_html(h, &core_for_block)
             ),
         ))
         .into_response(),

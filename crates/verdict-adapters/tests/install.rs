@@ -303,7 +303,7 @@ fn reinstall_with_a_different_program_path_replaces_ours_without_duplicating() {
     assert_eq!(stop[0]["hooks"].as_array().unwrap().len(), 1);
     assert_eq!(
         stop[0]["hooks"][0]["command"],
-        r"C:\tools\vdt.exe hook claude Stop"
+        r#""C:\tools\vdt.exe" hook claude Stop"#
     );
 }
 
