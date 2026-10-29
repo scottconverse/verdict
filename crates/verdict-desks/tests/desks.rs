@@ -39,7 +39,12 @@ fn provider(name: &str, vendor: &str, args: &[&str]) -> Box<dyn verdict_desks::D
         vendor: vendor.into(),
         model: "test-model-1".into(),
         command: env!("CARGO_BIN_EXE_vdt-fake-desk").into(),
-        args: args.iter().map(|s| s.to_string()).collect(),
+        // This fixture explicitly emits identity; configured vendor alone is not evidence.
+        args: ["--served-vendor", vendor]
+            .into_iter()
+            .chain(args.iter().copied())
+            .map(str::to_owned)
+            .collect(),
         timeout_secs: Some(20),
     })
 }
@@ -709,6 +714,85 @@ fn the_policy_verifier_order_decides_which_provider_serves_the_first_desk() {
         receipts[0].vendor, "openai",
         "verifier_order must be followed, not alphabetical order: {receipts:?}"
     );
+}
+
+#[test]
+fn an_unstated_served_vendor_cannot_earn_cross_vendor_verification() {
+    let (dir, home, sid) = project("identity-absent", None);
+    let policy = Policy::load(dir.path(), Some(home.path())).unwrap();
+    let mut ledger = Ledger::open(dir.path()).unwrap();
+    let providers: Vec<Box<dyn DeskProvider>> = vec![Box::new(CommandProvider {
+        name: "configured-openai-only".into(),
+        vendor: "openai".into(),
+        model: "requested-model".into(),
+        command: env!("CARGO_BIN_EXE_vdt-fake-desk").into(),
+        args: vec!["--record".into(), "2".into()],
+        timeout_secs: Some(20),
+    })];
+    let out = run(
+        &mut ledger,
+        dir.path(),
+        &sid,
+        &policy,
+        &DeskOptions {
+            lane: Lane::Standard,
+            timeout: Duration::from_secs(20),
+        },
+        &providers,
+    )
+    .unwrap();
+    let Outcome::Ran {
+        receipts,
+        single_vendor,
+    } = out
+    else {
+        panic!("{out:?}")
+    };
+    assert!(!single_vendor);
+    assert_eq!(receipts[0].outcome, "failed");
+    assert_eq!(receipts[0].identity, "not_stated");
+    assert_eq!(receipts[0].findings, 0);
+    assert!(ledger.records().unwrap().iter().any(|s| matches!(&s.record,
+        Record::CheckUnavailable { reason, .. } if reason.contains("served vendor"))));
+    assert!(
+        ledger
+            .records()
+            .unwrap()
+            .iter()
+            .all(|s| !matches!(s.record, Record::Finding(_)))
+    );
+}
+
+#[test]
+fn blank_or_unknown_served_identity_is_not_independent_evidence() {
+    for vendor in ["", "  ", "unknown", "unspecified"] {
+        let (dir, home, sid) = project("identity-placeholder", None);
+        let policy = Policy::load(dir.path(), Some(home.path())).unwrap();
+        let mut ledger = Ledger::open(dir.path()).unwrap();
+        let providers = vec![provider(
+            "configured-openai",
+            "openai",
+            &["--served-vendor", vendor],
+        )];
+        let out = run(
+            &mut ledger,
+            dir.path(),
+            &sid,
+            &policy,
+            &DeskOptions {
+                lane: Lane::Standard,
+                timeout: Duration::from_secs(20),
+            },
+            &providers,
+        )
+        .unwrap();
+        let Outcome::Ran { receipts, .. } = out else {
+            panic!("{out:?}")
+        };
+        assert_eq!(receipts[0].outcome, "failed", "{vendor:?}");
+        assert_eq!(receipts[0].findings, 0);
+        assert_eq!(receipts[0].identity, "not_stated");
+    }
 }
 
 #[test]

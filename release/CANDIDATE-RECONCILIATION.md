@@ -1,4 +1,13 @@
-# Candidate reconciliation at code head `b75010f` (earlier heads are history; record commits after it are docs/packet only)
+# Historical reconciliation at code head `b75010f`
+
+The current direct-completion status is in `CANDIDATE-STATE.md`. Later changes include
+acceptance tooling and an F11 served-identity enforcement repair, not just documents.
+Older claims below remain history: 50/56 was the native board's count, installed
+stream silence needed a separate captured check, and absent served identity cannot
+count as independent verification. The missing retained AppImage was executable
+artifact preparation, not a human publication decision; the CI retention fix at
+`4fe42ff` now preserves the tested per-OS candidates. No failed or partial immutable
+receipt has been rewritten or relabeled as passing.
 
 Fresh full-claim session `s-60679a9557` in the same ledger (no ledger reset, nothing archived):
 9 claim lines naming the files/symbols of the agreed acceptance, then the release lane, then

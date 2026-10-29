@@ -1092,7 +1092,16 @@ pub fn run(
                 returned_model = raw.model.clone();
                 derived_vendor = raw.derived_vendor.clone();
                 if let Some(s) = &raw.served {
-                    served_vendor = s.vendor.clone();
+                    served_vendor = s
+                        .vendor
+                        .as_deref()
+                        .map(str::trim)
+                        .filter(|v| {
+                            !v.is_empty()
+                                && !v.eq_ignore_ascii_case("unknown")
+                                && !v.eq_ignore_ascii_case("unspecified")
+                        })
+                        .map(str::to_owned);
                     settings = s.settings.clone();
                     if s.model.is_some() {
                         returned_model = s.model.clone();
@@ -1108,18 +1117,28 @@ pub fn run(
                 } else {
                     "not_stated"
                 };
-                // A stated served vendor that is the builder's cannot be independent verification
-                // on a run that requires another vendor. Refuse that answer's findings.
-                if cross_required
-                    && served_vendor
-                        .as_deref()
-                        .is_some_and(|v| v.eq_ignore_ascii_case(&builder_vendor))
-                {
+                // Configured routing is not served-identity evidence. A missing vendor cannot
+                // earn required independent verification, any more than a known same vendor can.
+                let same_vendor = served_vendor
+                    .as_deref()
+                    .is_some_and(|v| v.eq_ignore_ascii_case(builder_vendor.trim()));
+                let builder_unknown = builder_vendor.trim().is_empty()
+                    || builder_vendor.eq_ignore_ascii_case("unknown")
+                    || builder_vendor.eq_ignore_ascii_case("unspecified");
+                let independence_unestablished =
+                    cross_required && (served_vendor.is_none() || same_vendor || builder_unknown);
+                if same_vendor {
                     identity = "mismatch";
+                }
+                if independence_unestablished && warn_only {
+                    // Preserve the existing human-owned global downgrade, with its visible flag.
+                    single_vendor = true;
+                }
+                if independence_unestablished && !warn_only {
                     let why = format!(
-                        "the provider says the answer was served by {served_vendor:?}, which is the \
-                         builder's vendor; this run requires another vendor, so the answer was not \
-                         counted"
+                        "cross-vendor verification requires an established different served vendor; \
+                         served vendor {served_vendor:?}, builder vendor {builder_vendor:?}; \
+                         the answer was not counted"
                     );
                     ledger
                         .append(

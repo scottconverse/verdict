@@ -244,6 +244,7 @@ fn a_desk_proposal_is_dispatched_to_the_checker_and_creates_a_new_receipt() {
     let dir = Tmp::new("f20");
     let home = Tmp::new("f20-home");
     let answer = serde_json::json!({
+        "served": {"vendor": "openai", "model": "fake-1"},
         "findings": [{
             "severity": "minor",
             "title": "a cited concern",

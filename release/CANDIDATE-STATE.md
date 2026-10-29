@@ -1,4 +1,51 @@
-# Candidate state — one page
+# Candidate state — direct completion, October 29
+
+This section supersedes the historical snapshot below. Codex owns the remaining
+work directly; the triad's existing goal and evidence are preserved. The prior
+50/56 roll-up is a worker claim, not a completed independent requirement audit.
+
+* Acceptance tooling and tested-package retention landed at `4fe42ff`.
+  Clean-install/parity run `40833377175` passed all six jobs. Unlike earlier runs,
+  it retained the tested Linux archive/AppImage, Windows archive and macOS archive
+  with their checksums as commit-named artifacts. They are unsigned candidates.
+* A real, expressly authorized Codex engineer desk ran on an isolated copy of the
+  existing Anthropic session `s-60679a9557`. All 598 prior records were preserved;
+  receipt 605 records zero findings and six hypotheses. Requested model was
+  `gpt-6.1-sol`; observed usage was 35,857 input and 477 output tokens. The CLI
+  returned neither a model nor a served vendor. This establishes transport and
+  receipt execution, **not verified served-vendor independence**.
+* That run exposed the remaining F11 enforcement gap. This revision refuses
+  required cross-vendor evidence when served identity is absent, blank, unknown,
+  or the builder's vendor. It records unavailable/failed evidence rather than
+  counting the answer's findings. The existing human-owned global warning policy
+  remains available and explicitly sets `single_vendor`. Requested settings and
+  model-family hints never become confirmed identity.
+* The F11 regression failed before the repair (`ran` versus expected `failed`).
+  The affected desk suite, placeholder-identity cases, engine proposal integration
+  and affected clippy checks passed locally. Required candidate CI is pending.
+* Approval 406 remains valid: Scott authorized Codex to submit the real page form.
+  No repeat command approval is required. The retired ports 4761 and 63341 must
+  not be advertised as running pages.
+* Installed fail-open evidence now explicitly captures empty stdout/stderr:
+  writable 451 ms and locked 1,904 ms, both exit 0, on installed core
+  `b1b32ce932dd017ab069c70c7c541d187023aab0a23d7d8ef746f477c410aa46`.
+  A byte-identical copy retained the original record and added one unavailable
+  record; original DB/head hashes stayed unchanged. This is installed synthetic
+  proof. That fixture has no session; no session-level UNVERIFIED result was seen.
+* Preserve the actual earlier installer Install click, real Claude two-send-back
+  transcript and real VS Code webview action. They prove their stated behaviors;
+  the Claude enforce run used a debug binary and manually configured hooks.
+  They are not a new end-to-end packaged-host run. SmartScreen/UAC/Gatekeeper
+  exercises are not added requirements.
+
+Remaining: resolve usable served-identity evidence, complete applicable installed
+acceptance and reconcile current candidate artifacts/packet. Signing/notarization,
+unavailable external desktop acceptance, safe loaded-host DSH acceptance, and final
+human merge/tag/publication/post-tag CLEAR remain explicitly incomplete. The
+historical partial/killed lane and unclassified process-survivor receipts are not
+converted into passes. No further broad/model lane was repeated.
+
+## Historical native snapshot (retained for provenance, superseded above)
 
 Code head `b75010f` (the head this packet was regenerated at). Earlier heads `36f47ef`/`e02323f` and their records are history; record commits after `08ec95c` include `890f423`,
 `db34af3`, `d2ee4a3`, `1b02c8c`, `c2a52a4`, `49fca08`, `c06751a` and the commit that carries this
@@ -76,21 +123,19 @@ archive `123251292839`, compare `123251991750`). History only: `test` `408041563
 * **F25** — native signed/notarized installers: needs signing credentials (external).
 * **F27** — the dogfood gate is red as expected; it goes green only with a release-ready candidate
   and Scott's tag/publication decision.
-* **F28** — visible desktop click-through (SmartScreen/UAC/Gatekeeper, double-click, visible Install
-  and editor clicks, enforce/fail-open): Scott.
+* **F28** — historical roll-up was too broad; use the evidence distinctions above.
 * **F29** — DSH loaded-host acceptance: Codex-owned; the plugin is optional and recording-only.
 
-## What Scott can do next
+## Historical approval status
 
 1. **Approval is already recorded** as an authorized delegated decision (Scott authorized it in
    Codex; Codex submitted the real `/decide` form; ledger record 406) — no further approval is needed.
-2. **Look at the installed app** — **http://127.0.0.1:63341/** (an isolated project, not 4717). The
-   approval page is **http://127.0.0.1:4761/session/s-60679a9557**. Stop whichever is running with
-   `Stop-Process -Id <pid>` after checking its `PROCESS.json`/ownership; do not kill unknown vdt processes.
+2. The earlier temporary page endpoints have ended. No live URL is asserted here.
 
 The release lane has already run at this head with exec, mutation and firstrun executed under that
 approval; the packet is `release/CANDIDATE-PACKET.txt` (`VERDICT: FAILED`, 99 of 130 checks ran). No
-re-run is needed before the next decision — only Scott's release decisions remain.
+automatic broad re-run is warranted. Executable acceptance gaps are listed above;
+they must not be collapsed into Scott's final release decision.
 
 ## Not claimed
 
