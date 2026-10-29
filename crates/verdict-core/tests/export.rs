@@ -115,6 +115,44 @@ fn every_claim_is_classified_proven_failed_unproven_or_out_of_scope() {
 }
 
 #[test]
+fn aggregate_checks_cannot_prove_an_individual_claim() {
+    for name in ["wiring", "claims_vs_code", "exec", "firstrun", "release"] {
+        let t = Tmp::new("packet-unbound-proof");
+        let mut l = seeded(t.path());
+        // Even a fresh successful check is not positive evidence of every claim.
+        l.append(
+            Writer::Core,
+            Some(SID),
+            Record::Check {
+                name: name.into(),
+                tier: Tier::Ran,
+                inputs_hash: "h".into(),
+                started_at: "2026-10-26T12:00:00.000Z".into(),
+                finished_at: "2026-10-26T12:00:01.000Z".into(),
+                outcome: CheckOutcome::Ran,
+                detail: Some("unrelated test succeeded".into()),
+                tree_state: baseline::tree_state(t.path()),
+            },
+        )
+        .unwrap();
+        for changed in [false, true] {
+            if changed {
+                std::fs::write(t.path().join("changed.rs"), "changed").unwrap();
+            }
+            let text = packet(t.path(), &l, SID).unwrap();
+            assert!(
+                text.contains("status: unproven"),
+                "{name}, changed={changed}: {text}"
+            );
+            assert!(
+                !text.contains("status: proven"),
+                "{name}, changed={changed}: {text}"
+            );
+        }
+    }
+}
+
+#[test]
 fn decisions_jsonl_exports_the_humans_decisions_and_the_override_context() {
     let (t, sid) = project_with_a_finding();
     let mut l = Ledger::open_existing(t.path()).unwrap().unwrap();

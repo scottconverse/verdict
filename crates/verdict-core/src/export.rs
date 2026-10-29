@@ -364,23 +364,13 @@ fn classify_claim(
             "an open finding bears on it; nothing proves it and nothing proves it wrong".into(),
         );
     }
-    let proof_checks = ["wiring", "claims_vs_code", "exec", "firstrun", "release"];
-    if let Some((name, tier, record)) = proof_checks.iter().find_map(|n| match a.checks.get(*n) {
-        Some(crate::verdict::CheckState::Ran { tier, seq, .. }) => Some((*n, *tier, *seq)),
-        _ => None,
-    }) {
-        return (
-            "proven",
-            format!(
-                "{} ran at the {} tier (record {record}) and reported no open finding about it",
-                name,
-                tier.as_str()
-            ),
-        );
-    }
+    // CheckState is aggregate evidence: it has no positive assertion binding this claim's
+    // meaning to the result. A clean build, file lookup or missing contradiction is not proof
+    // of every claim, even on the current tree. Keep those receipts in the packet, but never
+    // promote their mere existence (or stale history) to individual claim verification.
     (
         "unproven",
-        "no check that could establish it has run; nothing was proven".into(),
+        "no positive evidence establishes this individual claim; aggregate check results and absence of findings are not proof".into(),
     )
 }
 

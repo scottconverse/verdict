@@ -21,8 +21,22 @@ work directly; the triad's existing goal and evidence are preserved. The prior
   remains available and explicitly sets `single_vendor`. Requested settings and
   model-family hints never become confirmed identity.
 * The F11 regression failed before the repair (`ran` versus expected `failed`).
-  The affected desk suite, placeholder-identity cases, engine proposal integration
-  and affected clippy checks passed locally. Required candidate CI is pending.
+  Candidate `da55d1f` passed required three-platform test run `40834780675` and
+  package/install/parity run `40834780544`. Its Windows package was silently
+  installed in an isolated directory. The installed core rejected absent and
+  same-vendor synthetic responses and accepted the independently identified
+  fixture. All three copied ledgers retained the original 598-record prefix;
+  original DB/head hashes were unchanged. This is synthetic installed proof,
+  not a real served-vendor receipt. Core SHA-256:
+  `b0a7a903a27e2d10034dc89231880d2405e9d3cb8cc9c4451e6f3c3ac6580ccc`.
+* Exporting that candidate exposed an F15 defect: any successful aggregate check
+  labelled all individual claims proven, including after the source changed.
+  This revision removes that unsupported inference. A claim without positive
+  evidence bound to it remains unproven; a finding can still classify it failed.
+  Existing check receipts retain their own tiers and results. The affected test
+  reproduces the overclaim before the fix and passes for all five aggregate
+  check types on unchanged and changed trees. All six export tests pass. This
+  production change requires its own CI and current package before delivery.
 * Approval 406 remains valid: Scott authorized Codex to submit the real page form.
   No repeat command approval is required. The retired ports 4761 and 63341 must
   not be advertised as running pages.
