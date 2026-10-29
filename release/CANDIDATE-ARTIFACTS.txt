@@ -1,3 +1,13 @@
+Current final candidate: `300e9f4`, tests40930130637 all three OSes SUCCESS,
+package/install/parity40930130633 all six jobs SUCCESS. This final product change
+corrects both hook-install consent notices; the implementation was already
+writing the selected settings file while the UI falsely said no files changed.
+One existing affected hook-install check passed locally. The exact CI Windows
+package was installed in isolated settings and both rendered notices verified.
+Original598-record evidence unchanged; no checker/desk/model lane repeated.
+All four current packages and their checksums are staged in `dist`; prior bytes
+retained for rollback. See CANDIDATE-PROVENANCE.json for current hashes. Historical
+artifact tables below are superseded for candidate identity, not erased proof.
 # Candidate artifacts at the frozen head
 
 Code head `b75010f` (the head this packet was regenerated at: non-blocking ledger open plus the synchronous fail-open record, and the head the Windows package below was built at). CI at this head: `test` run 40814185027 success (ubuntu 123251292525, macOS 123251292835, windows 123251292807) and `clean-install-and-parity` run 40814185033 success (AppImage job 123251292877, hash unavailable; macOS 123251292687, Windows archive 123251292839, byte-identical compare 123251991750). Superseded history: the `dad4476` package and the **red** `test` run 40811973537 at that head (windows 123244150850 failed in the hook stdin-budget test); earlier records (`d89dd9c`, `1d60138`) are

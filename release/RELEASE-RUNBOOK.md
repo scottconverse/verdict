@@ -6,12 +6,15 @@ scripts are POSIX `sh` and also run on Linux/macOS.
 
 ## Current acceptance and reuse
 
-The current tested runtime is `a612b4d`; candidate packaging/documentation was
-finalized at `3659551`. Test `40836504796` and package/install/parity
-`40836504732` passed. Final package/install/parity `40839683038` also passed all
-six jobs. Reuse these results; a documentation correction does not require a
-new build, checker lane or desk call. `CANDIDATE-PROVENANCE.json` identifies the
-four retained, checksum-verified packages and the installed Windows core.
+The current tested runtime is `300e9f4`. Required test `40930130637` passed on
+all three OSes, and package/install/parity `40930130633` passed all six jobs.
+The exact Windows package was installed in isolated settings; both home and
+session pages now accurately say hook installation edits the selected agent
+settings while preserving unrelated settings. No decision, checker, desk or
+model call was submitted. All four checksum-verified packages are staged in
+`dist`; `CANDIDATE-PROVENANCE.json` identifies them and the installed core.
+The earlier `a612b4d` packet/export proof below is reused: only two GUI notices
+and documentation changed. Do not rebuild or rerun a lane for bookkeeping.
 
 The current installed export labels all nine unsupported individual claims
 unproven; the original 598-record ledger and head remain byte-identical.

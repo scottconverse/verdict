@@ -1,31 +1,33 @@
 {
-  "candidate": "a612b4d70b0badbc9725855b0f5edfa28ce55810",
-  "test_run": 40836504796,
-  "package_run": 40836504732,
-  "installed_core_sha256": "f98d5763de1c9cb52c419863d76190c439f161faf3eaa5481ac41027ad170a0e",
+  "candidate": "300e9f4cedb9c21df79b51884293ca455cd3caf2",
+  "test_run": 40930130637,
+  "package_run": 40930130633,
+  "installed_core_sha256": "690f8e877a2a32d19c255e6c567a05762822364bb3af320a40ae88c16ddd4c88",
   "unsupported_claims_unproven": 9,
   "original_ledger_unchanged": true,
   "packages": [
     {
-      "name": "vdt-1.0.0-aarch64-apple-darwin.tar.gz",
-      "sha256": "781357f964e5640cdffded9494caa8b829015896cb3e24b9901f0b574ae7856a",
-      "bytes": 26907486
-    },
-    {
       "name": "vdt-1.0.0-x86_64-pc-windows-msvc.zip",
-      "sha256": "fcd80c163ce572ec2b0b8b10198f05e5ae5de087de2607a155aa7c5907599c32",
-      "bytes": 12810143
-    },
-    {
-      "name": "Verdict-1.0.0-x86_64.AppImage",
-      "sha256": "8af8ebd0a50219f460a0a4fa2dac018b761c386b84e7695f3748607f4a5468b5",
-      "bytes": 7715320
+      "sha256": "4409bdffc4b374832a32a2cc1ef94fcd8250c883d85e3aa18aeed19d80369d48",
+      "bytes": 12810965
     },
     {
       "name": "vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz",
-      "sha256": "927610b23e2c2496bcd3b9d48d721600255a43f6763d5ac2cb56a57da740e56d",
-      "bytes": 15002841
+      "sha256": "300d008cbeb376e25fb39c29de60bbc518303dd9b6e081fad3c07bee3107e1c8",
+      "bytes": 15000358
+    },
+    {
+      "name": "Verdict-1.0.0-x86_64.AppImage",
+      "sha256": "ad9a305070d1bafb8ef8d0c75d2b8f59e6987e13f362bc76d51e17bb538a46ee",
+      "bytes": 7715320
+    },
+    {
+      "name": "vdt-1.0.0-aarch64-apple-darwin.tar.gz",
+      "sha256": "57aa157a0090798e35ce678b349fd222d82a4dd962b5aebee2a8c0ac51fb6b83",
+      "bytes": 26907587
     }
   ],
-  "scope": "Existing passed CI reused. Silent isolated installation and affected export only; no checker, desk, model, tag or publication."
+  "scope": "Existing passed CI reused. Silent isolated installation and affected export only; no checker, desk, model, tag or publication.",
+  "packet_proof_reused_from": "a612b4d: nine unsupported claims unproven; original ledger unchanged; later change is GUI notices only",
+  "installed_gui_notice_acceptance": "Isolated CI Windows package served both corrected notices; original ledger unchanged; no human decision/checker/desk/model invoked; owned server stopped"
 }

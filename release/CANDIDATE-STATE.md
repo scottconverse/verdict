@@ -1,3 +1,13 @@
+Current final candidate: `300e9f4`, tests40930130637 all three OSes SUCCESS,
+package/install/parity40930130633 all six jobs SUCCESS. This final product change
+corrects both hook-install consent notices; the implementation was already
+writing the selected settings file while the UI falsely said no files changed.
+One existing affected hook-install check passed locally. The exact CI Windows
+package was installed in isolated settings and both rendered notices verified.
+Original598-record evidence unchanged; no checker/desk/model lane repeated.
+All four current packages and their checksums are staged in `dist`; prior bytes
+retained for rollback. See CANDIDATE-PROVENANCE.json for current hashes. Historical
+artifact tables below are superseded for candidate identity, not erased proof.
 # Candidate state — direct completion, October 29
 
 This section supersedes the historical snapshot below. Codex owns the remaining
