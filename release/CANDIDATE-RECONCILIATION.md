@@ -1,4 +1,4 @@
-# Candidate reconciliation at the frozen head `1d60138`
+# Candidate reconciliation at the frozen head `d89dd9c` (earlier heads are history)
 
 Fresh full-claim session `s-60679a9557` in the same ledger (no ledger reset, nothing archived):
 9 claim lines naming the files/symbols of the agreed acceptance, then the release lane, then
@@ -56,10 +56,12 @@ reported unverified.
 
 Before this record, provenance was **UNVERIFIED**: earlier archive hashes predated the head, no
 AppImage was built locally, and nothing proved the packaged binaries came from the tested tree.
-This record proves: the Windows archive and `target/release/vdt.exe` were built on this Windows host
-from this tree at head `1d60138`, with their sizes and SHA-256 recorded, and that the same core
-produced the candidate packet. It does **not** prove: that the pre-existing Linux `tar.gz` came from
-this head, that any AppImage exists, that packaged behavior was exercised (installed acceptance),
+This record proves: the Windows archive and `target/release/vdt.exe` were rebuilt on this Windows
+host from this tree at head `d89dd9c`, with their sizes and SHA-256 recorded, and that the same core
+produced the candidate packet (earlier `1d60138` sizes/hashes are history, not current evidence). It
+does **not** prove: that the pre-existing Linux `tar.gz` came from
+this head, that the AppImage on this host exists (the AppImage is CI-built only, run 40793472907 at
+head `92a72b9`, hash unavailable), that packaged behavior was exercised (installed acceptance),
 or that anything was published. It is not signing evidence.
 
 ## WORK-ORDER
