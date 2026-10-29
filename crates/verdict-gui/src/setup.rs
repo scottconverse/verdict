@@ -57,8 +57,6 @@ impl Default for SetupOptions {
 
 struct Setup {
     token: String,
-    /// The port this wizard was actually bound to (0 means a free one was chosen).
-    port: u16,
     project: Option<PathBuf>,
     install_dir: Option<PathBuf>,
     shutdown: Mutex<Option<oneshot::Sender<()>>>,
@@ -273,9 +271,8 @@ async fn install(State(st): State<St>, Form(f): Form<InstallForm>) -> Response {
         .map(str::to_string)
         .collect();
     let project_label = project.clone();
-    let port = st.port;
     let result =
-        tokio::task::spawn_blocking(move || install_core(&project, &dir, &hosts, true, port)).await;
+        tokio::task::spawn_blocking(move || install_core(&project, &dir, &hosts, true)).await;
     match result {
         Ok(Ok(installed)) => {
             if let Some(tx) = st.shutdown.lock().ok().and_then(|mut s| s.take()) {
@@ -318,7 +315,6 @@ fn install_core(
     dir: &Path,
     hosts: &[String],
     open_page: bool,
-    port: u16,
 ) -> Result<Installed, String> {
     let core = core_beside_setup()?;
     std::fs::create_dir_all(dir).map_err(|e| format!("cannot make {}: {e}", dir.display()))?;
@@ -364,7 +360,9 @@ fn install_core(
                 target.display()
             )
         })?;
-        if let Err(e) = open_project_page(project, &target, port) {
+        // The wizard is already listening on its own port; the installed server needs a free one.
+        let server_port = free_port()?;
+        if let Err(e) = open_project_page(project, &target, server_port) {
             return Err(format!(
                 "installed the core at {} and the launcher, but not the page: {e}",
                 target.display()
@@ -497,6 +495,19 @@ fn copy_dir(src: &Path, dst: &Path) -> Result<(), String> {
     Ok(())
 }
 
+/// A free loopback port, discovered by binding port 0 and dropping the listener. The wizard keeps
+/// its own port; the server it starts gets this one.
+fn free_port() -> Result<u16, String> {
+    let l = std::net::TcpListener::bind(("127.0.0.1", 0))
+        .map_err(|e| format!("cannot choose a port for the page: {e}"))?;
+    let port = l
+        .local_addr()
+        .map_err(|e| format!("cannot read the chosen port: {e}"))?
+        .port();
+    drop(l);
+    Ok(port)
+}
+
 /// The argv used to start the page for `project` on `port`. Factored out so a test can assert the
 /// port is actually passed: the installer verifies and opens the same server it started.
 fn serve_args(project: &Path, port: u16) -> Vec<String> {
@@ -615,8 +626,7 @@ pub fn run_setup(opts: SetupOptions) -> std::io::Result<()> {
             .clone()
             .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
         let dir = opts.install_dir.clone().unwrap_or_else(default_install_dir);
-        install_core(&project, &dir, &opts.hosts, !opts.silent, opts.port)
-            .map_err(std::io::Error::other)?;
+        install_core(&project, &dir, &opts.hosts, !opts.silent).map_err(std::io::Error::other)?;
         println!(
             "Installed {} for {}",
             dir.join(exe_name()).display(),
@@ -630,9 +640,6 @@ pub fn run_setup(opts: SetupOptions) -> std::io::Result<()> {
     let (tx, rx) = oneshot::channel();
     let state: St = Arc::new(Setup {
         token: token.clone(),
-        // The port this wizard actually bound (port 0 means the free one chosen here), so the
-        // server it starts is verified and opened on that same port.
-        port: addr.port(),
         project: opts.project.clone(),
         install_dir: opts.install_dir.clone(),
         shutdown: Mutex::new(Some(tx)),
@@ -748,7 +755,17 @@ mod tests {
             args.windows(2).any(|w| w == ["--project", "C:/proj"]),
             "{args:?}"
         );
-        assert!(args.windows(2).any(|w| w == ["--port", "4731"]), "{args:?}");
+        // The installed server gets its own free port; the wizard keeps the page port.
+        let wizard_port = 4733u16;
+        let server_port = free_port().unwrap();
+        assert_ne!(server_port, wizard_port);
+        let args = serve_args(std::path::Path::new("C:/proj"), server_port);
+        assert!(
+            args.windows(2)
+                .any(|w| w == ["--port", server_port.to_string().as_str()]),
+            "{args:?}"
+        );
+        assert_ne!(server_port.to_string(), wizard_port.to_string());
         assert_ne!(args.last().unwrap(), &crate::DEFAULT_PORT.to_string());
     }
 

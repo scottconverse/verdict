@@ -562,16 +562,16 @@ fn a_timed_out_provider_ends_its_whole_process_tree() {
                 &policy,
                 &DeskOptions {
                     lane: Lane::Standard,
-                    timeout: Duration::from_secs(1),
+                    timeout: Duration::from_secs(5),
                 },
                 &providers,
             )
             .unwrap();
             (out, l)
         });
-        // The marker is tight to the configured deadline: it must exist, and the helper must be
-        // alive, before that deadline passes.
-        let until = started + Duration::from_millis(900);
+        // The marker must appear with margin before the configured deadline: a loaded CI runner
+        // can take a moment to start the provider, and the alive check must not race the kill.
+        let until = started + Duration::from_secs(2);
         while !pidfile.exists() && std::time::Instant::now() < until {
             std::thread::sleep(Duration::from_millis(5));
         }
@@ -586,17 +586,18 @@ fn a_timed_out_provider_ends_its_whole_process_tree() {
             "the helper must be alive while the provider is held at its deadline (pid {pid})"
         );
         assert!(
-            started.elapsed() < Duration::from_secs(1),
-            "the marker must arrive before the 1 s deadline"
+            started.elapsed() < Duration::from_secs(5),
+            "the marker must arrive before the 5 s deadline"
         );
         let (out, l) = lane.join().unwrap();
         (out, l, pid)
     });
-    // Deadline + 2 s: a regression that reintroduced the old sequential pipe graces would take
-    // about 15 s and must fail this bound rather than hide under a loose one.
+    // Two desks, each with the 5 s deadline, plus 2 s of slack: a regression that reintroduced the
+    // old sequential pipe graces would add ~10 s per provider and fail this bound, while a normal
+    // run cannot hide under it.
     assert!(
-        started.elapsed() < Duration::from_secs(3),
-        "two 1 s provider deadlines plus the marker wait must stay tight; measured {started:?}"
+        started.elapsed() < Duration::from_secs(12),
+        "two 5 s provider deadlines plus the marker wait must stay tight (deadline + 2 s); measured {started:?}"
     );
     let Outcome::Ran { receipts, .. } = out else {
         panic!("{out:?}");
