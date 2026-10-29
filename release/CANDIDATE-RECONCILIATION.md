@@ -163,3 +163,35 @@ pid 45164 (it was restarted standalone: the earlier instance, pid 16584, exited 
 that spawned it). Its log/state root is
 C:\Users\scott\AppData\Local\Temp\vdt-f28e-20261028-200435; stop it with
 Stop-Process -Id 45164 (or 	askkill /PID 45164 /F). The wizard itself has exited.
+
+## Dispositions at code head 02323f (docs only)
+
+Neither item below is fixed, and neither is used to justify any green claim.
+
+**A-011 / approval provenance — acknowledged, NOT fixed.** Ledger record 406
+(2026-10-29T02:17:21.459Z, decision un_project_commands, choice pproved:2dfe10c3…, reason
+
+ull, session s-60679a9557) is written Writer::Human / who: human, but that is by design for
+both the GUI /decide route and the CLI pprove-commands --i-am-the-human assertion (both call the
+same Action::ApproveCommands), so the writer fields do not establish a human origin. The Coder
+states it did not approve — it never ran pprove-commands --i-am-the-human (only the flagless dry
+run) and never POSTed to /decide — and dt serve keeps no per-request access log, so no POST or
+token-use record exists to match the timestamp. A human origin therefore cannot be established. The
+approval-derived packet figures (“67 of 92 checks ran”, exec an, passed, and any proven-claim
+statuses derived from them) are quarantined: the regenerated elease/CANDIDATE-PACKET.txt and
+elease/CANDIDATE-REPORT.txt were reverted out of the tree and none of those figures entered the
+artifacts, reconciliation or state pages. Exec-derived statuses remain **unverified** pending Scott's
+confirmation that he pressed the approval card (or a human withdrawal decision).
+
+**Windows flake and process residue — classified, NOT fixed.** _stdin_that_never_closes_ends_at_the_budget_with_exit_zero_and_a_record
+(crates/verdict-cli/tests/hooks.rs:155, the check_unavailable assertion) failed only on the
+Windows job of run 40807403087; the same job was rerun at the same head and went green (windows
+123233616261, macOS 123233617147, ubuntu 123233617749), and local reproduction on Windows
+passes. That is a timing-sensitive test around the 400 ms hook budget, not a reproducible
+stdin-budget defect; the durable fix would be a deterministic clock/budget seam in the test, which
+has not been made. The process residue seen this session was an orphaned
+dt verdict --run --lane release launched from the installed binary under a background job with no
+controlling job on Windows; it outlived its launcher and kept spawning provider children, holding
+file locks. That is a harness launch artefact, plus a real supervision gap: the top-level dt lane
+process has no mechanism to end its own process tree when its launcher disappears, unlike the checker
+and provider layers, which do. Neither the flake nor the residue is presented as fixed.
