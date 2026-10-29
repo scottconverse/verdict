@@ -56,3 +56,16 @@ nothing more.
   by Coordinator). The 40.81 s red-before receipt is retained.
 * Newer heads ran the full `test` workflow; its run ids are reported with the commit that cites them
   rather than being guessed here.
+
+## CI at code head `b75010f` (current; older heads are history)
+
+* `test` run `40814185027` — **success on all three**: ubuntu `123251292525`, macOS `123251292835`,
+  windows `123251292807`.
+* `clean-install-and-parity` run `40814185033` — **success**: AppImage job `123251292877` (the step
+  logged `built appdist/Verdict-1.0.0-x86_64.AppImage …`, `…AppImage: OK`, `Installed
+  /tmp/app-home/bin/vdt`; the image is not uploaded, so no hash), macOS `123251292687`, Windows
+  archive `123251292839`, byte-identical compare `123251991750`.
+
+History, superseded: the `dad4476` package (zip `66b2fae3…`, built before the ledger/hook fix) and the
+**red** `test` run `40811973537` at that head (windows `123244150850` failed in the hook stdin-budget
+test) are no longer current; the Windows package in the table above was rebuilt at `b75010f`.

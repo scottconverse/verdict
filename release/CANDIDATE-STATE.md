@@ -6,8 +6,9 @@ file (docs/records only). Branch `merge-trial`; worktree clean; nothing merged, 
 
 Two different counts, both true and not interchangeable:
 
-* **Contract rows:** `49 of 56 requirements verified` (Auditor-verified statuses; the seven open rows
-  are SPEC-8, SPEC-13, SPEC-15, F25, F27, F28, F29 — see *Open*).
+* **Contract rows:** `49 of 56 requirements verified` (Auditor-verified statuses). Open: SPEC-8,
+  SPEC-13, SPEC-15, F25, F27, F28, F29, plus the four roll-up rows (FULL-12-0, VALIDATION,
+  WORK-ORDER, SAFE-DELIVERY) pending the Auditor's close-out on this docs-only head.
 * **Packet checks at this head:** `99 of 130 checks ran` at `b75010f`; build/tests, firstrun and
   mutation all ran under the Scott-authorized delegated approval (record 406 — Codex submitted the
   real `/decide` form on Scott's explicit instruction; see the reconciliation). No approval is
@@ -80,11 +81,13 @@ otherwise prints FIX FIRST / NOT ESTABLISHED and exits 1; it never tags, release
 
 1. **Approval is already recorded** as an authorized delegated decision (Scott authorized it in
    Codex; Codex submitted the real `/decide` form; ledger record 406) — no further approval is needed.
-2. **Look at the installed app** — **http://127.0.0.1:63341/** (pid `14160`; isolated project, not
-   4717). Stop with `Stop-Process -Id 14160` / `Stop-Process -Id 30460`.
+2. **Look at the installed app** — **http://127.0.0.1:63341/** (an isolated project, not 4717). The
+   approval page is **http://127.0.0.1:4761/session/s-60679a9557**. Stop whichever is running with
+   `Stop-Process -Id <pid>` after checking its `PROCESS.json`/ownership; do not kill unknown vdt processes.
 
-After approval, re-run the release lane and re-export the packet (`release/RELEASE-RUNBOOK.md` steps
-b–c) so exec/test evidence appears.
+The release lane has already run at this head with exec, mutation and firstrun executed under that
+approval; the packet is `release/CANDIDATE-PACKET.txt` (`VERDICT: FAILED`, 99 of 130 checks ran). No
+re-run is needed before the next decision — only Scott's release decisions remain.
 
 ## Not claimed
 

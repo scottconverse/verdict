@@ -195,3 +195,19 @@ Packet at this head: `VERDICT: FAILED  (lane: release, policy v1, builder: claud
 run. Remaining blockers are the missing `dist/*.AppImage` asset, the absent `v1.0.0` tag, and the
 desk findings about evidence labelling (records 289/344/402) plus the historical-clean designation
 (records 290/345).
+## Blockers at `b75010f`, with classification
+
+Head and CI above are current (`b75010f`; test `40814185027` green on all three, clean-install
+`40814185033` green). Of the five remaining blockers:
+
+* **(c) release decisions for Scott:** the candidate `dist/*.AppImage` asset is missing, and HEAD has
+  no `v1.0.0` tag.
+* **(b) three desk judgment findings needing Scott's accept/supersede:** packaging/dogfood CONNECTED
+  labels rest on file existence rather than execution (records 289/344/402); "release record 260
+  designated clean despite two blockers" (records 290/345); and the first-run receipt does not
+  exercise GUI readiness (records 274/325).
+* **(a) no genuine product work outstanding:** the historical mutation-failure finding (record 326)
+  is an earlier-run artifact that needs a human accept/supersede decision, not code. Residue from
+  records 414/418/420/423 is unidentifiable (no pid/command/parent anywhere). External boundaries
+  unchanged: signing/notarization, desktop click-through, publication, DSH loaded acceptance,
+  served-vendor enforcement beyond recording.
