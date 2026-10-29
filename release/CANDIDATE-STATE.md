@@ -78,10 +78,10 @@ otherwise prints FIX FIRST / NOT ESTABLISHED and exits 1; it never tags, release
 ## What Scott can do next
 
 1. **Approve the repo's commands** — the decision that turns the packet's `build/tests: not run` into
-   real evidence. GUI: **http://127.0.0.1:4761/session/s-60679a9557** (pid `792`, port 4761) — press
+   real evidence. GUI: **http://127.0.0.1:4761/session/s-60679a9557** (pid `30460`, port 4761) — press
    the approval card. CLI alternative: `target\release\vdt.exe approve-commands --i-am-the-human`.
-2. **Look at the installed app** — **http://127.0.0.1:63341/** (pid `55884`; isolated project, not
-   4717). Stop with `Stop-Process -Id 55884` / `Stop-Process -Id 792`.
+2. **Look at the installed app** — **http://127.0.0.1:63341/** (pid `14160`; isolated project, not
+   4717). Stop with `Stop-Process -Id 14160` / `Stop-Process -Id 30460`.
 
 After approval, re-run the release lane and re-export the packet (`release/RELEASE-RUNBOOK.md` steps
 b–c) so exec/test evidence appears.
