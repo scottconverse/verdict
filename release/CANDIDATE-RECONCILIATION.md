@@ -15,7 +15,7 @@ completion claim.
 | Wire installer hooks end to end | Button calls the real merge/backup implementation; a real-host recording exists from an earlier session; full installed no-terminal workflow unestablished |
 | Redact MCP claim text | Implemented on the claim/done-when paths through the shared redactor; not a proof that every unknown secret is recognizable |
 | Route-call regressions | Source and fixture evidence retained; not re-run for this packet |
-| Windows Job Object grandchild escape | Checker exec starts suspended, assigns the job, resumes; tests pass. F13 verified at `e47d4b0`: 1 s deadline, helper-written marker alive before the deadline, total <3 s, tree kill before child kill and a bounded stdin writer; CI green on ubuntu/macOS/windows (run 40795187701, agent-provided); the 40.81 s red-before receipt is retained. |
+| Windows Job Object grandchild escape | Checker exec starts suspended, assigns the job, resumes; tests pass. F13 evidence split: `e47d4b0` (run 40795187701; ubuntu 123189835274, macOS 123189835674, windows 123189835842; agent-provided) proves fixture lifetime (parent-owned `Tmp`, helper marker written before the 1 s deadline, total run bound 3 s) and the F11 usage handling only — `git show e47d4b0` still has the unbounded `writer.join()`. The bounded stdin writer first lands at `d89dd9c`, CI run 40796396150, green on ubuntu 123193787872, macOS 123193787922 and windows 123193787704 (agent-provided). The 40.81 s red-before receipt is retained. |
 | change_file/tree-stamp timing gap | Repaired: `cache_matches_tree` (content digest) and `cache_matches_changes` (diff fingerprint) both bind the stamp; torn reads record no stamp and every requested checker FailedToRun |
 | Extra backup on retry | Retry cleanup/reuse implemented with existing test evidence; no contrary defect found |
 
@@ -51,7 +51,10 @@ reported unverified.
 1–8 (as previously stated): fresh verification now runs from Stop with the final gate record;
    snapshot binding and the mutation/browser/first-run evidence semantics were repaired; the
    command-approval card lists every command; the specified human decisions and stale citations;
-   desk artifacts/proposals/dissent and served identity (limitation above); item 4 cites F13 verified at `e47d4b0` (1 s deadline, helper-written marker alive before the deadline, total <3 s, bounded stdin writer, CI green on ubuntu/macOS/windows, run 40795187701 agent-provided); generic release checks
+   desk artifacts/proposals/dissent and served identity (limitation above); item 4 cites the split
+   evidence — fixture lifetime and F11 usage at `e47d4b0` (run 40795187701), the bounded stdin
+   writer at `d89dd9c` (run 40796396150, green on ubuntu 123193787872, macOS 123193787922 and windows 123193787704; agent-provided); generic
+   release checks
    and packets; archive/install/checksum/shortcut/publish paths; DSH optional integration.
 
 ## VALIDATION — provenance
