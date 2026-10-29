@@ -1,6 +1,6 @@
 # Candidate state — one page
 
-Code head `08ec95c` (all code receipts and CI runs refer to it). Record commits after it: `890f423`,
+Code head `dad4476` (the head this packet was regenerated at). Earlier heads `36f47ef`/`e02323f` and their records are history; record commits after `08ec95c` include `890f423`,
 `db34af3`, `d2ee4a3`, `1b02c8c`, `c2a52a4`, `49fca08`, `c06751a` and the commit that carries this
 file (docs/records only). Branch `merge-trial`; worktree clean; nothing merged, tagged or published.
 
@@ -8,9 +8,10 @@ Two different counts, both true and not interchangeable:
 
 * **Contract rows:** `49 of 56 requirements verified` (Auditor-verified statuses; the seven open rows
   are SPEC-8, SPEC-13, SPEC-15, F25, F27, F28, F29 — see *Open*).
-* **Packet checks at this head:** `40 of 55 checks ran`, and its build/tests read **not run** because
-  the repo's command set is not yet approved (see *What Scott can do next*). The release-lane exec
-  evidence is incomplete for that reason, not because checks failed.
+* **Packet checks at this head:** `83 of 111 checks ran` at `dad4476`; build/tests, firstrun and
+  mutation all ran under the Scott-authorized delegated approval (record 406 — Codex submitted the
+  real `/decide` form on Scott's explicit instruction; see the reconciliation). No approval is
+  outstanding, and the earlier "not run" line is history.
 
 Requirement rows are the agreed contract; checks are what the ledger recorded at this head.
 
@@ -77,9 +78,8 @@ otherwise prints FIX FIRST / NOT ESTABLISHED and exits 1; it never tags, release
 
 ## What Scott can do next
 
-1. **Approve the repo's commands** — the decision that turns the packet's `build/tests: not run` into
-   real evidence. GUI: **http://127.0.0.1:4761/session/s-60679a9557** (pid `30460`, port 4761) — press
-   the approval card. CLI alternative: `target\release\vdt.exe approve-commands --i-am-the-human`.
+1. **Approval is already recorded** as an authorized delegated decision (Scott authorized it in
+   Codex; Codex submitted the real `/decide` form; ledger record 406) — no further approval is needed.
 2. **Look at the installed app** — **http://127.0.0.1:63341/** (pid `14160`; isolated project, not
    4717). Stop with `Stop-Process -Id 14160` / `Stop-Process -Id 30460`.
 
