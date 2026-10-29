@@ -64,6 +64,15 @@ pub fn vdt_program(custom: Option<&str>) -> Result<String, String> {
             if p == "vdt" {
                 return Ok("vdt".to_string());
             }
+            // `fs::canonicalize` on Windows returns a verbatim `\\?\` path, which cmd cannot
+            // execute even quoted. Write the plain form: `\\?\UNC\x` -> `\\x`, `\\?\C:\x` -> `C:\x`.
+            let p = if let Some(rest) = p.strip_prefix(r"\\?\UNC\") {
+                format!(r"\\{rest}")
+            } else if let Some(rest) = p.strip_prefix(r"\\?\") {
+                rest.to_string()
+            } else {
+                p.to_string()
+            };
             if let Some(c) = p.chars().find(|c| "\"'`$!%".contains(*c)) {
                 return Err(format!(
                     "the core path {p:?} contains {c:?}, which the host shells expand inside quotes; refusing to write a command that could run something else"

@@ -663,3 +663,13 @@ fn cursor_and_antigravity_custom_path_entries_are_recognised_and_removed() {
         assert!(out.contains("removed 5"), "{host:?}: {out}");
     }
 }
+
+#[test]
+fn a_verbatim_windows_path_is_written_without_the_prefix() {
+    // cmd cannot run a \\?\ path even quoted; the hook command carries the plain absolute path.
+    let got = verdict_adapters::install::vdt_program(Some(r"\\?\C:\Verdict\bin\vdt.exe")).unwrap();
+    assert_eq!(got, r#""C:\Verdict\bin\vdt.exe""#);
+    let unc =
+        verdict_adapters::install::vdt_program(Some(r"\\?\UNC\server\share\vdt.exe")).unwrap();
+    assert_eq!(unc, r#""\\server\share\vdt.exe""#);
+}
