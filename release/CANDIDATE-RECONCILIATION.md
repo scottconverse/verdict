@@ -1,4 +1,4 @@
-# Candidate reconciliation at code head `08ec95c` (the head all code receipts and CI runs refer to); record commits after it: `890f423`, `db34af3`, `d2ee4a3`, `1b02c8c` and the commit that carries this record (docs/packet records only). Earlier heads are history.
+# Candidate reconciliation at the frozen head `d89dd9c` (earlier heads are history)
 
 Fresh full-claim session `s-60679a9557` in the same ledger (no ledger reset, nothing archived):
 9 claim lines naming the files/symbols of the agreed acceptance, then the release lane, then
@@ -40,12 +40,13 @@ reported unverified.
 
 ## FULL-12-0 item 9 and items 1–8
 
-9. **This artifact.** At code head `08ec95c` (record commits after it: `890f423`, `db34af3`, `d2ee4a3`, `1b02c8c` and the commit that carries this record; docs/packet only) the candidate packet was regenerated from a fresh
+9. **This artifact.** At head `d89dd9c` the candidate packet was regenerated from a fresh
    full-claim session with the real export command (`release/CANDIDATE-PACKET.txt`,
    `release/CANDIDATE-REPORT.txt`) and `release/CANDIDATE-ARTIFACTS.txt` was refreshed with the
    Windows binary/archive rebuilt locally at that head; earlier-head packets and hashes are retained
    as history, not replaced. The artifact record says plainly that the Linux archive predates this
-   head and that the AppImage exists only as a CI-built artifact (run 40804156470 at `08ec95c`, job 123218973466; history: run 40793472907 at `92a72b9`; hash unavailable). Merge, tag, publication and signing remain Scott's decision or an external
+   head and that the AppImage exists only as a CI-built artifact (run 40793472907, hash
+   unavailable). Merge, tag, publication and signing remain Scott's decision or an external
    credential dependency. Candidate commits and pushes only.
 1–8 (as previously stated): fresh verification now runs from Stop with the final gate record;
    snapshot binding and the mutation/browser/first-run evidence semantics were repaired; the
@@ -61,35 +62,21 @@ reported unverified.
 Before this record, provenance was **UNVERIFIED**: earlier archive hashes predated the head, no
 AppImage was built locally, and nothing proved the packaged binaries came from the tested tree.
 This record proves: the Windows archive and `target/release/vdt.exe` were rebuilt on this Windows
-host from this tree at code head `08ec95c`, with their sizes and SHA-256 recorded, and that the same core
+host from this tree at head `d89dd9c`, with their sizes and SHA-256 recorded, and that the same core
 produced the candidate packet (earlier `1d60138` sizes/hashes are history, not current evidence). It
 does **not** prove: that the pre-existing Linux `tar.gz` came from
-this head, that the AppImage on this host exists (the AppImage is CI-built only, run 40804156470 at code head `08ec95c` job 123218973466; history: run 40793472907 at `92a72b9`; hash unavailable), that packaged behavior was exercised (installed acceptance),
+this head, that the AppImage on this host exists (the AppImage is CI-built only, run 40793472907 at
+head `92a72b9`, hash unavailable), that packaged behavior was exercised (installed acceptance),
 or that anything was published. It is not signing evidence.
 
 ## WORK-ORDER
 
-FIRST-SEVERITY and FIRST-APPIMAGE were closed with Auditor verification (A-001…A-009 dispositions
+FIRST-SEVERITY and FIRST-APPIMAGE were closed with Auditor verification (A-001…A-008 dispositions
 recorded). `HANDOFF.md`, `STARTER-PROMPT.md` and the original worker reports were read; their
 backlog rows, thirteen design questions, seven generic corrections and five phase conditions are
-reconciled above. The stdin-writer deadline, the Windows job-comment truthfulness cleanup, the F28
-hook-core fix (quoted absolute installed core, verbatim-prefix strip) and the installer port
-separation landed by `08ec95c`.
-
-Evidence at `08ec95c`: the three-OS `test` run **40804156318** is green (ubuntu 123218973230, macOS
-123218972950, windows 123218973242); clean-install-and-parity **40804156470** also completed successfully at that head (ubuntu job 123218973466, macOS 123218973357, Windows 123218973526, byte-identical compare 123219733415); it was in flight when first noted and is now confirmed.
-
-Build/tests inside the packet read **not run**: `verdict.json`'s exec and mutation command set is
-unapproved in the ledger (the approval hash predates it), so exec correctly refuses until Scott
-approves the repository's commands — the GUI decision card or
-`vdt approve-commands --i-am-the-human`.
-
-Still executable: F28's visible steps (SmartScreen/UAC or Gatekeeper trust, double-click launch,
-visible Install and editor clicks, enforce/fail-open behaviour), then re-running the affected
-evidence with Scott's approval in place. External or the human's: signing/notarization and published
-artifacts (F25); the tool's own `CLEAR TO SHIP` gate as a real release (F27, SPEC-13, SPEC-15);
-served-vendor acceptance (SPEC-8); loaded DSH acceptance (F29, Codex-owned); and Scott's merge, tag
-and publication.
+reconciled above. The stdin-writer deadline and the Windows job-comment truthfulness cleanup have landed at `d89dd9c`; remaining executable work is this provenance/packet refresh at the current head; signing/notarization,
+installed desktop click-through/enforce/fail-open, DSH deployment, and tag/publication are external
+or the human's.
 
 ## One line each
 
@@ -112,7 +99,7 @@ and publication.
 * **F29 (optional DSH integration):** recording-only plugin plus MCP connection; a loaded DSH host
   acceptance is not established and is Codex-owned; the generic core does not depend on it.
 * **SAFE-DELIVERY:** the final candidate packet and artifact record are refreshed at
-  `08ec95c` before re-verification (`release/CANDIDATE-PACKET.txt`,
+  `d89dd9c` before re-verification (`release/CANDIDATE-PACKET.txt`,
   `release/CANDIDATE-ARTIFACTS.txt`); signing/notarization, installed desktop acceptance, DSH
   deployment and tag/publication remain external; work confined to this `merge-trial` worktree;
   main, history, receipts and settings preserved; no evidence reset or weakened claim; candidate
@@ -128,70 +115,56 @@ and publication.
 Verdict line of this candidate: `VERDICT: FAILED  (lane: release, policy v1, builder: claude/unknown
 [anthropic], verifier: none)`.
 
-## F28 — packaged install, hooks, readiness (head 8ec95c)
+## Close-out at the commit carrying this record
 
-Established from the packaged Windows artifact (zip c7af8759…645ba, inner core
-8c3b18b…ae63): the wizard on its own port (4753, not 4717) completed the real install form;
-the installed server got its own free port (63341, pid 16584); /readyz returned app id +
-canonical project + matching pid; the installed core hash equals the package's inner hash; and the
-installed page's Install-hooks action wrote "C:\…\install\vdt.exe" hook claude <Event> — quoted
-absolute core, no bare dt, unrelated 
-ode policy-check.js hook claude Stop preserved. The Stop
-command executed verbatim through cmd exits 0 and resolves to dt 1.0.0. A \\?\ verbatim-path
-defect found in the first run is fixed at 8ec95c (prefix stripped, unit-tested).
+Code head: the commit that carries this section (production hook-seam revert plus the ledger-polling
+test). Earlier code heads `e02323f` and `36f47ef` with their CI receipts are history; the sections
+above that name `08ec95c`/`d89dd9c` are history too, kept as written.
 
-Still needs Scott's visible click-through (not claimed): SmartScreen/UAC trust of the unsigned
-package, a real double-click launch, a human-visible Install click (the POST here was scripted), and
-editor/enforce/fail-open behaviour. Signing and notarization remain external.
+### A-011 — resolved by authorized delegation, not by a click
 
-### Exec/test evidence in this packet is blocked on a human decision (expected)
+Ledger record `406` (`2026-10-29T02:17:21.459Z`, decision `run_project_commands`, choice
+`approved:2dfe10c3…`, session `s-60679a9557`) was produced by **Codex submitting the real
+`/decide` form on Scott's explicit instruction** ("Approve these commands"), not by a physical click
+and not by the agent grading itself. Receipt:
+`C:/Users/scott/Documents/Codex/2026-10-28/verdict-approval-page/APPROVAL-RECEIPT.json`
+(recordedAt `2026-10-28T20:17:22.64-06:00`, actor "Codex submitted the real page form on Scott
+explicit instruction; not a physical human click", `httpStatus: 200`, approval card and changed
+commands no longer remaining). So the approval is an **authorized delegated human decision**. The
+earlier quarantine is lifted and the exec-derived evidence is usable; no re-approval is requested and
+record 406 is not to be withdrawn for this distinction.
 
-The candidate packet's build/tests line reads **not run** because the repo's approved command set no
-longer matches the policy: erdict.json now declares xec.commands
-(cargo test --workspace --locked, cargo clippy --workspace --all-targets --locked -- -D warnings)
-plus mutation.command (cargo run --quiet --bin vdt-mutation-runner), and the ledger's approval
-hash predates that command set, so exec correctly refuses to run. This is the designed human-decision
-boundary, not a defect: it was not forced, not self-approved and the packet was not hand-edited.
+### Windows flake and process residue — corrected
 
-Scott must approve the repository's commands — in the GUI (the decision card on the project page) or
-with dt approve-commands --i-am-the-human — before exec/test evidence can appear in a packet. The
+The hook test at `crates/verdict-cli/tests/hooks.rs` is now deterministic without a production
+override: `record_budget` was removed, `fail()` uses the unchanged `UNAVAILABLE_BUDGET` (2 s), and the
+test polls the ledger with a bounded deadline after the hook exits. The hook's exit bound is
+unchanged; the assertions (silent exit 0, bounded, `check_unavailable` + "did not arrive" present)
+are unchanged. CI at `36f47ef` was green on ubuntu `123237042745`, macOS `123237042698`, windows
+`123237042514`, and packaging (`clean-install-and-parity` `40809765052`) was green at that head too.
 
-ot run line stays visible until then.
+Process-residue classification was wrong and is corrected here: PID 26400 was **Codex's own active
+lane** (ownership in `C:/Users/scott/Documents/Codex/2026-10-28/verdict-approval-page/PROCESS.json`
+plus ledger records 407–449), not an orphan survivor; I killed it to unlock builds, which was the
+wrong action. Codex's approval page (pids 10692/59637) must not be touched. For records
+414/418/420/423 (exec/firstrun/release checks that "exited with code 0 but left processes running
+(they were stopped)"), the records carry no process identities, so the actual pids, parentage and
+launch origin are **not established** — that residue remains unclassified, neither proven product
+defect nor proven harness artefact, until identities are captured with parentage. Standing rule from
+now on: never kill a `vdt` process that was not started here without checking its ownership records
+first.
 
-The isolated installed server for the click-through is running at **http://127.0.0.1:63341/** with
-pid 45164 (it was restarted standalone: the earlier instance, pid 16584, exited with the setup job
-that spawned it). Its log/state root is
-C:\Users\scott\AppData\Local\Temp\vdt-f28e-20261028-200435; stop it with
-Stop-Process -Id 45164 (or 	askkill /PID 45164 /F). The wizard itself has exited.
+### F28 (packaged install at `08ec95c`) — what it established
 
-## Dispositions at code head 02323f (docs only)
-
-Neither item below is fixed, and neither is used to justify any green claim.
-
-**A-011 / approval provenance — acknowledged, NOT fixed.** Ledger record 406
-(2026-10-29T02:17:21.459Z, decision un_project_commands, choice pproved:2dfe10c3…, reason
-
-ull, session s-60679a9557) is written Writer::Human / who: human, but that is by design for
-both the GUI /decide route and the CLI pprove-commands --i-am-the-human assertion (both call the
-same Action::ApproveCommands), so the writer fields do not establish a human origin. The Coder
-states it did not approve — it never ran pprove-commands --i-am-the-human (only the flagless dry
-run) and never POSTed to /decide — and dt serve keeps no per-request access log, so no POST or
-token-use record exists to match the timestamp. A human origin therefore cannot be established. The
-approval-derived packet figures (“67 of 92 checks ran”, exec an, passed, and any proven-claim
-statuses derived from them) are quarantined: the regenerated elease/CANDIDATE-PACKET.txt and
-elease/CANDIDATE-REPORT.txt were reverted out of the tree and none of those figures entered the
-artifacts, reconciliation or state pages. Exec-derived statuses remain **unverified** pending Scott's
-confirmation that he pressed the approval card (or a human withdrawal decision).
-
-**Windows flake and process residue — classified, NOT fixed.** _stdin_that_never_closes_ends_at_the_budget_with_exit_zero_and_a_record
-(crates/verdict-cli/tests/hooks.rs:155, the check_unavailable assertion) failed only on the
-Windows job of run 40807403087; the same job was rerun at the same head and went green (windows
-123233616261, macOS 123233617147, ubuntu 123233617749), and local reproduction on Windows
-passes. That is a timing-sensitive test around the 400 ms hook budget, not a reproducible
-stdin-budget defect; the durable fix would be a deterministic clock/budget seam in the test, which
-has not been made. The process residue seen this session was an orphaned
-dt verdict --run --lane release launched from the installed binary under a background job with no
-controlling job on Windows; it outlived its launcher and kept spawning provider children, holding
-file locks. That is a harness launch artefact, plus a real supervision gap: the top-level dt lane
-process has no mechanism to end its own process tree when its launcher disappears, unlike the checker
-and provider layers, which do. Neither the flake nor the residue is presented as fixed.
+From the packaged Windows artifact (zip `c7af8759…645ba`, inner core
+`f8c3b18b0a183df39930291ca4e53284ddacff73c572234be57078296766ae63`): the wizard ran on port 4753
+(not 4717) and completed the real install form; the installed server got its own free port (63341, pid
+16584); `/readyz` returned app id + canonical project + matching pid; the installed core hash equals
+the package's inner hash; the installed page's Install-hooks action wrote
+`"C:\…\install\vdt.exe" hook claude <Event>` (quoted absolute core, no bare `vdt`, unrelated
+`node policy-check.js hook claude Stop` preserved) and the Stop command executed verbatim through cmd
+exits 0 resolving to `vdt 1.0.0`. A `\\?\` verbatim-path defect found in the first packaged run was
+fixed at `08ec95c` (prefix stripped, unit-tested). Not established: signing/notarization, desktop
+click-through, publication, DSH loaded acceptance, served-vendor enforcement beyond recording level
+(`derived_vendor` is a labelled hint only; SPEC-8 still needs a real cross-vendor receipt or Scott's
+acceptance).

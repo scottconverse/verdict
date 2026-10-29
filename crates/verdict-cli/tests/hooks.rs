@@ -136,9 +136,6 @@ fn a_stdin_that_never_closes_ends_at_the_budget_with_exit_zero_and_a_record() {
     let start = Instant::now();
     let mut child = command(&t.0, &h.0, &["hook", "codex", "Stop"])
         .env("VDT_HOOK_BUDGET_MS", "400")
-        // Raise only the wait for the unavailable record, so the assertion about it is not a race
-        // with a loaded machine; the payload budget (and so the hook's hold) stays 400 ms.
-        .env("VDT_HOOK_RECORD_BUDGET_MS", "10000")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -154,7 +151,20 @@ fn a_stdin_that_never_closes_ends_at_the_budget_with_exit_zero_and_a_record() {
     };
     assert_silent_success(&out);
     assert!(start.elapsed() < Duration::from_secs(10));
-    let (_, text) = vdt_text(&t.0, &h.0, &["ledger", "export", "--jsonl"]);
+    // The hook's own wait for writing the record is the unchanged UNAVAILABLE_BUDGET; poll the
+    // ledger with a bounded deadline instead of racing it, so a loaded machine cannot make this
+    // assertion flaky. The assertion itself is unchanged.
+    let deadline = Duration::from_secs(10);
+    let mut text = String::new();
+    let polled = Instant::now();
+    while polled.elapsed() < deadline {
+        let (_, t) = vdt_text(&t.0, &h.0, &["ledger", "export", "--jsonl"]);
+        text = t;
+        if text.contains("check_unavailable") && text.contains("did not arrive") {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(25));
+    }
     assert!(text.contains("check_unavailable"), "{text}");
     assert!(text.contains("did not arrive"), "{text}");
 }
