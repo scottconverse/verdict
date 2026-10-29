@@ -32,7 +32,7 @@ Notes:
   green on ubuntu (123189835274), macOS (123189835674) and windows (123189835842) in run
   40795187701 (agent-provided). The bounded stdin writer is **not** part of that head: `git show
   e47d4b0` still has the unbounded `writer.join()`; the bounded stdin writer first lands at
-  `d89dd9c`, CI run 40796396150, green on ubuntu 123193787872, macOS 123193787922 and windows 123193787704 (agent-provided).
+  `d89dd9c`, CI run 40796396150, green on ubuntu 123193787872, macOS 123193787922 and windows 123193787704 (agent-provided); Windows job 123193787704 ended 00:56:35Z (verified by Coordinator).
   The original 40.81 s red-before receipt is retained, and `test` does not run for docs-only heads.
 * Signing and notarization are not attempted: no Authenticode or Apple credentials exist in this
   environment.
