@@ -107,8 +107,11 @@ impl DeskProvider for CommandProvider {
 }
 
 /// A Windows Job Object holding the provider, so a timeout ends the provider and everything it
-/// started. This is the same mechanism the checker exec path uses. If the job cannot be created or
-/// assigned, the timeout falls back to `taskkill /T` (see `kill_process_tree`).
+/// started. This is the same mechanism the checker exec path uses. Assignment happens right after
+/// spawn and before the request is written, but a provider that starts a helper in its first
+/// instants can predate job membership; the timeout path therefore also walks the tree with
+/// `taskkill /T` while the provider is still alive (the early-helper regression covers that case).
+/// If the job cannot be created or assigned, only the tree walk remains.
 #[cfg(windows)]
 struct ProviderJob(windows_sys::Win32::Foundation::HANDLE);
 
@@ -215,8 +218,10 @@ fn ask_command(p: &CommandProvider, prompt: &str, timeout: Duration) -> Result<S
     let mut child = cmd
         .spawn()
         .map_err(|e| format!("provider {} could not start: {e}", p.name))?;
-    // Put the provider in a job object before it can start anything, so a timeout can end the
-    // whole tree; without a job the fallback is a taskkill of the tree.
+    // Assign the provider to a job object immediately after spawn, before the request is written,
+    // so anything it starts after this point is in the job. A helper it starts in its first
+    // instants can predate the assignment; the timeout path also walks the live process tree, and
+    // the early-helper regression pins that. Without a job only the tree walk remains.
     #[cfg(windows)]
     let job = ProviderJob::new(&child);
     let mut stdin = child
@@ -239,9 +244,11 @@ fn ask_command(p: &CommandProvider, prompt: &str, timeout: Duration) -> Result<S
     .to_string();
     // The request, both output streams and the wait all run at the same time. Waiting for exit
     // before reading the pipes is how a chatty provider deadlocks its parent.
+    let (write_tx, write_rx) = mpsc::channel::<()>();
     let writer = std::thread::spawn(move || {
         let _ = stdin.write_all(request.as_bytes());
         // Dropping stdin closes it, so a provider that reads to end sees EOF.
+        let _ = write_tx.send(());
     });
     let (out_tx, out_rx) = mpsc::channel::<Vec<u8>>();
     let (err_tx, err_rx) = mpsc::channel::<Vec<u8>>();
@@ -299,6 +306,24 @@ fn ask_command(p: &CommandProvider, prompt: &str, timeout: Duration) -> Result<S
         // bounded by the deadline.
         return Err(format!(
             "provider {} did not answer within {} seconds",
+            p.name,
+            timeout.as_secs()
+        ));
+    }
+    // The provider exited, but a helper it started can still hold the inherited stdin open, so the
+    // writer thread would block forever. Wait only for the time left on this call's deadline; if
+    // the request was never taken, end the tree and report the bounded failure.
+    let remaining = timeout.saturating_sub(started.elapsed());
+    if write_rx.recv_timeout(remaining).is_err() {
+        #[cfg(windows)]
+        if let Some(job) = &job {
+            job.end();
+        }
+        kill_process_tree(child.id());
+        let _ = child.kill();
+        let _ = child.wait();
+        return Err(format!(
+            "provider {} did not take its request within {} seconds",
             p.name,
             timeout.as_secs()
         ));

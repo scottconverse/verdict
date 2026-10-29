@@ -24,6 +24,7 @@ struct Args {
     uncited: bool,
     spawn_child: Option<String>,
     spawn_early_child: Option<String>,
+    ignore_stdin: bool,
     helper: Option<String>,
 }
 
@@ -40,6 +41,7 @@ fn args() -> Args {
         uncited: false,
         spawn_child: None,
         spawn_early_child: None,
+        ignore_stdin: false,
         helper: None,
     };
     let mut it = std::env::args().skip(1);
@@ -56,6 +58,7 @@ fn args() -> Args {
             "--uncited" => a.uncited = true,
             "--spawn-child" => a.spawn_child = it.next(),
             "--spawn-early-child" => a.spawn_early_child = it.next(),
+            "--ignore-stdin" => a.ignore_stdin = true,
             "--helper" => a.helper = it.next(),
             _ => {}
         }
@@ -107,6 +110,12 @@ fn main() {
     // assigned after spawn, so this helper can predate job membership. It must still be ended.
     if let Some(path) = &a.spawn_early_child {
         spawn_helper(path);
+    }
+    if a.ignore_stdin {
+        // Holds the inherited stdin open without ever reading it: a provider that ignores its
+        // request must not hold the run past the deadline.
+        std::thread::sleep(std::time::Duration::from_secs(60));
+        return;
     }
     let mut request = String::new();
     if std::io::stdin().read_to_string(&mut request).is_err() {

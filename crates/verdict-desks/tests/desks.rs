@@ -6,7 +6,9 @@ use std::time::Duration;
 use verdict_core::{
     DecisionKind, Lane, Ledger, Policy, Record, SessionParams, Tier, Writer, start_session,
 };
-use verdict_desks::{CommandProvider, DeskOptions, Outcome, providers_from_policy, run};
+use verdict_desks::{
+    CommandProvider, DeskOptions, DeskProvider, Outcome, providers_from_policy, run,
+};
 
 static N: AtomicU64 = AtomicU64::new(0);
 
@@ -829,4 +831,28 @@ fn served_settings_and_usage_are_kept_in_the_receipt_and_the_check_detail() {
     assert!(detail.contains("served vendor"), "{detail}");
     assert!(detail.contains("settings"), "{detail}");
     assert!(detail.contains("usage"), "{detail}");
+}
+
+#[test]
+fn a_provider_that_never_reads_its_request_stays_bounded() {
+    // A provider (or a helper it started) that holds the inherited stdin open must not block the
+    // writer thread past the call's deadline.
+    let provider = CommandProvider {
+        name: "never-reads".into(),
+        vendor: "openai".into(),
+        model: "test-model-1".into(),
+        command: env!("CARGO_BIN_EXE_vdt-fake-desk").into(),
+        args: vec!["--ignore-stdin".into()],
+        timeout_secs: None,
+    };
+    let prompt = "x".repeat(1 << 20);
+    let started = std::time::Instant::now();
+    let err = provider
+        .ask(&prompt, Duration::from_secs(1))
+        .expect_err("a provider that ignores its request must fail bounded");
+    assert!(started.elapsed() < Duration::from_secs(5), "{err}");
+    assert!(
+        err.contains("did not take its request") || err.contains("did not answer"),
+        "{err}"
+    );
 }
