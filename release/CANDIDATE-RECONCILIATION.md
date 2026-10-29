@@ -71,12 +71,28 @@ or that anything was published. It is not signing evidence.
 
 ## WORK-ORDER
 
-FIRST-SEVERITY and FIRST-APPIMAGE were closed with Auditor verification (A-001…A-008 dispositions
+FIRST-SEVERITY and FIRST-APPIMAGE were closed with Auditor verification (A-001…A-009 dispositions
 recorded). `HANDOFF.md`, `STARTER-PROMPT.md` and the original worker reports were read; their
 backlog rows, thirteen design questions, seven generic corrections and five phase conditions are
-reconciled above. The stdin-writer deadline, the Windows job-comment truthfulness cleanup, the F28 hook-core fix (quoted absolute installed core, verbatim-prefix strip) and the installer port separation have landed by `08ec95c`; `d89dd9c`; remaining executable work is this provenance/packet refresh at the current head; signing/notarization,
-installed desktop click-through/enforce/fail-open, DSH deployment, and tag/publication are external
-or the human's.
+reconciled above. The stdin-writer deadline, the Windows job-comment truthfulness cleanup, the F28
+hook-core fix (quoted absolute installed core, verbatim-prefix strip) and the installer port
+separation landed by `08ec95c`.
+
+Evidence at `08ec95c`: the three-OS `test` run **40804156318** is green (ubuntu 123218973230, macOS
+123218972950, windows 123218973242); clean-install-and-parity **40804156470** was still in flight
+when this was written and is **not claimed**.
+
+Build/tests inside the packet read **not run**: `verdict.json`'s exec and mutation command set is
+unapproved in the ledger (the approval hash predates it), so exec correctly refuses until Scott
+approves the repository's commands — the GUI decision card or
+`vdt approve-commands --i-am-the-human`.
+
+Still executable: F28's visible steps (SmartScreen/UAC or Gatekeeper trust, double-click launch,
+visible Install and editor clicks, enforce/fail-open behaviour), then re-running the affected
+evidence with Scott's approval in place. External or the human's: signing/notarization and published
+artifacts (F25); the tool's own `CLEAR TO SHIP` gate as a real release (F27, SPEC-13, SPEC-15);
+served-vendor acceptance (SPEC-8); loaded DSH acceptance (F29, Codex-owned); and Scott's merge, tag
+and publication.
 
 ## One line each
 
@@ -115,7 +131,7 @@ or the human's.
 Verdict line of this candidate: `VERDICT: FAILED  (lane: release, policy v1, builder: claude/unknown
 [anthropic], verifier: none)`.
 
-## F28 — packaged install, hooks, readiness (head  8ec95c)
+## F28 — packaged install, hooks, readiness (head 8ec95c)
 
 Established from the packaged Windows artifact (zip c7af8759…645ba, inner core
 8c3b18b…ae63): the wizard on its own port (4753, not 4717) completed the real install form;
@@ -125,7 +141,7 @@ installed page's Install-hooks action wrote "C:\…\install\vdt.exe" hook claude
 absolute core, no bare dt, unrelated 
 ode policy-check.js hook claude Stop preserved. The Stop
 command executed verbatim through cmd exits 0 and resolves to dt 1.0.0. A \\?\ verbatim-path
-defect found in the first run is fixed at  8ec95c (prefix stripped, unit-tested).
+defect found in the first run is fixed at 8ec95c (prefix stripped, unit-tested).
 
 Still needs Scott's visible click-through (not claimed): SmartScreen/UAC trust of the unsigned
 package, a real double-click launch, a human-visible Install click (the POST here was scripted), and
