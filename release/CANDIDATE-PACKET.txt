@@ -1,0 +1,223 @@
+VERDICT ACCEPTANCE PACKET
+=========================
+
+Session: s-60679a9557
+Lane: release (policy v1)
+Builder: claude/unknown [anthropic]
+Verdict: FAILED
+Ledger: intact
+
+CLAIMS
+------
+1. [prompt_translation] release/package-appimage.sh runs appimagetool under APPIMAGE_EXTRACT_AND_RUN with no FUSE fallback
+   status: proven (exec ran at the ran tier (record 255) and reported no open finding about it)
+   names: release/package-appimage.sh, APPIMAGE_EXTRACT_AND_RUN
+   record 237
+2. [prompt_translation] crates/verdict-checkers/src/context.rs cache_matches_tree digest and cache_matches_changes fingerprint bind the recorded stamp; read_asset is an asset-tier only read
+   status: proven (exec ran at the ran tier (record 255) and reported no open finding about it)
+   names: crates/verdict-checkers/src/context.rs, cache_matches_changes, read_asset, cache_matches_tree
+   record 238
+3. [prompt_translation] crates/verdict-desks/src/bin/vdt-provider-codex.rs apply_observation keeps observed model/served/usage and records answer claims separately
+   status: proven (exec ran at the ran tier (record 255) and reported no open finding about it)
+   names: crates/verdict-desks/src/bin/vdt-provider-codex.rs, apply_observation
+   record 239
+4. [prompt_translation] crates/verdict-desks/src/bin/vdt-provider-codex.rs normalize_answer keeps the desk severity critical (whitelist includes critical; unknown still minor)
+   status: proven (exec ran at the ran tier (record 255) and reported no open finding about it)
+   names: crates/verdict-desks/src/bin/vdt-provider-codex.rs, normalize_answer
+   record 240
+5. [prompt_translation] release/package.sh macOS bundle ships vdt-launch, which serves the recorded project from ~/.verdict/last-project
+   status: proven (exec ran at the ran tier (record 255) and reported no open finding about it)
+   names: release/package.sh, vdt-launch, macOS, ~/.verdict/last-project
+   record 241
+6. [prompt_translation] release/dogfood-gate.sh fails unless the packet verdict line is exactly CLEAR TO SHIP and never tags or publishes
+   status: proven (exec ran at the ran tier (record 255) and reported no open finding about it)
+   names: release/dogfood-gate.sh, CLEAR TO SHIP
+   record 242
+7. [prompt_translation] crates/verdict-gui/src/setup.rs readiness requires app id, canonical project and the spawned pid; crates/verdict-gui/src/lib.rs serves GET /readyz
+   status: proven (exec ran at the ran tier (record 255) and reported no open finding about it)
+   names: crates/verdict-gui/src/setup.rs, crates/verdict-gui/src/lib.rs, /readyz
+   record 243
+8. [prompt_translation] crates/verdict-core/src/export.rs renders the packet and sarif exports
+   status: proven (exec ran at the ran tier (record 255) and reported no open finding about it)
+   names: crates/verdict-core/src/export.rs, packet, sarif
+   record 244
+9. [prompt_translation] crates/verdict-desks/src/lib.rs: kill_process_tree ends a timed-out provider's process tree (Windows Job Object or /T walk, Unix process group) and the timeout returns immediately
+   status: proven (exec ran at the ran tier (record 255) and reported no open finding about it)
+   names: crates/verdict-desks/src/lib.rs, kill_process_tree, /T
+   record 245
+
+FINDINGS
+--------
+- [blocker] the release asset dist/*.AppImage does not exist in the candidate (asset, record 258, open)
+    evidence: command `release asset dist/*.AppImage`
+- [blocker] the release candidate is not tagged v1.0.0 (tags on HEAD: none) (asset, record 259, open)
+    evidence: command `git tag --points-at HEAD (v1.0.0)`
+- [blocker] The release candidate is missing the required AppImage asset. (judgment, record 267, open)
+    evidence: command `ledger record 258`
+    evidence: command `ledger record 260`
+- [blocker] The release candidate HEAD does not carry the required v1.0.0 tag. (judgment, record 268, open)
+    evidence: command `ledger record 259`
+    evidence: command `ledger record 260`
+- [major] The first-run receipt does not exercise the claimed GUI readiness behavior (judgment, record 274, open)
+    evidence: command `ledger record 243`
+    evidence: command `ledger record 257`
+- [major] The provided execution records do not establish the claimed platform packaging behavior (judgment, record 275, open)
+    evidence: command `ledger record 237`
+    evidence: command `ledger record 241`
+    evidence: command `ledger record 253`
+    evidence: command `ledger record 257`
+    evidence: command `ledger record 260`
+- [blocker] The CONNECTED results for packaging and the dogfood gate establish file existence, not the claimed execution paths (judgment, record 289, open)
+    evidence: command `ledger record 241`
+    evidence: command `ledger record 242`
+    evidence: command `ledger record 247`
+- [blocker] Release record 260 contradicts its designation as a clean result to refute (judgment, record 290, open)
+    evidence: command `ledger record 258`
+    evidence: command `ledger record 259`
+    evidence: command `ledger record 260`
+
+HYPOTHESES (move nothing)
+------------------------
+- [minor] Records 246–247 leave three wiring items unverified; the six CONNECTED results do not establish the runtime behavior of all nine claims. (record 263)
+- [minor] The supplied test and clippy receipts do not establish the claimed AppImage execution, macOS launcher behavior, readiness identity checks, or provider process-tree termination; targeted source inspection and applicable runtime receipts are needed. (record 264)
+- [minor] Records 248–249 lack an accepted baseline, so completeness against the requested change cannot be established from this ledger. (record 265)
+- [minor] No source file contents were inspected in this response, so no independent code-level correctness, architecture, performance, or dependency finding is established. (record 266)
+- [minor] The documented Windows GUI installation path is not established by the supplied checks (record 270)
+- [minor] Behavior-specific coverage for claims 238–240, 242, 244 and 245 cannot be determined from the supplied test-output tail (record 272)
+- [minor] No mechanical test weakening was reported, but semantic test strength remains unassessed (record 273)
+- [minor] First-run usability remains unverified (record 277)
+- [minor] Launcher and readiness claims do not establish a usable first screen (record 278)
+- [minor] Security coverage remains unverified (record 280)
+- [minor] Dependency licensing and attribution remain unverified (record 282)
+- [minor] The Rust CONNECTED results may reflect definition enumeration without tracing the claimed behavior (record 284)
+- [minor] Exec record 255 provides no independently inspectable execution receipt (record 285)
+- [minor] The supplied ledger does not allow independent verification of receipt output or current-tree identity (record 286)
+- [minor] Static zero-finding results leave documented coverage gaps (record 287)
+- [minor] First-run and archive checks do not establish packaged application behavior (record 288)
+
+DECISIONS
+---------
+(none)
+
+OVERRIDES
+---------
+(none)
+
+RELEASE EVIDENCE
+----------------
+- release: ran at the ran tier (record 260): 2 finding(s); release check passed: cargo test --workspace --locked (output blake3 93372c6673ae8da3125202703b1ccdb09f16243b9b3151938977074d37114183); release tags on HEAD: none; release asset dist/*.zip: dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip; release asset dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip sha256 5fe18e97101803a3e5b33460cdd5560e1c6478f038291fdb2ed41ea2cc35fd9a matches dist/vdt-1.0.0-x8...
+- firstrun: ran at the ran tier (record 257): 0 finding(s); first-run command 1 ran and passed: cargo build --workspace --locked; first-run command 2 ran and passed: target/debug/vdt --version
+- firstrun at the browsed tier: no
+- release coherence ran: true
+- open commit-anyway override: no
+- release version: 1.0.0
+- asset dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip: 6327583 bytes, SHA-256 5fe18e97101803a3e5b33460cdd5560e1c6478f038291fdb2ed41ea2cc35fd9a
+- asset dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz: 6629510 bytes, SHA-256 ad4147264680a6239a72338d6c5cb8b9a354215f2c0696558adb1f4210aeef33
+- asset dist/*.AppImage: (no file matched)
+- asset dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip.sha256: 65 bytes, SHA-256 6c6dff039f937037899c4a06ab950f4d01cb14b16e3117747318f1a980102934
+- asset dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256: 65 bytes, SHA-256 6cbe6bc8c4469e783b04a47e0ea77dd397e5640ee801bb613c05a58352499006
+
+NOT ESTABLISHED
+---------------
+- lane: you chose the release lane for this packet
+- lane: no changed files found
+- wiring: could not run: 3 item(s) are SKIPPED, so wiring is not established: 6 CONNECTED  0 BROKEN  0 NOT BUILT  0 HALF BUILT  3 SKIPPED; claim 237 (unticked): SKIPPED - APPIMAGE_EXTRACT_AND_RUN: APPIMAGE_EXTRACT_AND_RUN appears at release/package-appimage.sh:57, in a stack no extractor in this build reads; claim 238 (unticked): CONNECTED - crates/verdict-checkers/src/context.rs: crates/verdict-checkers/src/context.rs: 0 route(s) or command(s), 0 call(s), 0 control(s), 40 definition(s) read; nothing broken; claim 239 (unticked): CONNECTED - crates/verdict-desks/src/bin/vdt-provider-codex.rs: crates/verdict-desks/src/bin/vdt-provider-codex.rs: 0 route(s) or command(s), 0 call(s), 0 control(s), 16 definition(s) read; nothing broken; claim 240 (unticked): CONNECTED - crates/verdict-desks/src/bin/vdt-provider-codex.rs: crates/verdict-desks/src/bin/vdt-provider-codex.rs: 0 route(s) or command(s), 0 call(s), 0 control(s), 16 definition(s) read; nothing broken; claim 241 (unticked): CONNECTED - release/package.sh: release/package.sh exists (not source code; nothing to wire); claim 242 (unticked): CONNECTED - release/dogfood-gate.sh: release/dogfood-gate.sh exists (not source code; nothing to wire); claim 243 (unticked): SKIPPED - /readyz: no route, page or call for GET /readyz was found; 1 source file(s) are in a stack no extractor in this build reads (first: crates/verdict-checkers/fixtures/wiring/word_skipped/red/change/svc.go), so a route could be served there; claim 244 (unticked): CONNECTED - crates/verdict-core/src/export.rs: crates/verdict-core/src/export.rs: 0 route(s) or command(s), 0 call(s), 0 control(s), 14 definition(s) read; nothing broken; claim 245 (unticked): SKIPPED - /T: no route, page or call for /T was found; 1 source file(s) are in a stack no extractor in this build reads (first: crates/verdict-checkers/fixtures/wiring/word_skipped/red/change/svc.go), so a route could be served there; unverified: 1 source file(s) in stacks no extractor in this build reads (crates/verdict-checkers/fixtures/wiring/word_skipped/red/change/svc.go)
+- baseline_diff: could not run: this session has no prompt from the human and no claim the human accepted, so nothing says what was asked for
+- claims_vs_code: could not run: this session has no final-message, commit-message or notes-file claims to look up
+- mutation: skipped by policy (mutation was not required by mutation.require_when (critical_logic_changed, test_sensitivity_uncertain) for this diff: no logic file changed; 0 finding(s) recorded separately)
+- 16 hypothesis(es) with no evidence pointer count for nothing
+- whether your real app works: no page was loaded
+
+THE REPORT AS PRINTED
+---------------------
+VERDICT: FAILED  (lane: release, policy v1, builder: claude/unknown [anthropic], verifier: none)
+read from code: done  |  your build and tests: ran, passed  |  your real app: not run
+session s-60679a9557, started 2026-10-29T00:11:05.228Z  |  ledger: intact, 292 records  |  baseline c482dde8ab04
+
+FIX FIRST
+  1. [Blocker] the release asset dist/*.AppImage does not exist in the candidate (asset, command `release asset dist/*.AppImage`; record 258)
+  2. [Blocker] the release candidate is not tagged v1.0.0 (tags on HEAD: none) (asset, command `git tag --points-at HEAD (v1.0.0)`; record 259)
+  3. [Blocker] The release candidate is missing the required AppImage asset. (judgment, command `ledger record 258`; record 267)
+  4. [Blocker] The release candidate HEAD does not carry the required v1.0.0 tag. (judgment, command `ledger record 259`; record 268)
+  5. [Major] The first-run receipt does not exercise the claimed GUI readiness behavior (judgment, command `ledger record 243`; record 274)
+  6. [Major] The provided execution records do not establish the claimed platform packaging behavior (judgment, command `ledger record 237`; record 275)
+  7. [Blocker] The CONNECTED results for packaging and the dogfood gate establish file existence, not the claimed execution paths (judgment, command `ledger record 241`; record 289)
+  8. [Blocker] Release record 260 contradicts its designation as a clean result to refute (judgment, command `ledger record 258`; record 290)
+
+YOURS TO SETTLE
+  1. check unavailable: wiring: 3 item(s) are SKIPPED, so wiring is not established: 6 CONNECTED  0 BROKEN  0 NOT BUILT  0 HALF BUILT  3 SKIPPED; claim 237 (unticked): SKIPPED - APPIMAGE_EXTRACT_AND_RUN: APPIMAGE_EXTRACT_AND_RUN appears at release/package-appimage.sh:57, in a stack no extractor in this build reads; claim 238 (unticked): CONNECTED - crates/verdict-checkers/src/context.rs: crates/verdict-checkers/src/context.rs: 0 route(s) or command(s), 0 call(s), 0 control(s), 40 definition(s) read; nothing broken; claim 239 (unticked): CONNECTED - crates/verdict-desks/src/bin/vdt-provider-codex.rs: crates/verdict-desks/src/bin/vdt-provider-codex.rs: 0 route(s) or command(s), 0 call(s), 0 control(s), 16 definition(s) read; nothing broken; claim 240 (unticked): CONNECTED - crates/verdict-desks/src/bin/vdt-provider-codex.rs: crates/verdict-desks/src/bin/vdt-provider-codex.rs: 0 route(s) or command(s), 0 call(s), 0 control(s), 16 definition(s) read; nothing broken; claim 241 (unticked): CONNECTED - release/package.sh: release/package.sh exists (not source code; nothing to wire); claim 242 (unticked): CONNECTED - release/dogfood-gate.sh: release/dogfood-gate.sh exists (not source code; nothing to wire); claim 243 (unticked): SKIPPED - /readyz: no route, page or call for GET /readyz was found; 1 source file(s) are in a stack no extractor in this build reads (first: crates/verdict-checkers/fixtures/wiring/word_skipped/red/change/svc.go), so a route could be served there; claim 244 (unticked): CONNECTED - crates/verdict-core/src/export.rs: crates/verdict-core/src/export.rs: 0 route(s) or command(s), 0 call(s), 0 control(s), 14 definition(s) read; nothing broken; claim 245 (unticked): SKIPPED - /T: no route, page or call for /T was found; 1 source file(s) are in a stack no extractor in this build reads (first: crates/verdict-checkers/fixtures/wiring/word_skipped/red/change/svc.go), so a route could be served there; unverified: 1 source file(s) in stacks no extractor in this build reads (crates/verdict-checkers/fixtures/wiring/word_skipped/red/change/svc.go) (record 246)
+  2. check unavailable: baseline_diff: this session has no prompt from the human and no claim the human accepted, so nothing says what was asked for (record 248)
+  3. check unavailable: claims_vs_code: this session has no final-message, commit-message or notes-file claims to look up (record 261)
+  4. hypothesis (no evidence pointer, counts for nothing): Records 246–247 leave three wiring items unverified; the six CONNECTED results do not establish the runtime behavior of all nine claims. (record 263)
+  5. hypothesis (no evidence pointer, counts for nothing): The supplied test and clippy receipts do not establish the claimed AppImage execution, macOS launcher behavior, readiness identity checks, or provider process-tree termination; targeted source inspection and applicable runtime receipts are needed. (record 264)
+  6. hypothesis (no evidence pointer, counts for nothing): Records 248–249 lack an accepted baseline, so completeness against the requested change cannot be established from this ledger. (record 265)
+  7. hypothesis (no evidence pointer, counts for nothing): No source file contents were inspected in this response, so no independent code-level correctness, architecture, performance, or dependency finding is established. (record 266)
+  8. hypothesis (no evidence pointer, counts for nothing): The documented Windows GUI installation path is not established by the supplied checks (record 270)
+  9. hypothesis (no evidence pointer, counts for nothing): Behavior-specific coverage for claims 238–240, 242, 244 and 245 cannot be determined from the supplied test-output tail (record 272)
+  10. hypothesis (no evidence pointer, counts for nothing): No mechanical test weakening was reported, but semantic test strength remains unassessed (record 273)
+  11. hypothesis (no evidence pointer, counts for nothing): First-run usability remains unverified (record 277)
+  12. hypothesis (no evidence pointer, counts for nothing): Launcher and readiness claims do not establish a usable first screen (record 278)
+  13. hypothesis (no evidence pointer, counts for nothing): Security coverage remains unverified (record 280)
+  14. hypothesis (no evidence pointer, counts for nothing): Dependency licensing and attribution remain unverified (record 282)
+  15. hypothesis (no evidence pointer, counts for nothing): The Rust CONNECTED results may reflect definition enumeration without tracing the claimed behavior (record 284)
+  16. hypothesis (no evidence pointer, counts for nothing): Exec record 255 provides no independently inspectable execution receipt (record 285)
+  17. hypothesis (no evidence pointer, counts for nothing): The supplied ledger does not allow independent verification of receipt output or current-tree identity (record 286)
+  18. hypothesis (no evidence pointer, counts for nothing): Static zero-finding results leave documented coverage gaps (record 287)
+  19. hypothesis (no evidence pointer, counts for nothing): First-run and archive checks do not establish packaged application behavior (record 288)
+  20. The agent's claim names release/package-appimage.sh which the prompt did not mention: "release/package-appimage.sh runs appimagetool under APPIMAGE_EXTRACT_AND_RUN with no FUSE fallback". Accept it? (record 237)
+  21. The agent's claim names crates/verdict-checkers/src/context.rs which the prompt did not mention: "crates/verdict-checkers/src/context.rs cache_matches_tree digest and cache_matches_changes fingerprint bind the recorded stamp; read_asset is an asset-tier only read". Accept it? (record 238)
+  22. The agent's claim names crates/verdict-desks/src/bin/vdt-provider-codex.rs which the prompt did not mention: "crates/verdict-desks/src/bin/vdt-provider-codex.rs apply_observation keeps observed model/served/usage and records answer claims separately". Accept it? (record 239)
+  23. The agent's claim names crates/verdict-desks/src/bin/vdt-provider-codex.rs which the prompt did not mention: "crates/verdict-desks/src/bin/vdt-provider-codex.rs normalize_answer keeps the desk severity critical (whitelist includes critical; unknown still minor)". Accept it? (record 240)
+  24. The agent's claim names release/package.sh, ~/.verdict/last-project which the prompt did not mention: "release/package.sh macOS bundle ships vdt-launch, which serves the recorded project from ~/.verdict/last-project". Accept it? (record 241)
+  25. The agent's claim names release/dogfood-gate.sh which the prompt did not mention: "release/dogfood-gate.sh fails unless the packet verdict line is exactly CLEAR TO SHIP and never tags or publishes". Accept it? (record 242)
+  26. The agent's claim names crates/verdict-gui/src/setup.rs, crates/verdict-gui/src/lib.rs, /readyz which the prompt did not mention: "crates/verdict-gui/src/setup.rs readiness requires app id, canonical project and the spawned pid; crates/verdict-gui/src/lib.rs serves GET /readyz". Accept it? (record 243)
+  27. The agent's claim names crates/verdict-core/src/export.rs which the prompt did not mention: "crates/verdict-core/src/export.rs renders the packet and sarif exports". Accept it? (record 244)
+  28. The agent's claim names crates/verdict-desks/src/lib.rs, /T which the prompt did not mention: "crates/verdict-desks/src/lib.rs: kill_process_tree ends a timed-out provider's process tree (Windows Job Object or /T walk, Unix process group) and the timeout returns immediately". Accept it? (record 245)
+
+PROMPTS (0)
+  (none recorded)
+
+CLAIMS (9)
+  1. (prompt_translation) release/package-appimage.sh runs appimagetool under APPIMAGE_EXTRACT_AND_RUN with no FUSE fallback  [names: release/package-appimage.sh, APPIMAGE_EXTRACT_AND_RUN]
+  2. (prompt_translation) crates/verdict-checkers/src/context.rs cache_matches_tree digest and cache_matches_changes fingerprint bind the recorded stamp; read_asset is an asset-tier only read  [names: crates/verdict-checkers/src/context.rs, cache_matches_changes, read_asset, cache_matches_tree]
+  3. (prompt_translation) crates/verdict-desks/src/bin/vdt-provider-codex.rs apply_observation keeps observed model/served/usage and records answer claims separately  [names: crates/verdict-desks/src/bin/vdt-provider-codex.rs, apply_observation]
+  4. (prompt_translation) crates/verdict-desks/src/bin/vdt-provider-codex.rs normalize_answer keeps the desk severity critical (whitelist includes critical; unknown still minor)  [names: crates/verdict-desks/src/bin/vdt-provider-codex.rs, normalize_answer]
+  5. (prompt_translation) release/package.sh macOS bundle ships vdt-launch, which serves the recorded project from ~/.verdict/last-project  [names: release/package.sh, vdt-launch, macOS, ~/.verdict/last-project]
+  6. (prompt_translation) release/dogfood-gate.sh fails unless the packet verdict line is exactly CLEAR TO SHIP and never tags or publishes  [names: release/dogfood-gate.sh, CLEAR TO SHIP]
+  7. (prompt_translation) crates/verdict-gui/src/setup.rs readiness requires app id, canonical project and the spawned pid; crates/verdict-gui/src/lib.rs serves GET /readyz  [names: crates/verdict-gui/src/setup.rs, crates/verdict-gui/src/lib.rs, /readyz]
+  8. (prompt_translation) crates/verdict-core/src/export.rs renders the packet and sarif exports  [names: crates/verdict-core/src/export.rs, packet, sarif]
+  9. (prompt_translation) crates/verdict-desks/src/lib.rs: kill_process_tree ends a timed-out provider's process tree (Windows Job Object or /T walk, Unix process group) and the timeout returns immediately  [names: crates/verdict-desks/src/lib.rs, kill_process_tree, /T]
+
+TOOL CALLS (0)
+  (none recorded)
+
+CHECKS
+  wiring: FailedToRun, tier honest_red: 3 item(s) are SKIPPED, so wiring is not established: 6 CONNECTED  0 BROKEN  0 NOT BUILT  0 HALF BUILT  3 SKIPPED; claim 237 (unticked): SKIPPED - APPIMAGE_EXTRACT_AND_RUN: APPIMAGE_EXTRACT_AND_RUN appears at release/package-appimage.sh:57, in a stack no extractor in this build reads; claim 238 (unticked): CONNECTED - crates/verdict-checkers/src/context.rs: crates/verdict-checkers/src/context.rs: 0 route(s) or command(s), 0 call(s), 0 control(s), 40 definition(s) read; nothing broken; claim 239 (unticked): CONNECTED - crates/verdict-desks/src/bin/vdt-provider-codex.rs: crates/verdict-desks/src/bin/vdt-provider-codex.rs: 0 route(s) or command(s), 0 call(s), 0 control(s), 16 definition(s) read; nothing broken; claim 240 (unticked): CONNECTED - crates/verdict-desks/src/bin/vdt-provider-codex.rs: crates/verdict-desks/src/bin/vdt-provider-codex.rs: 0 route(s) or command(s), 0 call(s), 0 control(s), 16 definition(s) read; nothing broken; claim 241 (unticked): CONNECTED - release/package.sh: release/package.sh exists (not source code; nothing to wire); claim 242 (unticked): CONNECTED - release/dogfood-gate.sh: release/dogfood-gate.sh exists (not source code; nothing to wire); claim 243 (unticked): SKIPPED - /readyz: no route, page or call for GET /readyz was found; 1 source file(s) are in a stack no extractor in this build reads (first: crates/verdict-checkers/fixtures/wiring/word_skipped/red/change/svc.go), so a route could be served there; claim 244 (unticked): CONNECTED - crates/verdict-core/src/export.rs: crates/verdict-core/src/export.rs: 0 route(s) or command(s), 0 call(s), 0 control(s), 14 definition(s) read; nothing broken; claim 245 (unticked): SKIPPED - /T: no route, page or call for /T was found; 1 source file(s) are in a stack no extractor in this build reads (first: crates/verdict-checkers/fixtures/wiring/word_skipped/red/change/svc.go), so a route could be served there; unverified: 1 source file(s) in stacks no extractor in this build reads (crates/verdict-checkers/fixtures/wiring/word_skipped/red/change/svc.go) (record 247)
+  baseline_diff: FailedToRun, tier honest_red: this session has no prompt from the human and no claim the human accepted, so nothing says what was asked for (record 249)
+  regressions: Ran, tier static: 0 finding(s); unverified: only relative imports (JS/TS `./x`, Python `from .x`, Rust `mod x;`) are resolved; package and alias imports are not read until the tree-sitter extractor exists (record 250)
+  tests_weakened: Ran, tier static: 0 finding(s); unverified: block comments and docstrings around tests are not read; test frameworks are recognized by line patterns, not a parser (record 251)
+  unfinished: Ran, tier static: 0 finding(s) (record 252)
+  exec: Ran, tier ran: receipt: `cargo test --workspace --locked`; tier ran; exited with code 0; output hash 25e384cc8ba85f376ce1c711b6e3c9b1a780ad4e2a32f41d3bdfb1784110a51a; output tail: e) |      Running tests\page.rs (target\debug\deps\page-6ba20509d90f3533.exe) |      Running unittests src\lib.rs (target\debug\deps\verdict_mcp-e802ea7b8319637a.exe) |      Running tests\commit_anyway.rs (target\debug\deps\commit_anyway-532fc512f4190364.exe) |      Running unittests src\main.rs (target\debug\deps\vdt_mutation_runner-4e72e98a562af975.exe) |    Doc-tests verdict_adapters |    Doc-tests verdict_checkers |    Doc-tests verdict_core |    Doc-tests verdict_desks |    Doc-tests verdict_engine |    Doc-tests verdict_extract |    Doc-tests verdict_generate |    Doc-tests verdict_gui |    Doc-tests verdict_mcp | 0 filtered out; finished in 0.00s |  |  | running 0 tests |  | test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s |  |  | running 0 tests |  | test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s |  |  | running 0 tests |  | test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s |  |  | running 0 tests |  | test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s |  |  | running 0 tests |  | test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s |  | (record 253)
+  exec: Ran, tier ran: receipt: `cargo clippy --workspace --all-targets --locked -- -D warnings`; tier ran; exited with code 0; output hash fd700e2f469ee2cdcfe6bed24f290880550c2c0e84b49bbf89144d641bd766aa; output tail: Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.36s | (record 254)
+  exec: Ran, tier ran: 0 finding(s) (record 255)
+  mutation: SkippedByPolicy, tier unverified: mutation was not required by mutation.require_when (critical_logic_changed, test_sensitivity_uncertain) for this diff: no logic file changed; 0 finding(s) recorded separately (record 256)
+  firstrun: Ran, tier ran: 0 finding(s); first-run command 1 ran and passed: cargo build --workspace --locked; first-run command 2 ran and passed: target/debug/vdt --version (record 257)
+  release: Ran, tier ran: 2 finding(s); release check passed: cargo test --workspace --locked (output blake3 93372c6673ae8da3125202703b1ccdb09f16243b9b3151938977074d37114183); release tags on HEAD: none; release asset dist/*.zip: dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip; release asset dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip sha256 5fe18e97101803a3e5b33460cdd5560e1c6478f038291fdb2ed41ea2cc35fd9a matches dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip.sha256; release asset dist/*.tar.gz: dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz; release asset dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz sha256 ad4147264680a6239a72338d6c5cb8b9a354215f2c0696558adb1f4210aeef33 matches dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256; release asset dist/*.AppImage: missing; release asset dist/*.sha256: dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip.sha256, dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256 (record 260)
+  claims_vs_code: FailedToRun, tier honest_red: this session has no final-message, commit-message or notes-file claims to look up (record 262)
+  desk:engineer: Ran, tier judgment: desk engineer; provider "codex" (vendor openai, requested model "unspecified", returned model None); served vendor None (not_stated); settings Some(Object {"source": String("invocation"), "requested_model": String("unspecified"), "timeout_secs": Number(240), "cwd": String("."), "args": Array []}); usage Some(Object {"input_tokens": Number(28215), "cached_input_tokens": Number(13312), "cache_write_input_tokens": Number(0), "output_tokens": Number(396), "reasoning_output_tokens": Number(142)}); lane release; policy v1; 2 finding(s), 4 hypothesis(ies); 20701 ms (record 269)
+  desk:docs: Ran, tier judgment: desk docs; provider "codex" (vendor openai, requested model "unspecified", returned model None); served vendor None (not_stated); settings Some(Object {"source": String("invocation"), "requested_model": String("unspecified"), "timeout_secs": Number(240), "cwd": String("."), "args": Array []}); usage Some(Object {"input_tokens": Number(28881), "cached_input_tokens": Number(21760), "cache_write_input_tokens": Number(0), "output_tokens": Number(267), "reasoning_output_tokens": Number(93)}); lane release; policy v1; 0 finding(s), 1 hypothesis(ies); 16173 ms (record 271)
+  desk:qa: Ran, tier judgment: desk qa; provider "codex" (vendor openai, requested model "unspecified", returned model None); served vendor None (not_stated); settings Some(Object {"source": String("invocation"), "requested_model": String("unspecified"), "timeout_secs": Number(240), "cwd": String("."), "args": Array []}); usage Some(Object {"input_tokens": Number(27797), "cached_input_tokens": Number(21376), "cache_write_input_tokens": Number(0), "output_tokens": Number(578), "reasoning_output_tokens": Number(42)}); lane release; policy v1; 2 finding(s), 2 hypothesis(ies); 25006 ms (record 276)
+  desk:ux: Ran, tier judgment: desk ux; provider "codex" (vendor openai, requested model "unspecified", returned model None); served vendor None (not_stated); settings Some(Object {"source": String("invocation"), "requested_model": String("unspecified"), "timeout_secs": Number(240), "cwd": String("."), "args": Array []}); usage Some(Object {"input_tokens": Number(27162), "cached_input_tokens": Number(13312), "cache_write_input_tokens": Number(0), "output_tokens": Number(325), "reasoning_output_tokens": Number(22)}); lane release; policy v1; 0 finding(s), 2 hypothesis(ies); 16685 ms (record 279)
+  desk:security: Ran, tier judgment: desk security; provider "codex" (vendor openai, requested model "unspecified", returned model None); served vendor None (not_stated); settings Some(Object {"source": String("invocation"), "requested_model": String("unspecified"), "timeout_secs": Number(240), "cwd": String("."), "args": Array []}); usage Some(Object {"input_tokens": Number(81873), "cached_input_tokens": Number(54400), "cache_write_input_tokens": Number(0), "output_tokens": Number(433), "reasoning_output_tokens": Number(78)}); lane release; policy v1; 0 finding(s), 1 hypothesis(ies); 23685 ms (record 281)
+  desk:legal: Ran, tier judgment: desk legal; provider "codex" (vendor openai, requested model "unspecified", returned model None); served vendor None (not_stated); settings Some(Object {"source": String("invocation"), "requested_model": String("unspecified"), "timeout_secs": Number(240), "cwd": String("."), "args": Array []}); usage Some(Object {"input_tokens": Number(27569), "cached_input_tokens": Number(21760), "cache_write_input_tokens": Number(0), "output_tokens": Number(174), "reasoning_output_tokens": Number(44)}); lane release; policy v1; 0 finding(s), 1 hypothesis(ies); 12174 ms (record 283)
+  desk:refuter: Ran, tier judgment: desk refuter; provider "codex" (vendor openai, requested model "unspecified", returned model None); served vendor None (not_stated); settings Some(Object {"source": String("invocation"), "requested_model": String("unspecified"), "timeout_secs": Number(240), "cwd": String("."), "args": Array []}); usage Some(Object {"input_tokens": Number(27303), "cached_input_tokens": Number(21376), "cache_write_input_tokens": Number(0), "output_tokens": Number(907), "reasoning_output_tokens": Number(63)}); lane release; policy v1; 2 finding(s), 5 hypothesis(ies); 33226 ms (record 291)
+  15 of 19 checks ran.
+
+NOT ESTABLISHED
+  - wiring: could not run: 3 item(s) are SKIPPED, so wiring is not established: 6 CONNECTED  0 BROKEN  0 NOT BUILT  0 HALF BUILT  3 SKIPPED; claim 237 (unticked): SKIPPED - APPIMAGE_EXTRACT_AND_RUN: APPIMAGE_EXTRACT_AND_RUN appears at release/package-appimage.sh:57, in a stack no extractor in this build reads; claim 238 (unticked): CONNECTED - crates/verdict-checkers/src/context.rs: crates/verdict-checkers/src/context.rs: 0 route(s) or command(s), 0 call(s), 0 control(s), 40 definition(s) read; nothing broken; claim 239 (unticked): CONNECTED - crates/verdict-desks/src/bin/vdt-provider-codex.rs: crates/verdict-desks/src/bin/vdt-provider-codex.rs: 0 route(s) or command(s), 0 call(s), 0 control(s), 16 definition(s) read; nothing broken; claim 240 (unticked): CONNECTED - crates/verdict-desks/src/bin/vdt-provider-codex.rs: crates/verdict-desks/src/bin/vdt-provider-codex.rs: 0 route(s) or command(s), 0 call(s), 0 control(s), 16 definition(s) read; nothing broken; claim 241 (unticked): CONNECTED - release/package.sh: release/package.sh exists (not source code; nothing to wire); claim 242 (unticked): CONNECTED - release/dogfood-gate.sh: release/dogfood-gate.sh exists (not source code; nothing to wire); claim 243 (unticked): SKIPPED - /readyz: no route, page or call for GET /readyz was found; 1 source file(s) are in a stack no extractor in this build reads (first: crates/verdict-checkers/fixtures/wiring/word_skipped/red/change/svc.go), so a route could be served there; claim 244 (unticked): CONNECTED - crates/verdict-core/src/export.rs: crates/verdict-core/src/export.rs: 0 route(s) or command(s), 0 call(s), 0 control(s), 14 definition(s) read; nothing broken; claim 245 (unticked): SKIPPED - /T: no route, page or call for /T was found; 1 source file(s) are in a stack no extractor in this build reads (first: crates/verdict-checkers/fixtures/wiring/word_skipped/red/change/svc.go), so a route could be served there; unverified: 1 source file(s) in stacks no extractor in this build reads (crates/verdict-checkers/fixtures/wiring/word_skipped/red/change/svc.go)
+  - baseline_diff: could not run: this session has no prompt from the human and no claim the human accepted, so nothing says what was asked for
+  - claims_vs_code: could not run: this session has no final-message, commit-message or notes-file claims to look up
+  - mutation: skipped by policy (mutation was not required by mutation.require_when (critical_logic_changed, test_sensitivity_uncertain) for this diff: no logic file changed; 0 finding(s) recorded separately)
+  - 16 hypothesis(es) with no evidence pointer count for nothing
+  - whether your real app works: no page was loaded
+  - whether any of the 9 claim(s) is true beyond what the checks above show: claims are the agent's words, not evidence
