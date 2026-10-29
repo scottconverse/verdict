@@ -4,6 +4,16 @@ The tool runs its own release lane before any tag. This file is the procedure an
 The human owns the tag; `vdt` never creates one, and the release workflow creates a **draft**, never
 a published release.
 
+## Owner-authorized v1.0.0 disposition, October29,2026
+
+Scott explicitly authorized merge, tag and publication of the already-tested,
+provenance-pinned artifacts after reconciling the historical verification record.
+For this release, retained CI/installed evidence and the disclosed historical
+record accompany publication; a fresh post-tag CLEAR result is not claimed.
+This disposition does not alter the product's verdict rules or CLEAR-only gate.
+Use the existing signed Windows package; do not rebuild it for a documentation
+commit. `release/VERIFICATION-RECORD.md` states the evidence and its limits.
+The general procedure below remains guidance for future releases.
 ## Candidate
 
 - Version: **1.0.0**

@@ -33,6 +33,23 @@ verified. macOS is intentionally unsigned and not notarized under the owner's
 decision. Linux signing is optional. The script installers remain available for
 silent installation and recovery.
 
+## Verification record
+
+**Historical verification record — reconciled against current evidence.**
+Earlier test attempts and findings are retained for traceability. Existing
+evidence supersedes 27 historical occurrences as current product blockers; two
+pre-release observations concern the then-absent release tag. This is not a new
+list of product defects or a fresh post-tag self-verification result.
+
+The maintainer authorized this release using the retained exact-runtime CI,
+installed receipts and reconciliation. See the attached `VERIFICATION-RECORD.md`,
+`CANDIDATE-PROVENANCE.json` and `HISTORICAL-VERIFICATION-PACKET.txt` for the scope,
+limits and unaltered historical machine output. Runtime `300e9f4` passed
+[three-platform tests](https://github.com/scottconverse/verdict/actions/runs/40930130637)
+and [six-job installation/parity checks](https://github.com/scottconverse/verdict/actions/runs/40930130633).
+The four published artifacts reuse that tested runtime; no bookkeeping rebuild
+replaces the signed Windows package.
+
 ## Honest limits
 
 - Cursor, Antigravity and DeepSeek Harness have not been recorded against a live host in this

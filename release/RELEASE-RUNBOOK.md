@@ -43,7 +43,7 @@ macOS is deliberately unsigned and not notarized: Scott states no macOS signing
 certificate exists or will be obtained. Do not request one again or claim signed
 macOS delivery. Applicable external-desktop evidence retains its recorded limits.
 SmartScreen/UAC/Gatekeeper exercises are not added acceptance requirements.
-Merge, tag, publication and post-tag CLEAR remain separate owner boundaries.
+Scott explicitly authorized this reconciled v1.0.0 merge, tag and publication. A fresh post-tag CLEAR result is not claimed; see VERIFICATION-RECORD.md.
 The failed historical packet must not be relabelled or reset.
 
 ## a) Existing command approval — do not repeat
@@ -166,8 +166,8 @@ evidence supersedes 27 as current product blockers; records268/562 are the still
 absent release tag. No fresh current implementation defect was established by
 that reconciliation. Original ledger history and FAILED report remain intact.
 
-The remaining owner decision is final merge/tag/publication of the pinned tested
-artifacts with the historical FAILED self-verification packet and its limits
+Scott has explicitly authorized final merge/tag/publication of the pinned tested
+artifacts with the historical verification record — reconciled against current evidence and its limits
 disclosed. This is not CLEAR TO SHIP: the old session lacks accepted baseline,
 final claims and fresh ledger checks. The CLEAR-only gate is unchanged. A fresh
 CLEAR result remains incomplete if required instead of release with disclosure.
@@ -176,4 +176,4 @@ Do not mark true historical findings "not real" merely to clear the display.
 Use the signed Windows artifact in CANDIDATE-PROVENANCE.json; do not replace it
 with an unsigned tag-workflow rebuild. No Mac signing certificate, optional
 served-identity side check, trust-screen test or blanket external Desktop run is
-required by this reconciliation. Final publication has not been performed.
+required by this reconciliation. See the v1.0.0 GitHub release for publication status and the pinned assets.

@@ -31,8 +31,8 @@ actual signed archive installed successfully in isolated settings. All four
 artifact hashes still match CANDIDATE-PROVENANCE.json. macOS unsigned distribution
 and the optional served-identity side check follow Scott's explicit dispositions.
 
-**Remaining release decision:** authorize final merge/tag/publication of these
-provenance-pinned artifacts with the historical FAILED self-verification packet
+**Release authorization:** Scott explicitly authorized final merge/tag/publication of these
+provenance-pinned artifacts with the historical verification record — reconciled against current evidence
 and its evidence limits disclosed. No new current implementation defect is
 established by this stale-finding reconciliation. The saved session still lacks
 an accepted baseline/final claims and current ledger check inputs; external CI
