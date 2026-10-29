@@ -114,40 +114,26 @@ APPIMAGETOOL=/tmp/appimagetool sh release/package-appimage.sh 1.0.0 target/relea
 Each produces its artifact **plus `<artifact>.sha256`**, and the archives contain the core (`vdt`,
 `vdt.exe`) with its own `vdt.sha256`, which the setup program verifies before installing.
 
-## e) Signing — requires credentials not present in this environment
+## e) Signing — current Windows candidate completed
 
-**Windows (Authenticode).** A signer needs a code-signing certificate (PFX or a hardware/cloud
-signing profile) and its password/timestamp authority. The exact shape:
+The current Windows archive is already signed. Reuse the exact package and
+checksums in `CANDIDATE-PROVENANCE.json`; do not sign or rebuild it again for
+bookkeeping. Authenticode is Valid for Scott Converse, timestamped by Microsoft;
+installation from the final signed archive passed.
 
-```powershell
-signtool sign /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 `
-  /f <path-to.pfx> /p <password> `
-  dist\vdt-1.0.0-x86_64-pc-windows-msvc\vdt.exe
-signtool sign /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 `
-  /f <path-to.pfx> /p <password> `
-  dist\vdt-1.0.0-x86_64-pc-windows-msvc\Verdict-Setup.exe
-signtool verify /pa dist\vdt-1.0.0-x86_64-pc-windows-msvc\Verdict-Setup.exe
-```
+For a future changed Windows binary, Scott's established sign-only process is
+`scottconverse/civiccast-native/sign-native-installer.yml`, using Azure account
+`scottconverse-signing`, profile `ScottConversePublic`. Its stored credentials
+remain in that workflow. The inputs are an unpublished draft intake asset and
+its exact SHA-256. It returns `signed-native-installer` with the signed file and
+receipt. Verify the returned input/output hashes, Authenticode and timestamp;
+refresh inner and outer checksums and verify affected signed installation.
+Explicit destination approval is required before a future intake upload. Never
+publish that intake draft or copy its secrets into another repository.
 
-Sign the inner executables **before** zipping (the archive's hash changes afterwards, so rebuild
-`dist\*.zip` and its `.sha256` after signing).
-
-**macOS (codesign + notarytool).** A signer needs a Developer ID Application certificate in the
-keychain, an Apple ID/team id and an app-specific password (or API key). The exact shape:
-
-```sh
-codesign --force --options runtime --timestamp --sign "Developer ID Application: <Name> (<TEAMID>)" \
-  dist/vdt-1.0.0-aarch64-apple-darwin/Verdict.app
-xcrun notarytool submit <Verdict-1.0.0-aarch64-apple-darwin.tar.gz> \
-  --apple-id <apple-id> --team-id <TEAMID> --password <app-specific-password> --wait
-xcrun stapler staple dist/vdt-1.0.0-aarch64-apple-darwin/Verdict.app
-```
-
-Linux AppImage signing (optional, if a key exists): `gpg --detach-sign` beside the AppImage.
-
-If required signing cannot run, retain the unsigned candidates with that limitation
-stated. This does not satisfy required signing acceptance or authorize unsigned
-publication. Never describe an unsigned artifact as signed.
+macOS is intentionally unsigned/not notarized under Scott's October 29 decision.
+No macOS certificate will be obtained. Linux signing is optional. Neither is an
+unresolved certificate request or a new completion blocker.
 
 ## f) Tag and publish — human only
 
@@ -159,7 +145,7 @@ git push origin v1.0.0
 gh release create v1.0.0 --draft --title "Verdict 1.0.0" --notes-file release\RELEASE-NOTES.md
 ```
 
-Attach to the release, from the same tag build:
+Attach the provenance-pinned tested artifacts to the release. Documentation-only commits do not require another runtime build. The existing tag workflow can produce a new unsigned candidate; it is not the signed Windows artifact. Before publication, use the signed Windows archive and checksum recorded in CANDIDATE-PROVENANCE.json. Never replace them with an unsigned rebuild.
 
 * the acceptance packet (`release\RELEASE-PACKET.txt`) — attached beside the tag's notes, with any
   commit-anyway override printed next to the `FAILED` verdict it went past;
@@ -171,3 +157,32 @@ Attach to the release, from the same tag build:
 
 Publication stays a separate, deliberate press by the human. Nothing in this runbook tags, merges,
 signs or publishes on its own.
+
+## Current release decision, October 29
+
+No merge, v1.0.0 tag or product release has been created. The current preserved
+session's read-only export is still FAILED, with 16 open blocking findings:
+
+| Records | Subject | Current disposition |
+| --- | --- | --- |
+| 267, 319, 378, 561 | AppImage missing | Superseded artifact situation: actual CI-built AppImage now staged and checksummed; old findings remain open. |
+| 274, 325 | GUI readiness receipt inadequate | New exact installed-core readiness and GUI receipts exist; old findings remain open. |
+| 275, 327 | Platform packaging behavior not established | Current six-job clean-install/parity CI passed; its limits remain recorded. |
+| 289, 344, 402 | Static CONNECTED labels overstate execution proof | Static file existence remains a static tier; current export no longer promotes aggregate checks into individual claim proof. Historical overclaims are preserved. |
+| 290, 345 | Earlier release record wrongly called clean | Historical contradiction retained; never relabel record260 or the old packet clean. |
+| 326 | Earlier mutation run failed | Later completed evidence retained; do not rerun it just to clear a historical judgment. |
+| 268, 562 | v1.0.0 tag missing | Expected until Scott authorizes the actual release tag. |
+
+Human-owned finding decisions have not been fabricated. The release gate still
+requires an actual CLEAR TO SHIP packet; no failed packet is described as clear.
+The old session also reports stale checks and missing accepted prompt/claim
+baseline. Existing external CI and installed receipts remain valid in their
+recorded scope but are not silently inserted into that ledger as fresh checks.
+Closing historical findings alone does not establish a new CLEAR TO SHIP packet.
+
+The remaining owner decision is whether to reconcile the historical session
+through its human controls before releasing, or explicitly authorize delivery
+with its FAILED/limited self-verification record disclosed. Neither is inferred
+from “finish.” Final merge, tag and publication remain deliberate human actions.
+No new Mac signing, AI-identity side check, trust-screen test or blanket external
+Desktop run is added to this list.

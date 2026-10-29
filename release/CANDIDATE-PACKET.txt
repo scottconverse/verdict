@@ -10,39 +10,39 @@ Ledger: intact
 CLAIMS
 ------
 1. [prompt_translation] release/package-appimage.sh runs appimagetool under APPIMAGE_EXTRACT_AND_RUN with no FUSE fallback
-   status: proven (exec ran at the ran tier (record 558) and reported no open finding about it)
+   status: unproven (no positive evidence establishes this individual claim; aggregate check results and absence of findings are not proof)
    names: release/package-appimage.sh, APPIMAGE_EXTRACT_AND_RUN
    record 237
 2. [prompt_translation] crates/verdict-checkers/src/context.rs cache_matches_tree digest and cache_matches_changes fingerprint bind the recorded stamp; read_asset is an asset-tier only read
-   status: proven (exec ran at the ran tier (record 558) and reported no open finding about it)
+   status: unproven (no positive evidence establishes this individual claim; aggregate check results and absence of findings are not proof)
    names: crates/verdict-checkers/src/context.rs, cache_matches_changes, read_asset, cache_matches_tree
    record 238
 3. [prompt_translation] crates/verdict-desks/src/bin/vdt-provider-codex.rs apply_observation keeps observed model/served/usage and records answer claims separately
-   status: proven (exec ran at the ran tier (record 558) and reported no open finding about it)
+   status: unproven (no positive evidence establishes this individual claim; aggregate check results and absence of findings are not proof)
    names: crates/verdict-desks/src/bin/vdt-provider-codex.rs, apply_observation
    record 239
 4. [prompt_translation] crates/verdict-desks/src/bin/vdt-provider-codex.rs normalize_answer keeps the desk severity critical (whitelist includes critical; unknown still minor)
-   status: proven (exec ran at the ran tier (record 558) and reported no open finding about it)
+   status: unproven (no positive evidence establishes this individual claim; aggregate check results and absence of findings are not proof)
    names: crates/verdict-desks/src/bin/vdt-provider-codex.rs, normalize_answer
    record 240
 5. [prompt_translation] release/package.sh macOS bundle ships vdt-launch, which serves the recorded project from ~/.verdict/last-project
-   status: proven (exec ran at the ran tier (record 558) and reported no open finding about it)
+   status: unproven (no positive evidence establishes this individual claim; aggregate check results and absence of findings are not proof)
    names: release/package.sh, vdt-launch, macOS, ~/.verdict/last-project
    record 241
 6. [prompt_translation] release/dogfood-gate.sh fails unless the packet verdict line is exactly CLEAR TO SHIP and never tags or publishes
-   status: proven (exec ran at the ran tier (record 558) and reported no open finding about it)
+   status: unproven (no positive evidence establishes this individual claim; aggregate check results and absence of findings are not proof)
    names: release/dogfood-gate.sh, CLEAR TO SHIP
    record 242
 7. [prompt_translation] crates/verdict-gui/src/setup.rs readiness requires app id, canonical project and the spawned pid; crates/verdict-gui/src/lib.rs serves GET /readyz
-   status: proven (exec ran at the ran tier (record 558) and reported no open finding about it)
+   status: unproven (no positive evidence establishes this individual claim; aggregate check results and absence of findings are not proof)
    names: crates/verdict-gui/src/setup.rs, crates/verdict-gui/src/lib.rs, /readyz
    record 243
 8. [prompt_translation] crates/verdict-core/src/export.rs renders the packet and sarif exports
-   status: proven (exec ran at the ran tier (record 558) and reported no open finding about it)
+   status: unproven (no positive evidence establishes this individual claim; aggregate check results and absence of findings are not proof)
    names: crates/verdict-core/src/export.rs, packet, sarif
    record 244
 9. [prompt_translation] crates/verdict-desks/src/lib.rs: kill_process_tree ends a timed-out provider's process tree (Windows Job Object or /T walk, Unix process group) and the timeout returns immediately
-   status: proven (exec ran at the ran tier (record 558) and reported no open finding about it)
+   status: unproven (no positive evidence establishes this individual claim; aggregate check results and absence of findings are not proof)
    names: crates/verdict-desks/src/lib.rs, kill_process_tree, /T
    record 245
 
@@ -340,39 +340,71 @@ RELEASE EVIDENCE
 - release coherence ran: true
 - open commit-anyway override: no
 - release version: 1.0.0
-- asset dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip: 12802840 bytes, SHA-256 9533eacf1642fb0cca37b7930040f8776b12bee659e5e2f8d2fb3992b5013827
-- asset dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz: 6629510 bytes, SHA-256 ad4147264680a6239a72338d6c5cb8b9a354215f2c0696558adb1f4210aeef33
-- asset dist/*.AppImage: (no file matched)
-- asset dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip.sha256: 103 bytes, SHA-256 36f9a5f8b1be9e13f09f53059c214abf8760fab60c6475141235dadb50abf38a
-- asset dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256: 65 bytes, SHA-256 6cbe6bc8c4469e783b04a47e0ea77dd397e5640ee801bb613c05a58352499006
+- asset dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip: 13797412 bytes, SHA-256 80d8379b20fbd30ee950fd1fa4defe1f0e69902afe4c50dd29c23c2ab448889a
+- asset dist/vdt-1.0.0-aarch64-apple-darwin.tar.gz: 26907587 bytes, SHA-256 57aa157a0090798e35ce678b349fd222d82a4dd962b5aebee2a8c0ac51fb6b83
+- asset dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz: 15000358 bytes, SHA-256 300d008cbeb376e25fb39c29de60bbc518303dd9b6e081fad3c07bee3107e1c8
+- asset dist/Verdict-1.0.0-x86_64.AppImage: 7715320 bytes, SHA-256 ad9a305070d1bafb8ef8d0c75d2b8f59e6987e13f362bc76d51e17bb538a46ee
+- asset dist/vdt-1.0.0-aarch64-apple-darwin.tar.gz.sha256: 104 bytes, SHA-256 8ffe0cd7ac6d937dcd394a29161c9b7f1fbf5d909f471418416f7eda9003f7cf
+- asset dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip.sha256: 103 bytes, SHA-256 1137242e371faffdc6ba470f154601a539c964e8be7fe76a3204d481b049611c
+- asset dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256: 108 bytes, SHA-256 9c674681aefb07f9f6eb7e01d2f14c45c4f95197f88b2a14da8fc12dae7f4983
+- asset dist/Verdict-1.0.0-x86_64.AppImage.sha256: 96 bytes, SHA-256 9990c663946599d28d6db552c615224978b0504dbbd926ed5af0e3d243d5c950
 
 NOT ESTABLISHED
 ---------------
+- lane: .github/workflows/clean-install-and-parity.yml changes code or configuration
+- lane: .github/workflows/release.yml changes code or configuration
 - lane: crates/verdict-adapters/src/hook.rs matches high_if_touches crates/**
 - lane: crates/verdict-adapters/src/install.rs matches high_if_touches crates/**
 - lane: crates/verdict-adapters/src/recorder.rs matches high_if_touches crates/**
 - lane: crates/verdict-adapters/tests/install.rs matches high_if_touches crates/**
 - lane: crates/verdict-cli/tests/hooks.rs matches high_if_touches crates/**
+- lane: crates/verdict-core/src/export.rs matches high_if_touches crates/**
 - lane: crates/verdict-core/src/ledger.rs matches high_if_touches crates/**
+- lane: crates/verdict-core/tests/export.rs matches high_if_touches crates/**
 - lane: crates/verdict-desks/src/bin/vdt-fake-desk.rs matches high_if_touches crates/**
 - lane: crates/verdict-desks/src/bin/vdt-provider-codex.rs matches high_if_touches crates/**
 - lane: crates/verdict-desks/src/lib.rs matches high_if_touches crates/**
 - lane: crates/verdict-desks/tests/desks.rs matches high_if_touches crates/**
+- lane: crates/verdict-engine/tests/verify.rs matches high_if_touches crates/**
+- lane: crates/verdict-gui/src/decisions.rs matches high_if_touches crates/**
 - lane: crates/verdict-gui/src/hooks.rs matches high_if_touches crates/**
 - lane: crates/verdict-gui/src/lib.rs matches high_if_touches crates/**
 - lane: crates/verdict-gui/src/setup.rs matches high_if_touches crates/**
 - lane: crates/verdict-gui/tests/page.rs matches high_if_touches crates/**
+- lane: release/ACCEPTANCE-TOOLS.md matches release_if_touches release/**
 - lane: release/CANDIDATE-ARTIFACTS.txt matches release_if_touches release/**
 - lane: release/CANDIDATE-PACKET.txt matches release_if_touches release/**
+- lane: release/CANDIDATE-PROVENANCE.json matches release_if_touches release/**
 - lane: release/CANDIDATE-RECONCILIATION.md matches release_if_touches release/**
 - lane: release/CANDIDATE-REPORT.txt matches release_if_touches release/**
 - lane: release/CANDIDATE-STATE.md matches release_if_touches release/**
+- lane: release/INSTALLED-FAILOPEN-RECEIPT.md matches release_if_touches release/**
 - lane: release/RELEASE-RUNBOOK.md matches release_if_touches release/**
+- lane: release/copy-ledger.py matches release_if_touches release/**
+- lane: release/cross-vendor-receipt.ps1 matches release_if_touches release/**
+- lane: release/ledger-receipt-delta.ps1 matches release_if_touches release/**
+- lane: release/test-copy-ledger.py matches release_if_touches release/**
+- lane: release/test-ledger-receipt-delta.ps1 matches release_if_touches release/**
 - lane: verdict.json changes code or configuration
 - wiring: could not run: 3 item(s) are SKIPPED, so wiring is not established: 6 CONNECTED  0 BROKEN  0 NOT BUILT  0 HALF BUILT  3 SKIPPED; claim 237 (unticked): SKIPPED - APPIMAGE_EXTRACT_AND_RUN: APPIMAGE_EXTRACT_AND_RUN appears at release/package-appimage.sh:57, in a stack no extractor in this build reads; claim 238 (unticked): CONNECTED - crates/verdict-checkers/src/context.rs: crates/verdict-checkers/src/context.rs: 0 route(s) or command(s), 0 call(s), 0 control(s), 40 definition(s) read; nothing broken; claim 239 (unticked): CONNECTED - crates/verdict-desks/src/bin/vdt-provider-codex.rs: crates/verdict-desks/src/bin/vdt-provider-codex.rs: 0 route(s) or command(s), 0 call(s), 0 control(s), 18 definition(s) read; nothing broken; claim 240 (unticked): CONNECTED - crates/verdict-desks/src/bin/vdt-provider-codex.rs: crates/verdict-desks/src/bin/vdt-provider-codex.rs: 0 route(s) or command(s), 0 call(s), 0 control(s), 18 definition(s) read; nothing broken; claim 241 (unticked): CONNECTED - release/package.sh: release/package.sh exists (not source code; nothing to wire); claim 242 (unticked): CONNECTED - release/dogfood-gate.sh: release/dogfood-gate.sh exists (not source code; nothing to wire); claim 243 (unticked): SKIPPED - /readyz: no route, page or call for GET /readyz was found; 1 source file(s) are in a stack no extractor in this build reads (first: crates/verdict-checkers/fixtures/wiring/word_skipped/red/change/svc.go), so a route could be served there; claim 244 (unticked): CONNECTED - crates/verdict-core/src/export.rs: crates/verdict-core/src/export.rs: 0 route(s) or command(s), 0 call(s), 0 control(s), 14 definition(s) read; nothing broken; claim 245 (unticked): SKIPPED - /T: no route, page or call for /T was found; 1 source file(s) are in a stack no extractor in this build reads (first: crates/verdict-checkers/fixtures/wiring/word_skipped/red/change/svc.go), so a route could be served there; unverified: 1 source file(s) in stacks no extractor in this build reads (crates/verdict-checkers/fixtures/wiring/word_skipped/red/change/svc.go)
 - baseline_diff: could not run: this session has no prompt from the human and no claim the human accepted, so nothing says what was asked for
+- regressions: not established: the code changed after this check ran
+- tests_weakened: not established: the code changed after this check ran
 - claims_vs_code: could not run: this session has no final-message, commit-message or notes-file claims to look up
+- unfinished: not established: the code changed after this check ran
+- exec: not established: the code changed after this check ran
+- mutation: not established: the code changed after this check ran
+- firstrun: not established: the code changed after this check ran
+- release: not established: the code changed after this check ran
+- desk:engineer: not established: the code changed after this check ran
+- desk:docs: not established: the code changed after this check ran
+- desk:qa: not established: the code changed after this check ran
+- desk:ux: not established: the code changed after this check ran
+- desk:security: not established: the code changed after this check ran
+- desk:legal: not established: the code changed after this check ran
+- desk:refuter: not established: the code changed after this check ran
 - 122 hypothesis(es) with no evidence pointer count for nothing
+- whether your build and tests pass: nothing was run
 - whether your real app works: no page was loaded
 
 THE REPORT AS PRINTED

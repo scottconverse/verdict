@@ -26,9 +26,12 @@ agents, built on one rule: **the agent writes claims, never verdicts.**
 
 ## Install
 
-Windows: run `install.ps1` from the release archive. Linux/macOS: `sh install.sh`. Each verifies the
-adjacent `.sha256`, installs `vdt`, and opens the page at `http://127.0.0.1:4717/`. The archives are
-**unsigned** unless the release says otherwise.
+Windows: double-click `Verdict-Setup.exe`; Linux: run the AppImage; macOS: open
+`Verdict.app`. The Windows core and setup launcher are Azure-signed as Scott
+Converse with a Microsoft timestamp; the final signed archive was installed and
+verified. macOS is intentionally unsigned and not notarized under the owner's
+decision. Linux signing is optional. The script installers remain available for
+silent installation and recovery.
 
 ## Honest limits
 
@@ -37,7 +40,8 @@ adjacent `.sha256`, installs `vdt`, and opens the page at `http://127.0.0.1:4717
   `check_unavailable`, never a clean result.
 - The Windows process tree uses a suspended start and a job object; the Unix path is covered by CI
   but was not run by hand on this machine.
-- Signed installers need certificates the project does not hold.
+- Windows signing uses the existing ScottConversePublic Azure profile. No macOS
+  signing certificate is planned; do not describe the macOS package as notarized.
 
 ## Licence
 

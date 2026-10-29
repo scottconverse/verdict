@@ -40,7 +40,7 @@ The outer `.sha256` is for checking the download before extracting. The inner on
 installer verifies after extraction; a missing inner checksum is an error, not a warning
 (`-AllowUnverified` / `VDT_ALLOW_UNVERIFIED=1` is the explicit override).
 
-## Before the tag (all runnable now)
+## Before the tag (reuse completed evidence)
 
 ```text
 cargo fmt --all --check
@@ -54,7 +54,11 @@ vdt export --packet --lane release --out "$TEMP/verdict-packet.txt"
 vdt export --sarif  --out release/findings.sarif
 ```
 
-The fourth command must fail: with the checkers stubbed out every red fixture has to go red.
+The commands above document the required checks; they are not a request to repeat
+the completed candidate CI, mutation or desk runs. Reuse the exact results and
+artifact provenance in `release/CANDIDATE-PROVENANCE.json`. The stubbed-checker
+command must fail when it is required by a changed checker; it is not an extra
+release-loop step for documentation or signing.
 
 The release check runs the `release` block of `verdict.json` **first** (the project's own
 release-truth commands), then the generic checks: tag on HEAD, the version read from the manifest's
@@ -75,8 +79,9 @@ configured a cross-vendor provider. That is the honest pre-tag state, not a clea
 4. On the tagged revision, on a machine where the human has approved the project's commands and a
    cross-vendor desk provider is configured, run the release lane and export the packet. It must
    say `CLEAR TO SHIP` for this tag. Attach it to the draft.
-5. Supply signing certificates if signed installers are required. Without them the archives are
-   checksummed but **unsigned**, and the release notes say so.
+5. Reuse the completed Azure-signed Windows candidate and refreshed checksums.
+   macOS is intentionally unsigned/not notarized by owner decision. Do not ask
+   for a Mac certificate or substitute an unsigned workflow rebuild for Windows.
 6. Publish the draft. Download one archive, check its `.sha256`, and run the installer. The
    installer places `vdt`, makes a desktop shortcut on that project on Windows, and opens the local
    page. After that the workflow is no-terminal: every decision is a button on
@@ -84,8 +89,8 @@ configured a cross-vendor provider. That is the honest pre-tag state, not a clea
 
 ## Install, upgrade and rollback
 
-- Windows: double-click `Verdict-Setup.exe` from the archive. The unsigned binary shows
-  SmartScreen; choose More info → Run anyway. The wizard installs `vdt` under
+- Windows: double-click the Azure-signed `Verdict-Setup.exe` from the archive.
+  Its signature identifies Scott Converse. The wizard installs `vdt` under
   `%LOCALAPPDATA%\Verdict\bin`, registers the hosts you tick, makes a shortcut for the chosen
   project and opens its page. Upgrade: run the newer package; rollback: run the previous one.
 - macOS: double-click `Verdict.app` (unsigned: right-click → Open the first time). It installs the
@@ -105,9 +110,15 @@ configured a cross-vendor provider. That is the honest pre-tag state, not a clea
   to exist.
 - The `CLEAR TO SHIP` packet for the tag itself: it is computed on the tagged revision, with the
   human's command approval and a configured cross-vendor provider, and attached to the release.
-- Signed-installer verification, which needs the certificates.
+- Current Windows signed-installer verification is already complete. Reverify only
+  if the actual signed download changes; macOS signing is not required by the owner.
 
 Write the release packet outside the project and attach it after it is computed: writing it into
 the tree first would make the tree differ from the one the checks were stamped on, and every check
 would read stale. `--lane release` makes the packet state the lane the run was made in, never lower
 than the lane the diff implies.
+
+Current closeout: the preserved historical session still computes FAILED; see
+release/RELEASE-RUNBOOK.md for the exact open records and owner decision. The
+served-identity side check is optional, not a new completion blocker. Never
+claim CLEAR TO SHIP by editing a packet or silently dismissing old findings.
