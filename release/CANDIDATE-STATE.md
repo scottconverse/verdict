@@ -6,8 +6,8 @@ file (docs/records only). Branch `merge-trial`; worktree clean; nothing merged, 
 
 Two different counts, both true and not interchangeable:
 
-* **Contract rows:** `49 of 56 requirements verified` (Auditor-verified; FULL-12-0, VALIDATION,
-  WORK-ORDER and SAFE-DELIVERY are closed). Open: SPEC-8, SPEC-13, SPEC-15, F25, F27, F28, F29.
+* **Contract rows:** `50 of 56 requirements verified` (Auditor-verified; FULL-12-0, VALIDATION,
+  WORK-ORDER, SAFE-DELIVERY and F28 are closed). Open: SPEC-8, SPEC-13, SPEC-15, F25, F27, F29.
 * **Packet checks at this head:** `99 of 130 checks ran` at `b75010f`; build/tests, firstrun and
   mutation all ran under the Scott-authorized delegated approval (record 406 — Codex submitted the
   real `/decide` form on Scott's explicit instruction; see the reconciliation). No approval is
