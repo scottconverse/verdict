@@ -92,7 +92,8 @@ jobs:
           set -euo pipefail
           cp docs/RELEASE.md dist/RELEASE.md
           cp release/RELEASE-NOTES.md dist/RELEASE-NOTES.md
-          if [ -f release/PACKET-BEFORE-TAG.txt ]; then
+          # The pre-tag packet is the 1.0.0 record; later releases do not carry it.
+          if [ "$GITHUB_REF_NAME" = v1.0.0 ] && [ -f release/PACKET-BEFORE-TAG.txt ]; then
             cp release/PACKET-BEFORE-TAG.txt dist/PACKET-BEFORE-TAG.txt
           fi
       - name: Verify the download checksums

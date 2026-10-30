@@ -268,7 +268,7 @@ impl Ledger {
             tx.execute_batch("PRAGMA user_version = 1")?;
             tx.commit()?;
         }
-        let seal_home = path.as_ref().and_then(|_| crate::policy::home_dir());
+        let seal_home = path.as_ref().and_then(|_| default_seal_home());
         Ok(Ledger {
             conn,
             path,
@@ -773,4 +773,15 @@ fn insert(
         kind,
         stored_as_hypothesis: kind == RecordKind::Hypothesis,
     })
+}
+
+/// The home folder that holds the seal key and the sealed-ledger list. Debug builds (the test
+/// suite) read `VDT_SEAL_HOME` first; `.cargo/config.toml` points it under `target/`, so tests never
+/// write to the real `~/.verdict`. Release builds ignore it.
+fn default_seal_home() -> Option<PathBuf> {
+    #[cfg(debug_assertions)]
+    if let Some(home) = std::env::var_os("VDT_SEAL_HOME").filter(|v| !v.is_empty()) {
+        return Some(PathBuf::from(home));
+    }
+    crate::policy::home_dir()
 }

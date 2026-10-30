@@ -45,6 +45,7 @@ fn vdt(dir: &Path, args: &[&str]) -> Output {
         // Keep a developer's own global policy out of the test.
         .env("USERPROFILE", dir)
         .env("HOME", dir)
+        .env("VDT_SEAL_HOME", dir)
         .output()
         .unwrap()
 }

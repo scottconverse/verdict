@@ -40,6 +40,7 @@ fn vdt_exe() -> &'static str {
 fn run(cmd: &mut Command, home: &Path) -> Output {
     cmd.env("HOME", home)
         .env("USERPROFILE", home)
+        .env("VDT_SEAL_HOME", home)
         .env("GIT_CONFIG_NOSYSTEM", "1")
         // The person at the terminal types yes (debug builds read this for the test suite).
         .env("VDT_TEST_TYPED", "yes")
@@ -255,6 +256,7 @@ fn enforce_mode_holds_a_failed_commit_until_the_human_chooses_commit_anyway_with
             .args(["commit-anyway", "--reason", "hotfix", "--i-am-the-human"])
             .env("HOME", &r.home.0)
             .env("USERPROFILE", &r.home.0)
+            .env("VDT_SEAL_HOME", &r.home.0)
             .env_remove("VDT_TEST_TYPED")
             .stdin(Stdio::null());
         if let Some(typed) = typed {

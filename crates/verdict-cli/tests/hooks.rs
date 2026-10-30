@@ -36,6 +36,7 @@ fn command(dir: &Path, home: &Path, args: &[&str]) -> Command {
         .current_dir(dir)
         .env("USERPROFILE", home)
         .env("HOME", home)
+        .env("VDT_SEAL_HOME", home)
         .env("CODEX_HOME", home.join(".codex"))
         // The person at the terminal types yes (debug builds read this for the test suite).
         .env("VDT_TEST_TYPED", "yes");

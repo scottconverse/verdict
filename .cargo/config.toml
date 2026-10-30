@@ -1,0 +1,4 @@
+# Tests (debug builds) keep the seal key and sealed-ledger list under target/, never in the real
+# ~/.verdict. Release builds ignore VDT_SEAL_HOME.
+[env]
+VDT_SEAL_HOME = { value = "target/test-seal-home", relative = true }
