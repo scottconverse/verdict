@@ -150,6 +150,16 @@ enum Command {
         #[arg(long = "i-am-the-human")]
         i_am_the_human: bool,
     },
+    /// Accept the rules (verdict.json or the global policy) as they are now, after they changed
+    /// during this session (human only).
+    AcceptPolicy {
+        /// Project folder (default: found from the current folder).
+        #[arg(long)]
+        project: Option<std::path::PathBuf>,
+        /// You, the human, are doing this. Without it vdt only prints what it would change.
+        #[arg(long = "i-am-the-human")]
+        i_am_the_human: bool,
+    },
     /// Read the whole project for broken calls, routes nothing calls, controls with no handler,
     /// called stubs, unfinished work and regressions. No session, no claims; writes nothing and
     /// always exits 0.
@@ -573,6 +583,60 @@ fn main() -> ExitCode {
                 &cwd,
             );
         }
+        Command::AcceptPolicy {
+            project,
+            i_am_the_human,
+        } => {
+            let root = find_project_root(project.as_deref().unwrap_or(&cwd));
+            let c = |e: String| {
+                eprintln!("vdt: {e}");
+                ExitCode::from(1)
+            };
+            let mut ledger = match Ledger::open(&root) {
+                Ok(l) => l,
+                Err(e) => return c(e.to_string()),
+            };
+            let session = match verdict_core::part1c::resolve_session(&ledger, None) {
+                Ok(Some(s)) => s,
+                Ok(None) => return c("there is no open session; there is nothing to accept".into()),
+                Err(e) => return c(e.to_string()),
+            };
+            let policy = match verdict_core::policy::Policy::load(&root, None) {
+                Ok(p) => p,
+                Err(e) => return c(format!("the policy could not be read: {e}")),
+            };
+            let change = match verdict_core::verdict::policy_change(&ledger, &session, &policy) {
+                Ok(c) => c,
+                Err(e) => return c(e.to_string()),
+            };
+            let Some(change) = change else {
+                println!("The rules have not changed during this session. Nothing was recorded.");
+                return ExitCode::SUCCESS;
+            };
+            if !i_am_the_human {
+                println!("{change}");
+                println!(
+                    "Nothing was recorded. Re-run with --i-am-the-human to accept the rules as they are now."
+                );
+                return ExitCode::SUCCESS;
+            }
+            match verdict_core::human::apply(
+                &root,
+                &mut ledger,
+                &session,
+                &verdict_core::human::Action::AcceptPolicy,
+                None,
+            ) {
+                Ok(seq) => {
+                    println!(
+                        "Recorded your acceptance of the current rules (policy {}) as decision record {seq}.",
+                        &policy.hash[..policy.hash.len().min(12)]
+                    );
+                    return ExitCode::SUCCESS;
+                }
+                Err(e) => return c(format!("nothing was recorded: {e}")),
+            }
+        }
         Command::Gate { action } => return p2b::gate(action, &cwd),
         Command::CommitAnyway(args) => return p2b::commit_anyway(args, &cwd),
         Command::ApproveCommands {
@@ -751,7 +815,8 @@ fn run(cli: Cli, cwd: &Path, out: &mut dyn Write) -> Result<u8, LedgerError> {
             | Command::Verdict { .. }
             | Command::Gate { .. }
             | Command::CommitAnyway(_)
-            | Command::ApproveCommands { .. } => {} // handled in main
+            | Command::ApproveCommands { .. }
+            | Command::AcceptPolicy { .. } => {} // handled in main
         }
         return Ok(0);
     };
@@ -810,6 +875,7 @@ fn run(cli: Cli, cwd: &Path, out: &mut dyn Write) -> Result<u8, LedgerError> {
         | Command::Verdict { .. }
         | Command::Gate { .. }
         | Command::CommitAnyway(_)
-        | Command::ApproveCommands { .. } => Ok(0), // handled in main
+        | Command::ApproveCommands { .. }
+        | Command::AcceptPolicy { .. } => Ok(0), // handled in main
     }
 }

@@ -69,6 +69,9 @@ pub struct VerdictInput {
     /// Evidence pointers of the session's findings whose hash no longer matches the tree (or whose
     /// file or line is gone), as plain lines. Filled in by [`live_input`], which has the tree.
     pub stale_pointers: Vec<String>,
+    /// Set when the rules in force now are not the rules the session started with, and no human
+    /// has accepted the new ones (why). The verdict then cannot be clean.
+    pub policy_changed: Option<String>,
 }
 
 impl VerdictInput {
@@ -103,6 +106,7 @@ impl VerdictInput {
             current_tree: None,
             diff_unavailable: None,
             stale_pointers: Vec::new(),
+            policy_changed: None,
         }
     }
 }
@@ -930,6 +934,9 @@ pub fn compute(
             crate::lane::lane_name(input.implied_lane)
         ));
     }
+    if let Some(why) = &input.policy_changed {
+        settle.push(why.clone());
+    }
     let translations: Vec<String> = open_decisions(ledger, Some(session))?
         .into_iter()
         .filter(|d| d.decision == DecisionKind::AcceptPromptTranslation)
@@ -1004,6 +1011,12 @@ pub fn compute(
         if withheld.is_empty() && !override_open {
             word = VerdictWord::ClearToShip;
         }
+    }
+    // Never clean on rules that changed under the session until a human accepts them.
+    if input.policy_changed.is_some()
+        && matches!(word, VerdictWord::Verified | VerdictWord::ClearToShip)
+    {
+        word = VerdictWord::NeedsYou;
     }
     // Never clean on a broken ledger, whatever else is true.
     if !integrity.is_ok() && matches!(word, VerdictWord::Verified | VerdictWord::ClearToShip) {
@@ -1087,6 +1100,11 @@ pub fn compute(
     }
     if !integrity.is_ok() {
         ne.push("whether this ledger can be trusted: it failed verification".into());
+    }
+    if input.policy_changed.is_some() {
+        ne.push(
+            "whether the checks used the rules the session started with: the rules changed".into(),
+        );
     }
 
     let ts = three_state(&a, lane);
@@ -1175,6 +1193,7 @@ pub fn live_input(
     input.current_tree = crate::baseline::tree_state(root);
     input.diff_unavailable = touched.unreadable;
     input.stale_pointers = stale_pointer_lines(ledger, session, root);
+    input.policy_changed = policy_change(ledger, session, &policy)?;
     Ok(Live {
         input,
         policy,
@@ -1182,6 +1201,47 @@ pub fn live_input(
         paths,
         warnings,
     })
+}
+
+/// Whether the rules changed during `session`: the session records the policy hash it started
+/// with, and the agent must not weaken the rules after that (design.md: the agent cannot "edit the
+/// policy"). Returns why, or `None` when the rules are the ones the session started with or a human
+/// accepted exactly these rules with an `accept_policy` decision in this session.
+pub fn policy_change(
+    ledger: &Ledger,
+    session: &str,
+    policy: &Policy,
+) -> Result<Option<String>, LedgerError> {
+    let mut started: Option<String> = None;
+    let mut accepted: Vec<String> = Vec::new();
+    for s in ledger.records_for_session(session)? {
+        match &s.record {
+            Record::Session { policy_hash, .. } if started.is_none() => {
+                started = Some(policy_hash.clone())
+            }
+            Record::Decision {
+                decision: DecisionKind::AcceptPolicy,
+                choice,
+                who: crate::Writer::Human,
+                ..
+            } => accepted.push(choice.trim().to_string()),
+            _ => {}
+        }
+    }
+    let Some(started) = started else {
+        return Ok(None);
+    };
+    if started == policy.hash || accepted.iter().any(|h| *h == policy.hash) {
+        return Ok(None);
+    }
+    let short = |h: &str| h.chars().take(12).collect::<String>();
+    Ok(Some(format!(
+        "the rules changed during this session (verdict.json or the global policy): the session \
+         started with policy {} and the policy now is {}. Review the change, then accept it with \
+         `vdt accept-policy`, or put the old rules back",
+        short(&started),
+        short(&policy.hash)
+    )))
 }
 
 /// Evidence of this session's open findings that no longer matches the tree: the design requires

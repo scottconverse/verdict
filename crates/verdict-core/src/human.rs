@@ -55,6 +55,8 @@ pub enum Action {
     WaiveWords(String),
     /// Register Verdict's MCP server with a host (human only, like installing hooks).
     McpInstall(String),
+    /// Accept the rules as they are now, after they changed during this session.
+    AcceptPolicy,
 }
 
 /// Parse a pause duration: a whole number then `s`, `m`, `h` or `d`. Returns seconds.
@@ -287,6 +289,22 @@ pub fn apply(
                 crate::exec_approval::approval_choice(&policy),
                 None,
             )
+        }
+        Action::AcceptPolicy => {
+            // The acceptance names exactly the rules in force now (by hash).
+            let policy = crate::policy::Policy::load(root, home).map_err(|e| {
+                format!("the policy could not be read, so there is nothing to accept: {e}")
+            })?;
+            if crate::verdict::policy_change(ledger, session, &policy)
+                .map_err(io)?
+                .is_none()
+            {
+                return Err(
+                    "the rules have not changed during this session; there is nothing to accept"
+                        .into(),
+                );
+            }
+            (DecisionKind::AcceptPolicy, policy.hash.clone(), None)
         }
         Action::RaiseLane(lane) => {
             let c = compute_live(root, ledger, session, home).map_err(io)?;
