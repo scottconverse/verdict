@@ -961,10 +961,10 @@ pub fn run(
     // A provider that starts a program runs only under the human's approval of exactly this
     // configuration. A repo's own verdict.json cannot approve the programs it names.
     let approved = verdict_core::exec_approval::approved_now(ledger, policy)?;
-    let (allowed, unapproved): (Vec<&Box<dyn DeskProvider>>, Vec<&Box<dyn DeskProvider>>) =
-        providers
-            .iter()
-            .partition(|p| approved || !p.starts_a_program());
+    type Picked<'a> = Vec<&'a Box<dyn DeskProvider>>;
+    let (allowed, unapproved): (Picked, Picked) = providers
+        .iter()
+        .partition(|p| approved || !p.starts_a_program());
     if allowed.is_empty() && !unapproved.is_empty() {
         let names: Vec<&str> = unapproved.iter().map(|p| p.name()).collect();
         let reason = format!(

@@ -1231,7 +1231,7 @@ pub fn policy_change(
     let Some(started) = started else {
         return Ok(None);
     };
-    if started == policy.hash || accepted.iter().any(|h| *h == policy.hash) {
+    if started == policy.hash || accepted.contains(&policy.hash) {
         return Ok(None);
     }
     let short = |h: &str| h.chars().take(12).collect::<String>();
