@@ -77,7 +77,7 @@ state="${VERDICT_STATE_DIR:-$HOME/.verdict}/last-project"
 if [ -f "$state" ]; then
   IFS= read -r project < "$state" || project=""
   if [ -n "$project" ] && [ -d "$project" ]; then
-    exec "$HERE/vdt" serve --project "$project"
+    exec "$HERE/vdt" serve --open --project "$project"
   fi
 fi
 exec "$HERE/vdt-setup"

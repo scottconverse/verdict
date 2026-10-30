@@ -51,7 +51,7 @@ function Wait-Page([int]$Seconds) {
   $until = (Get-Date).AddSeconds($Seconds)
   while ((Get-Date) -lt $until) {
     try {
-      $r = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:4717/" -TimeoutSec 2
+      $r = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:4717/readyz" -TimeoutSec 2
       if ($r.StatusCode -eq 200) { return $true }
     } catch { Start-Sleep -Milliseconds 300 }
   }
@@ -91,18 +91,18 @@ function Install-Verdict {
     $shortcut.TargetPath = $target
     # Keep the project the human chose: the page resolves its project from this argument, not from
     # whatever folder the shortcut happens to start in.
-    $shortcut.Arguments = "serve --project `"$ProjectDir`""
+    $shortcut.Arguments = "serve --open --project `"$ProjectDir`""
     $shortcut.WorkingDirectory = $ProjectDir
     $shortcut.Description = "Verdict: start the local page"
     $shortcut.Save()
   }
 
   if ($OpenPage -and -not $NoLaunch) {
-    Start-Process $target -ArgumentList @("serve", "--project", $ProjectDir) -WorkingDirectory $ProjectDir
+    # The page opens its own one-time link in the browser (--open). A plain address is refused.
+    Start-Process $target -ArgumentList @("serve", "--open", "--project", $ProjectDir) -WorkingDirectory $ProjectDir
     if (-not (Wait-Page 20)) {
       Write-Warning "the Verdict page did not answer on 127.0.0.1:4717 yet; it may still be starting, or another program may hold the port"
     }
-    Start-Process "http://127.0.0.1:4717/"
   }
   return $target
 }
@@ -186,8 +186,7 @@ function Run-Gui {
     try {
       $target = Install-Verdict -ProjectDir $box.Text -RegisterHosts $register.Checked -MakeShortcut $shortcut.Checked -OpenPage $open.Checked
       $status.Text = "Installed $target"
-      [System.Windows.Forms.MessageBox]::Show("Verdict is installed.`n`n$target`n`nThe page opens when you press OK.", "Verdict", "OK", "Information") | Out-Null
-      if ($open.Checked) { Start-Process "http://127.0.0.1:4717/" }
+      [System.Windows.Forms.MessageBox]::Show("Verdict is installed.`n`n$target`n`nIf you chose to open the page, it is open in your browser.", "Verdict", "OK", "Information") | Out-Null
       $form.Close()
     } catch {
       $status.Text = "Install failed: $($_.Exception.Message)"

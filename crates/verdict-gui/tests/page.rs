@@ -102,7 +102,54 @@ struct Reply {
     body: String,
 }
 
+/// Open the one-time link like the human's browser does, once per page, and keep the cookie.
+fn cookie(page: &Page) -> String {
+    use std::collections::HashMap;
+    use std::sync::{Mutex, OnceLock};
+    static COOKIES: OnceLock<Mutex<HashMap<u16, String>>> = OnceLock::new();
+    let mut map = COOKIES
+        .get_or_init(|| Mutex::new(HashMap::new()))
+        .lock()
+        .unwrap();
+    map.entry(page.addr.port())
+        .or_insert_with(|| {
+            let path = &page.link[page.link.find("/?k=").expect("a one-time link")..];
+            let mut s = TcpStream::connect(page.addr).unwrap();
+            let req = format!(
+                "GET {path} HTTP/1.1\r\nHost: 127.0.0.1:{}\r\nConnection: close\r\n\r\n",
+                page.addr.port()
+            );
+            s.write_all(req.as_bytes()).unwrap();
+            let mut raw = String::new();
+            let _ = s.read_to_string(&mut raw);
+            assert!(
+                raw.starts_with("HTTP/1.1 303"),
+                "the link lets the browser in: {raw}"
+            );
+            raw.lines()
+                .find_map(|l| l.strip_prefix("set-cookie: vdt_page="))
+                .and_then(|v| v.split(';').next())
+                .map(|v| format!("vdt_page={v}"))
+                .expect("the link sets the page cookie")
+        })
+        .clone()
+}
+
 fn http(
+    page: &Page,
+    method: &str,
+    path: &str,
+    extra_headers: &[(&str, &str)],
+    body: Option<&str>,
+    host: Option<&str>,
+) -> Reply {
+    let c = cookie(page);
+    let mut h = vec![("Cookie", c.as_str())];
+    h.extend_from_slice(extra_headers);
+    http_raw(page, method, path, &h, body, host)
+}
+
+fn http_raw(
     page: &Page,
     method: &str,
     path: &str,
@@ -635,4 +682,50 @@ fn the_page_needs_no_internet_and_uses_large_high_contrast_text() {
         checked += 1;
     }
     assert!(checked >= 8, "only {checked} colour rules checked");
+}
+
+#[test]
+fn a_program_without_the_one_time_link_cannot_read_the_token_or_press_a_button() {
+    let f = fixture();
+    let before = decisions(&f.dir.0).len();
+    // A script loads the page the old way: refused, and the token is not in the reply.
+    let r = http_raw(&f.page, "GET", "/", &[], None, None);
+    assert_eq!(r.status, 403, "{}", r.body);
+    assert!(!r.body.contains(&f.page.token));
+    assert!(r.body.contains("open the link that vdt serve printed"));
+    // Even with the right token and Origin, a press with no page cookie writes nothing.
+    let r = http_raw(
+        &f.page,
+        "POST",
+        "/install-hooks",
+        &[("Origin", &origin(&f)), ("Sec-Fetch-Site", "same-origin")],
+        Some(&install_body(&f, "claude_code", &f.page.token)),
+        None,
+    );
+    assert_eq!(r.status, 403, "{}", r.body);
+    assert_eq!(decisions(&f.dir.0).len(), before, "nothing was recorded");
+    // A wrong code and a forged cookie are refused too.
+    let r = http_raw(&f.page, "GET", "/?k=wrong", &[], None, None);
+    assert_eq!(r.status, 403);
+    let r = http_raw(
+        &f.page,
+        "GET",
+        "/",
+        &[("Cookie", "vdt_page=forged")],
+        None,
+        None,
+    );
+    assert_eq!(r.status, 403);
+    // The human's browser opens the link once and gets in.
+    let r = get(&f.page, "/");
+    assert_eq!(r.status, 200);
+    assert!(r.body.contains(&f.page.token));
+    // The same link a second time is refused, and says why.
+    let path = &f.page.link[f.page.link.find("/?k=").unwrap()..];
+    let r = http_raw(&f.page, "GET", path, &[], None, None);
+    assert_eq!(r.status, 403);
+    assert!(r.body.contains("already used"), "{}", r.body);
+    // The health probe the installer uses still answers with no cookie.
+    let r = http_raw(&f.page, "GET", "/readyz", &[], None, None);
+    assert_eq!(r.status, 200);
 }

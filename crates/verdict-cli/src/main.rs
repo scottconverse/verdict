@@ -226,6 +226,9 @@ enum Command {
         /// Project folder (default: found from the current folder).
         #[arg(long)]
         project: Option<std::path::PathBuf>,
+        /// Open the page's one-time link in the default browser.
+        #[arg(long)]
+        open: bool,
     },
 }
 
@@ -559,9 +562,13 @@ fn main() -> ExitCode {
                     .collect(),
             });
         }
-        Command::Serve { port, project } => {
+        Command::Serve {
+            port,
+            project,
+            open,
+        } => {
             let root = find_project_root(project.as_deref().unwrap_or(&cwd));
-            return match verdict_gui::serve(root, *port) {
+            return match verdict_gui::serve_with(root, *port, *open) {
                 Ok(()) => ExitCode::SUCCESS,
                 Err(e) => {
                     eprintln!("vdt: cannot serve the page on 127.0.0.1:{port}: {e}");

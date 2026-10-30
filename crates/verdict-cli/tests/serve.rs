@@ -31,30 +31,46 @@ fn vdt_serve_listens_on_loopback_and_serves_the_sessions_page() {
         .stderr(Stdio::null())
         .spawn()
         .unwrap();
-    let mut first = String::new();
-    // Keep the reader (and so the pipe) open until the request is done.
+    // Keep the reader (and so the pipe) open until the requests are done.
     let mut stdout = BufReader::new(child.stdout.take().unwrap());
+    let mut first = String::new();
     stdout.read_line(&mut first).unwrap();
-    let url = first.trim().strip_prefix("Verdict page: ").expect(&first);
-    let hostport = url
-        .strip_prefix("http://")
-        .unwrap()
-        .trim_end_matches('/')
-        .to_string();
+    let url = first
+        .trim()
+        .strip_prefix("Verdict page (open this link once): ")
+        .expect(&first);
+    let rest = url.strip_prefix("http://").unwrap();
+    let (hostport, path) = rest.split_at(rest.find('/').unwrap());
     assert!(hostport.starts_with("127.0.0.1:"), "{url}");
-
-    let mut s = TcpStream::connect(&hostport).unwrap();
-    write!(
-        s,
-        "GET / HTTP/1.1\r\nHost: {hostport}\r\nConnection: close\r\n\r\n"
-    )
-    .unwrap();
-    let mut raw = String::new();
-    s.read_to_string(&mut raw).unwrap();
+    assert!(path.starts_with("/?k="), "{url}");
+    let request = |path: &str, cookie: &str| {
+        let mut s = TcpStream::connect(hostport).unwrap();
+        write!(
+            s,
+            "GET {path} HTTP/1.1\r\nHost: {hostport}\r\n{cookie}Connection: close\r\n\r\n"
+        )
+        .unwrap();
+        let mut raw = String::new();
+        s.read_to_string(&mut raw).unwrap();
+        raw
+    };
+    // Without the link: refused.
+    let plain = request("/", "");
+    // The link once: in, with the page cookie.
+    let entered = request(path, "");
+    let cookie = entered
+        .lines()
+        .find_map(|l| l.strip_prefix("set-cookie: vdt_page="))
+        .and_then(|v| v.split(';').next())
+        .map(|v| format!("Cookie: vdt_page={v}\r\n"))
+        .unwrap_or_default();
+    let raw = request("/", &cookie);
     let _ = child.kill();
     let _ = child.wait();
     drop(stdout);
     let _ = std::fs::remove_dir_all(&dir);
+    assert!(plain.starts_with("HTTP/1.1 403"), "{plain}");
+    assert!(entered.starts_with("HTTP/1.1 303"), "{entered}");
     assert!(raw.starts_with("HTTP/1.1 200"), "{raw}");
     assert!(raw.contains("Sessions"));
     assert!(raw.contains("Install hooks in this project"));
@@ -91,7 +107,7 @@ fn vdt_serve_keeps_running_when_nobody_reads_its_output() {
         };
         let _ = write!(
             s,
-            "GET / HTTP/1.1\r\nHost: {hostport}\r\nConnection: close\r\n\r\n"
+            "GET /readyz HTTP/1.1\r\nHost: {hostport}\r\nConnection: close\r\n\r\n"
         );
         if s.read_to_string(&mut raw).is_ok() && !raw.is_empty() {
             break;

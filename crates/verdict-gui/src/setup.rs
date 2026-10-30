@@ -422,7 +422,7 @@ fn launcher(project: &Path, vdt: &Path) -> Result<(), String> {
         let script = format!(
             "$s=(New-Object -ComObject WScript.Shell).CreateShortcut('{}');\
              $s.TargetPath='{}';\
-             $s.Arguments='serve --project \"{}\"';$s.WorkingDirectory='{}';$s.Save()",
+             $s.Arguments='serve --open --project \"{}\"';$s.WorkingDirectory='{}';$s.Save()",
             lnk.to_string_lossy().replace('\'', "''"),
             vdt.to_string_lossy().replace('\'', "''"),
             project.to_string_lossy().replace('\'', "''"),
@@ -468,7 +468,7 @@ fn launcher(project: &Path, vdt: &Path) -> Result<(), String> {
         std::fs::create_dir_all(&dir).map_err(|e| format!("cannot make {}: {e}", dir.display()))?;
         let entry = format!(
             "[Desktop Entry]\nType=Application\nName=Verdict\nComment=Open the Verdict page for {}\n\
-             Exec=\"{}\" serve --project \"{}\"\nPath={}\nTerminal=false\nCategories=Development;\n",
+             Exec=\"{}\" serve --open --project \"{}\"\nPath={}\nTerminal=false\nCategories=Development;\n",
             project.display(),
             vdt.display(),
             project.display(),
@@ -529,23 +529,51 @@ fn open_project_page(project: &Path, vdt: &Path, port: u16) -> Result<(), String
         std::process::Command::new(vdt)
             .args(&args)
             .creation_flags(CREATE_NO_WINDOW)
-            .stdout(std::process::Stdio::null())
+            .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::null())
             .spawn()
     };
     #[cfg(not(windows))]
     let spawned = std::process::Command::new(vdt)
         .args(&args)
-        .stdout(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::null())
         .spawn();
-    let child = spawned.map_err(|e| format!("the page did not start: {e}"))?;
+    let mut child = spawned.map_err(|e| format!("the page did not start: {e}"))?;
     // Only call the page open when the server answering on the port is the instance this installer
     // started, says it is Verdict, and serves the project chosen here. A bare HTTP 200 from
     // anything else is not success.
+    // The page prints its one-time link on its own output, which only this installer reads. The
+    // link lets the browser it opens in; nothing else on the computer sees the code.
+    let out = child
+        .stdout
+        .take()
+        .ok_or("the page did not give its link")?;
+    let link = read_link(std::io::BufReader::new(out), port)?;
     wait_until_ready(project, port, child.id(), Duration::from_secs(15))?;
-    open_url(&page_url(port));
+    open_url(&link);
     Ok(())
+}
+
+/// Read the one-time link `vdt serve` prints for `port`.
+fn read_link(mut out: impl std::io::BufRead, port: u16) -> Result<String, String> {
+    let want = page_url(port);
+    let mut line = String::new();
+    for _ in 0..20 {
+        line.clear();
+        match out.read_line(&mut line) {
+            Ok(0) | Err(_) => break,
+            Ok(_) => {
+                if let Some(at) = line.find(&want) {
+                    let link = line[at..].trim().to_string();
+                    if link.contains("?k=") {
+                        return Ok(link);
+                    }
+                }
+            }
+        }
+    }
+    Err("the page started but did not print its one-time link".into())
 }
 
 /// The URL the installer opens for the server it started on `port`.
@@ -745,6 +773,19 @@ mod tests {
         assert_eq!(last_project_in(&state), None);
         let _ = std::fs::remove_dir_all(&state);
         let _ = std::fs::remove_dir_all(&project);
+    }
+
+    #[test]
+    fn the_installer_opens_the_one_time_link_the_page_printed() {
+        let printed =
+            "Verdict page (open this link once): http://127.0.0.1:4731/?k=abc\nProject: x\n";
+        assert_eq!(
+            read_link(printed.as_bytes(), 4731).unwrap(),
+            "http://127.0.0.1:4731/?k=abc"
+        );
+        // Another port's link, or no link at all, is not opened.
+        assert!(read_link(printed.as_bytes(), 4732).is_err());
+        assert!(read_link("Project: x\n".as_bytes(), 4731).is_err());
     }
 
     #[test]
