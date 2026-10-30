@@ -56,16 +56,18 @@ pub(crate) fn key_or_create(home: &Path) -> Result<[u8; 32], String> {
     }
     let key = new_key();
     let hex: String = key.iter().map(|b| format!("{b:02x}")).collect();
-    match std::fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(&path)
-    {
-        Ok(mut f) => {
-            f.write_all(format!("{hex}\n").as_bytes())
-                .map_err(|e| format!("cannot write the seal key {}: {e}", path.display()))?;
-            Ok(key)
-        }
+    // Write the whole key to a private temp file, then link it into place. The link fails when a
+    // key already exists, and a reader never sees a half-written key file.
+    let tmp = path.with_file_name(format!(
+        "seal.key.{}.{}.tmp",
+        std::process::id(),
+        &hex[..16]
+    ));
+    let linked =
+        std::fs::write(&tmp, format!("{hex}\n")).and_then(|()| std::fs::hard_link(&tmp, &path));
+    let _ = std::fs::remove_file(&tmp);
+    match linked {
+        Ok(()) => Ok(key),
         Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
             read_key(home)?.ok_or_else(|| format!("the seal key {} vanished", path.display()))
         }
@@ -163,5 +165,22 @@ mod tests {
         std::fs::write(key_path(&home), "not a key\n").unwrap();
         assert!(read_key(&home).is_err());
         let _ = std::fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn many_writers_making_the_key_at_once_all_get_the_same_key() {
+        for round in 0..20 {
+            let home =
+                std::env::temp_dir().join(format!("vdt-seal-race-{}-{round}", std::process::id()));
+            let _ = std::fs::remove_dir_all(&home);
+            let keys: Vec<[u8; 32]> = std::thread::scope(|s| {
+                let handles: Vec<_> = (0..8)
+                    .map(|_| s.spawn(|| key_or_create(&home).unwrap()))
+                    .collect();
+                handles.into_iter().map(|h| h.join().unwrap()).collect()
+            });
+            assert!(keys.iter().all(|k| *k == keys[0]), "round {round}");
+            let _ = std::fs::remove_dir_all(&home);
+        }
     }
 }
