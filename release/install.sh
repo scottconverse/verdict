@@ -67,8 +67,9 @@ esac
 
 echo "Installed $dir/vdt"
 
-# Register the MCP server with the project the installer was run in. Failures are warnings: the
-# binary is installed and the page still works.
+# Register the MCP server with the project the installer was run in. vdt asks the person at the
+# terminal to type yes for each host. Failures are warnings: the binary is installed and the page
+# still works.
 if [ "${VDT_NO_MCP:-0}" != "1" ]; then
   "$dir/vdt" mcp-install claude --project "$PWD" --i-am-the-human --vdt-path "$dir/vdt" \
     || echo "warning: could not register the MCP server with Claude Code" >&2

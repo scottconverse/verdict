@@ -80,8 +80,9 @@ function Install-Verdict {
 
   if ($RegisterHosts -and -not $NoMcp) {
     foreach ($hostName in @("claude", "cursor")) {
+      # vdt asks the person at the console to type yes. With no console it refuses and changes nothing.
       & $target mcp-install $hostName --project $ProjectDir --i-am-the-human --vdt-path $target
-      if ($LASTEXITCODE -ne 0) { throw "registering the MCP server with $hostName failed (exit $LASTEXITCODE)" }
+      if ($LASTEXITCODE -ne 0) { Write-Warning "the Verdict MCP server was not registered with $hostName (exit $LASTEXITCODE); vdt and the page still work" }
     }
   }
 
@@ -184,6 +185,10 @@ function Run-Gui {
   $install.Location = New-Object System.Drawing.Point(390, 296)
   $install.Add_Click({
     try {
+      if ($register.Checked) {
+        $status.Text = "Type yes in the console window to register each host."
+        $form.Refresh()
+      }
       $target = Install-Verdict -ProjectDir $box.Text -RegisterHosts $register.Checked -MakeShortcut $shortcut.Checked -OpenPage $open.Checked
       $status.Text = "Installed $target"
       [System.Windows.Forms.MessageBox]::Show("Verdict is installed.`n`n$target`n`nIf you chose to open the page, it is open in your browser.", "Verdict", "OK", "Information") | Out-Null

@@ -8,6 +8,7 @@
 //! 2 the ledger failed verification.
 
 mod p2b;
+mod person;
 mod runner;
 
 use clap::{Parser, Subcommand};
@@ -329,6 +330,37 @@ fn setup_from_argv(argv: &[String]) -> ExitCode {
     run_setup_cli(opts)
 }
 
+/// The human commands that change setup files: with `--i-am-the-human` they need a person at a
+/// terminal before anything runs. (Approve, accept and commit anyway ask after they show what
+/// they would record.)
+fn needs_a_person(command: &Command) -> Option<String> {
+    match command {
+        Command::Hooks { action } => {
+            let (verb, a) = match action {
+                HooksAction::Install(a) => ("Install", a),
+                HooksAction::Uninstall(a) => ("Remove", a),
+            };
+            a.i_am_the_human
+                .then(|| format!("{verb} the Verdict hooks for {}", a.host))
+        }
+        Command::McpInstall {
+            host,
+            i_am_the_human,
+            ..
+        } => i_am_the_human.then(|| format!("Register the Verdict MCP server for {host}")),
+        Command::Gate { action } => match action {
+            p2b::GateAction::Install(a) if a.i_am_the_human => {
+                Some("Install the Verdict pre-commit gate".into())
+            }
+            p2b::GateAction::Uninstall(a) if a.i_am_the_human => {
+                Some("Remove the Verdict pre-commit gate".into())
+            }
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
 fn main() -> ExitCode {
     // A hook must never fail the agent, so it is handled before argument parsing can reject
     // anything: `vdt hook ...` always exits 0.
@@ -358,6 +390,11 @@ fn main() -> ExitCode {
             return ExitCode::from(1);
         }
     };
+    if let Some(what) = needs_a_person(&cli.command)
+        && !person::confirm(&what)
+    {
+        return ExitCode::from(1);
+    }
     match &cli.command {
         Command::Mcp { project } => {
             let root = find_project_root(project.as_deref().unwrap_or(&cwd));
@@ -627,6 +664,10 @@ fn main() -> ExitCode {
                 );
                 return ExitCode::SUCCESS;
             }
+            println!("{change}");
+            if !person::confirm("Accept the rules as they are now") {
+                return ExitCode::from(1);
+            }
             match verdict_core::human::apply(
                 &root,
                 &mut ledger,
@@ -694,6 +735,13 @@ fn main() -> ExitCode {
                     "Nothing was recorded. Re-run with --i-am-the-human to record the decision."
                 );
                 return ExitCode::SUCCESS;
+            }
+            println!("This approves exactly these commands for this project:");
+            for l in &listed {
+                println!("  {l}");
+            }
+            if !person::confirm("Approve these commands") {
+                return ExitCode::from(1);
             }
             match verdict_core::human::apply(
                 &root,

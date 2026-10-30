@@ -225,6 +225,12 @@ pub fn commit_anyway(a: &CommitAnywayArgs, cwd: &Path) -> ExitCode {
             }
         }
     }
+    if !crate::person::confirm(&format!(
+        "Commit anyway past the FAILED verdict, with the reason: {}",
+        a.reason.trim()
+    )) {
+        return ExitCode::from(1);
+    }
     match apply(
         &root,
         &mut ledger,
