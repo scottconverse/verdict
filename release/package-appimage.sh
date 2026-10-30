@@ -15,7 +15,8 @@ command -v "$tool" >/dev/null 2>&1 || { echo "appimagetool not found (set APPIMA
 
 appdir="$outdir/Verdict.AppDir"
 rm -rf "$appdir"
-mkdir -p "$appdir/usr/bin" "$appdir/usr/share/applications" "$appdir/usr/share/icons/hicolor/scalable/apps"
+mkdir -p "$appdir/usr/bin" "$appdir/usr/share/applications" "$appdir/usr/share/icons/hicolor/scalable/apps" \
+  "$appdir/usr/share/icons/hicolor/256x256/apps"
 cp "$binary" "$appdir/usr/bin/vdt"
 cp "$binary" "$appdir/usr/bin/vdt-setup"
 chmod +x "$appdir/usr/bin/vdt" "$appdir/usr/bin/vdt-setup"
@@ -43,6 +44,11 @@ cat > "$appdir/usr/share/icons/hicolor/scalable/apps/verdict.svg" <<'SVG'
 </svg>
 SVG
 cp "$appdir/usr/share/icons/hicolor/scalable/apps/verdict.svg" "$appdir/verdict.svg"
+# appimagetool needs a PNG icon named like the desktop file's Icon= line, plus .DirIcon as a
+# regular file. The PNG is the same V as the svg above, drawn at 256x256.
+cp "$repo/release/assets/verdict.png" "$appdir/usr/share/icons/hicolor/256x256/apps/verdict.png"
+cp "$repo/release/assets/verdict.png" "$appdir/verdict.png"
+cp "$repo/release/assets/verdict.png" "$appdir/.DirIcon"
 cp "$appdir/usr/share/applications/verdict.desktop" "$appdir/verdict.desktop"
 
 cat > "$appdir/AppRun" <<'APPRUN'
