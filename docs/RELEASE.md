@@ -4,7 +4,7 @@ The tool runs its own release lane before any tag. This file is the procedure an
 The human owns the tag; `vdt` never creates one, and the release workflow creates a **draft**, never
 a published release.
 
-## Owner-authorized v1.0.0 disposition, October29,2026
+## History: owner-authorized v1.0.0 disposition, October 29, 2026
 
 Scott explicitly authorized merge, tag and publication of the already-tested,
 provenance-pinned artifacts after reconciling the historical verification record.
@@ -14,18 +14,18 @@ This disposition does not alter the product's verdict rules or CLEAR-only gate.
 Use the existing signed Windows package; do not rebuild it for a documentation
 commit. `release/VERIFICATION-RECORD.md` states the evidence and its limits.
 The general procedure below remains guidance for future releases.
-## Candidate
+## Current release
 
-- Version: **1.0.0**
-- Revision: the last commit on `merge-trial` / `rc/1.0.0` (the exact hash is in the candidate
-  report; the tag is the human's and points at that commit).
-- Proposed tag: **v1.0.0**
-- Merge target: `main` (fast-forward from `rc/1.0.0`).
+- Version: **1.1.0**, tag **v1.1.0**, published October 30, 2026.
+- Revision: the commit the tag points at, on `main`.
+- Next release: bump the version in `Cargo.toml`, the crates, `Cargo.lock`, `verdict.json`, the
+  installers, the README status line and the CI labels together; add a CHANGELOG section and
+  rewrite `release/RELEASE-NOTES.md`. Merge to `main`, then tag.
 - Public assets: the per-target archives and the Linux AppImage, each with a `.sha256`. Inside each
   archive: `vdt` (`vdt.exe`) and its own checksum, the double-click entry point
   (`Verdict-Setup.exe`, `vdt-setup`, or `Verdict.app` on macOS), README, LICENSE, NOTICE and
-  `integrations/dsh/`. The draft release also carries `RELEASE.md`, `RELEASE-NOTES.md` and
-  `PACKET-BEFORE-TAG.txt`.
+  `integrations/dsh/`. The draft release also carries `RELEASE.md` and `RELEASE-NOTES.md`
+  (and, for v1.0.0 only, the historical `PACKET-BEFORE-TAG.txt`).
 
 ## The archive layout, exactly
 
@@ -34,16 +34,16 @@ the release workflow and the clean-install workflows both call it, so CI install
 release publishes. It produces:
 
 ```text
-vdt-1.0.0-x86_64-unknown-linux-gnu/
+vdt-1.1.0-x86_64-unknown-linux-gnu/
   vdt                  the core
   vdt.sha256           SHA-256 of the core (the setup program checks this)
   vdt-setup            the double-click entry point (same program, setup mode)
   install.sh           legacy/silent script
   README.md LICENSE NOTICE
   integrations/dsh/
-vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz
-vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256   SHA-256 of the downloaded archive
-Verdict-1.0.0-x86_64.AppImage                       the Linux double-click installer
+vdt-1.1.0-x86_64-unknown-linux-gnu.tar.gz
+vdt-1.1.0-x86_64-unknown-linux-gnu.tar.gz.sha256   SHA-256 of the downloaded archive
+Verdict-1.1.0-x86_64.AppImage                       the Linux double-click installer
 ```
 
 The outer `.sha256` is for checking the download before extracting. The inner one is what the
@@ -57,7 +57,7 @@ cargo fmt --all --check
 cargo clippy --workspace --all-targets --locked -- -D warnings
 cargo test --workspace --locked
 cargo test -p verdict-checkers --locked --features stub-checkers --test fixtures -- red::   # must FAIL
-sh release/package.sh 1.0.0 <target> <zip|tar.gz> target/release/vdt dist
+sh release/package.sh <version> <target> <zip|tar.gz> target/release/vdt dist
 vdt check --lane release --checkers '*' --project .
 vdt verdict --run --lane release --project .
 vdt export --packet --lane release --out "$TEMP/verdict-packet.txt"
@@ -82,16 +82,17 @@ configured a cross-vendor provider. That is the honest pre-tag state, not a clea
 ## What a release needs from the human
 
 1. Approve the version and revision.
-2. Merge the candidate to `main` and push.
-3. Create the `v1.0.0` tag and push it. The `release` workflow builds the four archives, checks
-   every download checksum, and attaches the archives, their `.sha256` files, the installers'
-   documents and the pre-tag packet to a **draft** GitHub release.
+2. Merge the release branch to `main` and push.
+3. Create the `v<version>` tag and push it. The `release` workflow builds the four archives,
+   checks every download checksum, and attaches the archives, their `.sha256` files and the
+   installers' documents to a **draft** GitHub release.
 4. On the tagged revision, on a machine where the human has approved the project's commands and a
    cross-vendor desk provider is configured, run the release lane and export the packet. It must
    say `CLEAR TO SHIP` for this tag. Attach it to the draft.
-5. Reuse the completed Azure-signed Windows candidate and refreshed checksums.
-   macOS is intentionally unsigned/not notarized by owner decision. Do not ask
-   for a Mac certificate or substitute an unsigned workflow rebuild for Windows.
+5. Sign the Windows `vdt.exe` with the sign-only workflow (`release/RELEASE-RUNBOOK.md`,
+   section e), rebuild the Windows zip with the signed `vdt.exe` and `Verdict-Setup.exe`, and
+   refresh the inner and outer checksums on the draft. macOS is intentionally unsigned/not
+   notarized by owner decision.
 6. Publish the draft. Download one archive, check its `.sha256`, and run the installer. The
    installer places `vdt`, makes a desktop shortcut on that project on Windows, and opens the local
    page. After that the workflow is no-terminal: every decision is a button on the page at
@@ -120,8 +121,8 @@ configured a cross-vendor provider. That is the honest pre-tag state, not a clea
   to exist.
 - The `CLEAR TO SHIP` packet for the tag itself: it is computed on the tagged revision, with the
   human's command approval and a configured cross-vendor provider, and attached to the release.
-- Current Windows signed-installer verification is already complete. Reverify only
-  if the actual signed download changes; macOS signing is not required by the owner.
+- Windows signing and its verification (Authenticode, timestamp, checksums) for each new
+  Windows binary; macOS signing is not required by the owner.
 
 Write the release packet outside the project and attach it after it is computed: writing it into
 the tree first would make the tree differ from the one the checks were stamped on, and every check

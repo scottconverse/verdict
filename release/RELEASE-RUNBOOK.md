@@ -1,5 +1,10 @@
 # Release runbook — candidate to tagged release
 
+> **This file is the record of the 1.0.0 release (October 29, 2026).** Its hashes, run numbers
+> and `1.0.0` commands are history and are kept as they were. For a new release, follow
+> `docs/RELEASE.md` with the new version number. The Windows signing process in section e) still
+> applies; 1.1.0 was signed that way (run `41015735686`, October 30, 2026).
+
 This is the human path from the candidate on `merge-trial` to a tagged, published release. Run the
 steps in order. Commands are written for the repository root on Windows (PowerShell); the packaging
 scripts are POSIX `sh` and also run on Linux/macOS.

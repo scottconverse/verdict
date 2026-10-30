@@ -4,9 +4,9 @@
 limited to the evidence named for it. [docs/HOSTS.md](docs/HOSTS.md) says which host adapters have
 been recorded against a live host; [docs/RELEASE.md](docs/RELEASE.md) is the release procedure.
 
-The candidate is not a published release. The human creates the tag and publishes; the release
-workflow builds a draft. The parts that still need a live host or a certificate are named in
-"Honest status" at the end of this file, not papered over.
+1.1.0 is the current published release
+([releases](https://github.com/scottconverse/verdict/releases)). The parts that still need a live
+host are named in "Honest status" at the end of this file, not papered over.
 
 Verdict is one open-source tool that verifies work done by AI coding agents.
 
@@ -49,6 +49,7 @@ not the builder: deterministic checkers, a model from a different vendor, or the
 ## Commands
 
 ```text
+vdt setup                       the install wizard (what Verdict-Setup.exe and the AppImage run)
 vdt ledger [verify|export]      read or export the ledger
 vdt sessions                    list recorded sessions
 vdt report [--session ID]       the plain-text report
@@ -64,6 +65,8 @@ vdt generate [--out DIR]        emit skills and hook registrations from the poli
 vdt export --sarif|--packet|--decisions [--out FILE]
 vdt gate pre-commit|install|uninstall
 vdt commit-anyway
+vdt approve-commands            approve this repo's configured commands (human only)
+vdt accept-policy               accept rules that changed during a session (human only)
 vdt serve [--port N]
 ```
 
@@ -129,8 +132,8 @@ Each one opens the install wizard in your browser: choose the project and the ho
 It checks the core's SHA-256 (a missing or different checksum refuses the install), places the core,
 registers only the hosts you tick with the exact files, makes a launcher for the chosen project and
 opens its page. No terminal is involved. The `install.ps1`/`install.sh` scripts remain as
-silent/legacy paths for CI and recovery. The packages are unsigned unless the release says
-otherwise; checksums, SmartScreen/Gatekeeper notes and rollback are in
+silent/legacy paths for CI and recovery. On Windows, `vdt.exe` and `Verdict-Setup.exe` are signed;
+macOS and Linux are not; checksums, SmartScreen/Gatekeeper notes and rollback are in
 [docs/RELEASE.md](docs/RELEASE.md).
 
 ## Hosts and docs
@@ -169,14 +172,14 @@ These are limits of the evidence, not claims of completion:
   event shapes, but it is **recording-only** and was not loaded into this workstation's DSH
   configuration; it has no pre-edit hold and cannot apply a Stop send-back. It is optional and the
   generic core does not depend on it.
-- **Signing.** There are no Authenticode or Apple notarization credentials here. The archives are
-  built and checksummed but unsigned. A native signed installer per OS remains an external
-  dependency.
-- **The tool's own release.** The release check's tag test cannot pass before the human creates the
-  tag, so the pre-tag packet correctly reads FAILED for `release:tag-missing`. A CLEAR TO SHIP
-  packet also needs the human's command approval and a configured cross-vendor desk provider in
-  the ledger it is computed from; CI has neither. The workflow therefore builds a draft release,
-  and the human runs the release lane on the tag, attaches the packet and publishes.
+- **Signing.** The Windows `vdt.exe` and `Verdict-Setup.exe` are Authenticode-signed as Scott
+  Converse, with a Microsoft timestamp. macOS is not signed or notarized, by the owner's decision;
+  Linux is not signed. Every download has a `.sha256` file.
+- **The tool's own release.** The release workflow builds a draft; the human signs the Windows
+  files, checks the draft and publishes it. A CLEAR TO SHIP packet needs the human's command
+  approval and a configured cross-vendor desk provider in the ledger it is computed from; CI has
+  neither, so no release claims one. 1.0.0 was published with its historical verification record
+  (`release/VERIFICATION-RECORD.md`), and 1.1.0 with its CI results and signing receipt.
 - **macOS.** The macOS artifacts are built by CI; no local macOS build was claimed.
 
 ## License

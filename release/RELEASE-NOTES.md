@@ -33,7 +33,7 @@ verdicts.**
 ## Install
 
 Windows: double-click `Verdict-Setup.exe`; Linux: run the AppImage; macOS: open `Verdict.app`.
-The script installers remain available for silent installation and recovery. Check each download
+The Windows `vdt.exe` and `Verdict-Setup.exe` are signed as Scott Converse (Azure Trusted Signing, Microsoft timestamp). The script installers remain available for silent installation and recovery. Check each download
 against its `.sha256` file.
 
 ## Honest limits
