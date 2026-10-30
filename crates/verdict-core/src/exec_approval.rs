@@ -277,6 +277,111 @@ pub fn tool_commands(policy: &Policy) -> Vec<(&'static str, String)> {
     out
 }
 
+/// One desk provider from the policy's `vendors.providers`, as the approval sees it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DeskProgram {
+    /// The provider's name.
+    pub name: String,
+    /// Its vendor.
+    pub vendor: String,
+    /// The model it asks for.
+    pub model: String,
+    /// The program it starts.
+    pub command: String,
+    /// The program's arguments.
+    pub args: Vec<String>,
+    /// Its own time limit.
+    pub timeout_secs: Option<u64>,
+}
+
+/// The desk provider programs the policy configures. A desk provider starts a program on this
+/// machine, so it is a project command like any other: the same human approval covers it, and a
+/// repo's `verdict.json` cannot approve its own providers (design.md: detection "may propose them
+/// but cannot approve them"). Entries that cannot be read are kept as text so they still change
+/// the approval.
+pub fn desk_programs(policy: &Policy) -> Result<Vec<DeskProgram>, String> {
+    let Some(list) = policy.value.pointer("/vendors/providers") else {
+        return Ok(Vec::new());
+    };
+    let Some(list) = list.as_array() else {
+        return Err(format!("vendors.providers is not a list: {list}"));
+    };
+    Ok(list
+        .iter()
+        .map(|item| {
+            let s = |k: &str| {
+                item.get(k)
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .to_string()
+            };
+            DeskProgram {
+                name: s("name"),
+                vendor: s("vendor"),
+                model: item
+                    .get("model")
+                    .and_then(Value::as_str)
+                    .unwrap_or("unspecified")
+                    .to_string(),
+                command: s("command"),
+                args: item
+                    .get("args")
+                    .and_then(Value::as_array)
+                    .map(|a| {
+                        a.iter()
+                            .filter_map(Value::as_str)
+                            .map(str::to_string)
+                            .collect()
+                    })
+                    .unwrap_or_default(),
+                timeout_secs: item.get("timeout_secs").and_then(Value::as_u64),
+            }
+        })
+        .collect())
+}
+
+/// True when the human's latest `run_project_commands` decision approves exactly the
+/// configuration `policy` describes now (commands, tools and desk providers). Decisions are
+/// project-wide; only records the human wrote count.
+pub fn approved_now(ledger: &crate::Ledger, policy: &Policy) -> Result<bool, String> {
+    let mut latest: Option<ApprovalChoice> = None;
+    for s in ledger.records().map_err(|e| e.to_string())? {
+        if let crate::Record::Decision {
+            decision: crate::DecisionKind::RunProjectCommands,
+            choice,
+            who: crate::Writer::Human,
+            ..
+        } = &s.record
+        {
+            latest = Some(parse_choice(choice));
+        }
+    }
+    Ok(matches!(latest, Some(ApprovalChoice::Approved(h)) if h == commands_hash(policy)))
+}
+
+/// One line per desk provider for [`config_text`], with every field that changes what runs.
+fn push_desk_lines(policy: &Policy, out: &mut String) {
+    let clean = |s: &str| s.replace(['\n', '\r', '\t'], " ");
+    match desk_programs(policy) {
+        Ok(list) => {
+            for d in list {
+                out.push_str(&format!(
+                    "desk\tname={}\tvendor={}\tmodel={}\tcommand={}\targs={}\ttimeout={}\n",
+                    clean(&d.name),
+                    clean(&d.vendor),
+                    clean(&d.model),
+                    clean(&d.command),
+                    serde_json::to_string(&d.args).unwrap_or_default(),
+                    d.timeout_secs
+                        .map(|t| t.to_string())
+                        .unwrap_or_else(|| "-".into())
+                ));
+            }
+        }
+        Err(e) => out.push_str(&format!("desk\tunreadable\t{}\n", clean(&e))),
+    }
+}
+
 /// The effective configuration in a fixed text form: one line per command, then the timeout.
 /// This is what gets hashed, and it is also a readable summary.
 pub fn config_text(policy: &Policy) -> String {
@@ -304,6 +409,7 @@ pub fn config_text(policy: &Policy) -> String {
             shell_for(&command)
         ));
     }
+    push_desk_lines(policy, &mut out);
     let timeout = match policy_timeout_text(policy) {
         None => "default".to_string(),
         Some(t) => match parse_duration(&t) {
@@ -376,6 +482,22 @@ pub fn describe_commands(policy: &Policy) -> Vec<String> {
             _ => "release check",
         };
         out.push(format!("{command}   ({label})"));
+    }
+    match desk_programs(policy) {
+        Ok(list) => {
+            for d in list {
+                let mut line = d.command.clone();
+                for a in &d.args {
+                    line.push(' ');
+                    line.push_str(a);
+                }
+                out.push(format!(
+                    "{line}   (desk provider {}, vendor {}, model {})",
+                    d.name, d.vendor, d.model
+                ));
+            }
+        }
+        Err(e) => out.push(format!("unreadable desk providers: {e}")),
     }
     out
 }
@@ -456,6 +578,29 @@ mod tests {
                 "{expected} is approved but not shown: {listed:?}"
             );
         }
+    }
+
+    #[test]
+    fn desk_providers_are_part_of_the_approval_and_shown_on_the_card() {
+        let mut p = Policy::builtin().unwrap();
+        let without = commands_hash(&p);
+        p.value["vendors"]["providers"] = json!([
+            {"name":"x","vendor":"openai","model":"m","command":"evil.exe","args":["--a"]}
+        ]);
+        let with = commands_hash(&p);
+        assert_ne!(without, with, "adding a provider asks the human again");
+        p.value["vendors"]["providers"][0]["args"] = json!(["--b"]);
+        assert_ne!(with, commands_hash(&p), "changing its arguments asks again");
+        p.value["vendors"]["providers"][0]["args"] = json!(["--a"]);
+        p.value["vendors"]["providers"][0]["command"] = json!("other.exe");
+        assert_ne!(with, commands_hash(&p), "changing its program asks again");
+        let listed = describe_commands(&p);
+        assert!(
+            listed
+                .iter()
+                .any(|l| l.contains("other.exe --a") && l.contains("desk provider x")),
+            "{listed:?}"
+        );
     }
 
     #[test]

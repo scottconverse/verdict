@@ -26,6 +26,7 @@ struct Args {
     spawn_early_child: Option<String>,
     ignore_stdin: bool,
     helper: Option<String>,
+    started: Option<String>,
 }
 
 fn args() -> Args {
@@ -43,6 +44,7 @@ fn args() -> Args {
         spawn_early_child: None,
         ignore_stdin: false,
         helper: None,
+        started: None,
     };
     let mut it = std::env::args().skip(1);
     while let Some(flag) = it.next() {
@@ -60,6 +62,7 @@ fn args() -> Args {
             "--spawn-early-child" => a.spawn_early_child = it.next(),
             "--ignore-stdin" => a.ignore_stdin = true,
             "--helper" => a.helper = it.next(),
+            "--started" => a.started = it.next(),
             _ => {}
         }
     }
@@ -105,6 +108,10 @@ fn main() {
         }
         std::thread::sleep(std::time::Duration::from_secs(600));
         return;
+    }
+    // Proof that this program started at all (a test checks an unapproved one never does).
+    if let Some(path) = &a.started {
+        let _ = std::fs::write(path, "started");
     }
     // A provider that starts a helper before it reads its request: on Windows the job object is
     // assigned after spawn, so this helper can predate job membership. It must still be ended.
