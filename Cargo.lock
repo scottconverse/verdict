@@ -1902,7 +1902,7 @@ checksum = "accd4ea62f7bb7a82fe23066fb0957d48ef677f6eeb8215f372f52e48bb32426"
 
 [[package]]
 name = "verdict-adapters"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "blake3",
  "proptest",
@@ -1915,7 +1915,7 @@ dependencies = [
 
 [[package]]
 name = "verdict-checkers"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "blake3",
  "libc",
@@ -1930,7 +1930,7 @@ dependencies = [
 
 [[package]]
 name = "verdict-core"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "blake3",
  "globset",
@@ -1944,7 +1944,7 @@ dependencies = [
 
 [[package]]
 name = "verdict-desks"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "blake3",
  "libc",
@@ -1956,7 +1956,7 @@ dependencies = [
 
 [[package]]
 name = "verdict-engine"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "serde_json",
  "tempfile",
@@ -1967,7 +1967,7 @@ dependencies = [
 
 [[package]]
 name = "verdict-extract"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "blake3",
  "serde",
@@ -1982,7 +1982,7 @@ dependencies = [
 
 [[package]]
 name = "verdict-gate"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "clap",
  "proptest",
@@ -2000,7 +2000,7 @@ dependencies = [
 
 [[package]]
 name = "verdict-generate"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "serde_json",
  "verdict-adapters",
@@ -2010,7 +2010,7 @@ dependencies = [
 
 [[package]]
 name = "verdict-gui"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "axum",
  "blake3",
@@ -2024,7 +2024,7 @@ dependencies = [
 
 [[package]]
 name = "verdict-mcp"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "rmcp",
  "serde_json",
@@ -2037,7 +2037,7 @@ dependencies = [
 
 [[package]]
 name = "verdict-mutation-runner"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "serde_json",
 ]

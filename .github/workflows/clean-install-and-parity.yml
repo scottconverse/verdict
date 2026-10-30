@@ -47,15 +47,15 @@ jobs:
           cargo build --release --locked --bin vdt
           # The same packaging script the release workflow runs: this consumes the real layout,
           # not a hand-staged folder that happens to match the installer.
-          sh release/package.sh 1.0.0 x86_64-unknown-linux-gnu tar.gz target/release/vdt /tmp/dist
+          sh release/package.sh 1.1.0 x86_64-unknown-linux-gnu tar.gz target/release/vdt /tmp/dist
           mkdir -p /tmp/extracted /tmp/project
-          tar -C /tmp/extracted -xzf /tmp/dist/vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz
+          tar -C /tmp/extracted -xzf /tmp/dist/vdt-1.1.0-x86_64-unknown-linux-gnu.tar.gz
           # The download checksum covers the archive.
           # The download checksum covers the archive and is in `sha256sum -c` form.
-          (cd /tmp/dist && sha256sum -c vdt-1.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256)
+          (cd /tmp/dist && sha256sum -c vdt-1.1.0-x86_64-unknown-linux-gnu.tar.gz.sha256)
           clean_home=/tmp/clean-home
           mkdir -p "$clean_home"
-          pkg=/tmp/extracted/vdt-1.0.0-x86_64-unknown-linux-gnu
+          pkg=/tmp/extracted/vdt-1.1.0-x86_64-unknown-linux-gnu
           (cd /tmp/project && HOME="$clean_home" "$pkg/vdt-setup" --silent --project /tmp/project \
             --install-dir "$clean_home/.local/bin" --no-open)
           "$clean_home/.local/bin/vdt" --version
@@ -77,10 +77,10 @@ jobs:
           chmod +x /tmp/appimagetool
           # The release workflow passes a relative output folder (`dist`); the same shape is used
           # here so a checksum path that only works for absolute folders fails this job.
-          APPIMAGETOOL=/tmp/appimagetool sh release/package-appimage.sh 1.0.0 target/release/vdt appdist
-          app=appdist/Verdict-1.0.0-x86_64.AppImage
+          APPIMAGETOOL=/tmp/appimagetool sh release/package-appimage.sh 1.1.0 target/release/vdt appdist
+          app=appdist/Verdict-1.1.0-x86_64.AppImage
           test -f "$app.sha256"
-          (cd appdist && sha256sum -c Verdict-1.0.0-x86_64.AppImage.sha256)
+          (cd appdist && sha256sum -c Verdict-1.1.0-x86_64.AppImage.sha256)
           chmod +x "$app"
           mkdir -p /tmp/app-project /tmp/app-home
           APPIMAGE_EXTRACT_AND_RUN=1 "$app" --silent --project /tmp/app-project \
@@ -114,16 +114,16 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          sh release/package.sh 1.0.0 x86_64-pc-windows-msvc zip target/release/vdt.exe dist
+          sh release/package.sh 1.1.0 x86_64-pc-windows-msvc zip target/release/vdt.exe dist
           # The project must be outside this git repository: a folder inside it resolves to the
           # repository root as the project (by design), and the MCP files would land there.
           extract="$(cygpath -w "$RUNNER_TEMP/vdt-extract")"
           project="$(cygpath -w "$RUNNER_TEMP/vdt-project")"
           bin="$(cygpath -w "$RUNNER_TEMP/vdt-bin")"
           mkdir -p "$extract" "$project"
-          (cd "$extract" && 7z x "$(cygpath -w "$GITHUB_WORKSPACE")/dist/vdt-1.0.0-x86_64-pc-windows-msvc.zip" >/dev/null)
+          (cd "$extract" && 7z x "$(cygpath -w "$GITHUB_WORKSPACE")/dist/vdt-1.1.0-x86_64-pc-windows-msvc.zip" >/dev/null)
           cd "$project"
-          "$extract/vdt-1.0.0-x86_64-pc-windows-msvc/Verdict-Setup.exe" --silent \
+          "$extract/vdt-1.1.0-x86_64-pc-windows-msvc/Verdict-Setup.exe" --silent \
             --project "$project" --install-dir "$bin" --no-open
           test -f "$bin/vdt.exe"
           "$bin/vdt.exe" --version
@@ -146,10 +146,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          sh release/package.sh 1.0.0 aarch64-apple-darwin tar.gz target/release/vdt dist
+          sh release/package.sh 1.1.0 aarch64-apple-darwin tar.gz target/release/vdt dist
           mkdir -p extract project bin
-          tar -C extract -xzf dist/vdt-1.0.0-aarch64-apple-darwin.tar.gz
-          pkg=extract/vdt-1.0.0-aarch64-apple-darwin
+          tar -C extract -xzf dist/vdt-1.1.0-aarch64-apple-darwin.tar.gz
+          pkg=extract/vdt-1.1.0-aarch64-apple-darwin
           test -f "$pkg/Verdict.app/Contents/Info.plist"
           test -x "$pkg/Verdict.app/Contents/MacOS/vdt-setup"
           test -x "$pkg/Verdict.app/Contents/MacOS/vdt-launch"

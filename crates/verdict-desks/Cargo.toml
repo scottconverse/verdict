@@ -12,7 +12,7 @@ publish = false
 blake3 = "1.8.7"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
-verdict-core = { version = "1.0.0", path = "../verdict-core" }
+verdict-core = { version = "1.1.0", path = "../verdict-core" }
 
 # A provider is started in its own process group on Unix so a timeout can end the provider's
 # whole tree, not only the direct child.

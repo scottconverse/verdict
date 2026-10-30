@@ -37,8 +37,8 @@
     "run_proposals": false
   },
   "release": {
-    "tag": "v1.0.0",
-    "version": "1.0.0",
+    "tag": "v1.1.0",
+    "version": "1.1.0",
     "version_files": ["Cargo.toml"],
     "assets": ["dist/*.zip", "dist/*.tar.gz", "dist/*.AppImage", "dist/*.sha256"],
     "product": { "name": "verdict-gate", "manifest": "crates/verdict-cli/Cargo.toml", "lockfile": "Cargo.lock" },

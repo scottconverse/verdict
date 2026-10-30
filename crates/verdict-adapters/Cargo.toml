@@ -12,8 +12,8 @@ publish = false
 blake3 = "1.8.7"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = { version = "1.0.154", features = ["preserve_order"] }
-verdict-core = { version = "1.0.0", path = "../verdict-core" }
-verdict-engine = { version = "1.0.0", path = "../verdict-engine" }
+verdict-core = { version = "1.1.0", path = "../verdict-core" }
+verdict-engine = { version = "1.1.0", path = "../verdict-engine" }
 
 [dev-dependencies]
 proptest = "1.12.0"

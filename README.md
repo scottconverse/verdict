@@ -1,6 +1,6 @@
 # Verdict
 
-**Status: 1.0.0 release candidate.** What each piece can prove is below, and every claim is
+**Status: 1.1.0.** What each piece can prove is below, and every claim is
 limited to the evidence named for it. [docs/HOSTS.md](docs/HOSTS.md) says which host adapters have
 been recorded against a live host; [docs/RELEASE.md](docs/RELEASE.md) is the release procedure.
 

@@ -3,6 +3,39 @@
 All notable changes to this project are recorded here. The format follows Keep a Changelog, and
 the project uses semantic versioning from 1.0.0.
 
+## [1.1.0] - 2026-10-30
+
+Five security fixes from the post-release review, and a packaging fix.
+
+### Security
+
+- **Desk provider programs need the human's command approval.** The `vendors.providers` settings
+  (program, arguments, model, timeout) are now part of the approved command set and are shown on
+  the approval card. A provider that starts a program the human has not approved is recorded as
+  `check_unavailable` and is never started.
+- **A rule change during a session needs the human's acceptance.** A session records the policy
+  hash it started with. If `verdict.json` or the global policy changes mid-session, the verdict can
+  no longer read Verified or Clear to ship until the human runs
+  `vdt accept-policy --i-am-the-human` or restores the old rules.
+- **The local page answers only the browser that opened its one-time link.** `vdt serve` prints a
+  one-time link; opening it sets an HttpOnly cookie. Every request except `/readyz` needs that
+  cookie, so a program that only knows the port cannot read the form token or press a button. The
+  installers, shortcuts and setup wizard open the page with `serve --open`.
+- **A human decision on the command line needs a person who types `yes`.** `--i-am-the-human` alone
+  is no longer enough for hooks, the gate, `mcp-install`, `approve-commands`, `accept-policy` and
+  `commit-anyway`. With no terminal on standard input (an agent's shell tool) they refuse and
+  change nothing.
+- **The ledger is sealed with a key outside the project.** Each write stores a keyed blake3 hash of
+  the new head, made with `~/.verdict/seal.key`. `vdt ledger verify` reads BROKEN for a rewritten
+  ledger, a dropped seal or a row added with raw SQL. A ledger from before 1.1.0 reads OK with a
+  "not sealed yet" note and is sealed by its next write. A ledger copied to another user or
+  machine reads BROKEN there. A program running as the same user can still read the key.
+
+### Fixed
+
+- The Linux AppImage build ships a PNG icon and `.DirIcon`, which the current `appimagetool`
+  requires.
+
 ## [1.0.0] - 2026-10-27
 
 ### Added

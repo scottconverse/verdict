@@ -6,7 +6,7 @@
 # you use, install vdt, and open the page. For automation and the release tests it also runs with
 # -Silent. After it finishes there is no terminal step: every decision is a button on the page.
 param(
-  [string]$Version = "1.0.0",
+  [string]$Version = "1.1.0",
   [string]$From = "$PSScriptRoot",
   [string]$InstallDir = "$env:LOCALAPPDATA\Verdict\bin",
   [string]$Project = (Get-Location).Path,
@@ -119,7 +119,7 @@ function Run-Gui {
   $form.BackColor = [System.Drawing.Color]::White
 
   $title = New-Object System.Windows.Forms.Label
-  $title.Text = "Verdict 1.0.0"
+  $title.Text = "Verdict 1.1.0"
   $title.Font = New-Object System.Drawing.Font("Segoe UI", 20, [System.Drawing.FontStyle]::Bold)
   $title.AutoSize = $true
   $title.Location = New-Object System.Drawing.Point(20, 16)

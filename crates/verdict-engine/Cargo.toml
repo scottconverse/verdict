@@ -10,9 +10,9 @@ publish = false
 
 [dependencies]
 serde_json = "1.0.154"
-verdict-checkers = { version = "1.0.0", path = "../verdict-checkers" }
-verdict-core = { version = "1.0.0", path = "../verdict-core" }
-verdict-desks = { version = "1.0.0", path = "../verdict-desks" }
+verdict-checkers = { version = "1.1.0", path = "../verdict-checkers" }
+verdict-core = { version = "1.1.0", path = "../verdict-core" }
+verdict-desks = { version = "1.1.0", path = "../verdict-desks" }
 
 [dev-dependencies]
 tempfile = "3"

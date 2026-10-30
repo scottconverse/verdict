@@ -11,7 +11,7 @@
 # VDT_ALLOW_UNVERIFIED=1 is set on purpose.
 set -eu
 
-version="${VDT_VERSION:-1.0.0}"
+version="${VDT_VERSION:-1.1.0}"
 here=$(cd "$(dirname "$0")" && pwd)
 
 os=$(uname -s)
