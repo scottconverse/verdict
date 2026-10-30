@@ -27,6 +27,9 @@ pub struct VerifyReport {
     pub head_hash: Option<String>,
     /// Everything wrong, first break first. Empty means the ledger is intact.
     pub problems: Vec<Problem>,
+    /// True for a ledger from before sealing that was never sealed on this machine. Not a
+    /// problem; its next write through vdt seals it. See [`crate::seal`].
+    pub not_sealed_yet: bool,
 }
 
 impl VerifyReport {
@@ -44,8 +47,13 @@ impl VerifyReport {
     pub fn summary(&self) -> String {
         if self.is_ok() {
             let head = self.head_hash.as_deref().map_or("none", |h| &h[..12]);
+            let note = if self.not_sealed_yet {
+                " (not sealed yet: the next write through vdt seals it)"
+            } else {
+                ""
+            };
             return format!(
-                "ledger OK: {} records, hash chain unbroken, head {head}",
+                "ledger OK: {} records, hash chain unbroken, head {head}{note}",
                 self.records
             );
         }
@@ -97,6 +105,7 @@ impl Ledger {
                 records: 0,
                 head_hash: None,
                 problems,
+                not_sealed_yet: false,
             });
         }
 
@@ -236,14 +245,116 @@ impl Ledger {
             }
         }
 
+        // The seal: a keyed hash of the last record, made with a key outside the project. It
+        // catches a ledger rewritten with every hash recomputed. Never creates the key.
+        let mut not_sealed_yet = false;
+        if let Some(home) = self.seal_home()
+            && let Some(last) = rows.last()
+        {
+            not_sealed_yet = check_seal(conn, home, self.path(), last, &rows, &mut problems)?;
+        }
+
         // Report the earliest break first.
         problems.sort_by_key(|p| p.seq.unwrap_or(u64::MAX));
         Ok(VerifyReport {
             records: rows.len() as u64,
             head_hash: rows.last().map(|r| r.hash.clone()),
             problems,
+            not_sealed_yet,
         })
     }
+}
+
+/// Compare the stored seal with the last record, using the key under `home`. Returns true when
+/// the ledger has no seal yet and was never sealed on this machine (a ledger from before
+/// sealing): that is not a problem, and its next write through vdt seals it.
+fn check_seal(
+    conn: &rusqlite::Connection,
+    home: &std::path::Path,
+    ledger: Option<&std::path::Path>,
+    last: &RawRow,
+    rows: &[RawRow],
+    problems: &mut Vec<Problem>,
+) -> Result<bool, LedgerError> {
+    let has_seal: bool = conn.query_row(
+        "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='seal')",
+        [],
+        |r| r.get(0),
+    )?;
+    let sealed: Option<(i64, String, String)> = if has_seal {
+        conn.query_row("SELECT seq, hash, mac FROM seal WHERE id = 1", [], |r| {
+            Ok((r.get(0)?, r.get(1)?, r.get(2)?))
+        })
+        .optional()?
+    } else {
+        None
+    };
+    let Some((seq, hash, mac)) = sealed else {
+        let was_sealed = ledger.is_some_and(|l| crate::seal::was_sealed(home, l));
+        if has_seal || was_sealed {
+            problems.push(Problem {
+                seq: None,
+                message: "the ledger seal was removed (this ledger was sealed before)".into(),
+            });
+            return Ok(false);
+        }
+        return Ok(true);
+    };
+    let key_path = crate::seal::key_path(home);
+    let key = match crate::seal::read_key(home) {
+        Ok(Some(k)) => k,
+        Ok(None) => {
+            problems.push(Problem {
+                seq: None,
+                message: format!(
+                    "the ledger is sealed but there is no seal key at {} (a ledger from another \
+                     user or machine?)",
+                    key_path.display()
+                ),
+            });
+            return Ok(false);
+        }
+        Err(message) => {
+            problems.push(Problem { seq: None, message });
+            return Ok(false);
+        }
+    };
+    if seq < 0 || crate::seal::mac(&key, seq as u64, &hash) != mac {
+        problems.push(Problem {
+            seq: None,
+            message: format!(
+                "the ledger seal does not match: the ledger was rewritten, or it was sealed with \
+                 another key than {}",
+                key_path.display()
+            ),
+        });
+        return Ok(false);
+    }
+    if seq < last.seq {
+        problems.push(Problem {
+            seq: Some(seq as u64 + 1),
+            message: format!(
+                "records after record {seq} were not written through vdt (the seal ends at {seq})"
+            ),
+        });
+    } else if seq > last.seq {
+        problems.push(Problem {
+            seq: Some(last.seq as u64 + 1),
+            message: format!(
+                "ledger truncated: the seal names record {seq} but the ledger stops at {}",
+                last.seq
+            ),
+        });
+    }
+    if let Some(row) = rows.iter().find(|r| r.seq == seq)
+        && row.hash != hash
+    {
+        problems.push(Problem {
+            seq: Some(seq as u64),
+            message: "the sealed record changed: its hash differs from the seal".into(),
+        });
+    }
+    Ok(false)
 }
 
 /// The who-may-write-what rules and the hypothesis rule, checked on a stored row. The ledger API

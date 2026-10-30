@@ -103,6 +103,22 @@ fn process_alive(pid: u32) -> bool {
     }
 }
 
+/// The human approves the project's commands as the policy lists them now, desk providers
+/// included. A provider that starts a program runs only after this.
+fn approve(l: &mut Ledger, policy: &Policy) {
+    l.append(
+        Writer::Human,
+        None,
+        Record::Decision {
+            decision: DecisionKind::RunProjectCommands,
+            choice: verdict_core::exec_approval::approval_choice(policy),
+            reason: None,
+            who: Writer::Human,
+        },
+    )
+    .unwrap();
+}
+
 /// A project with one session (builder vendor `anthropic`), one prompt, one claim and one check.
 fn project(label: &str, policy_json: Option<&str>) -> (Tmp, Tmp, String) {
     let dir = Tmp::new(label);
@@ -159,6 +175,7 @@ fn a_cited_answer_becomes_a_finding_and_an_uncited_one_a_hypothesis() {
         "openai",
         &["--record", "2", "--model", "m-2"],
     )];
+    approve(&mut l, &policy);
     let out = run(
         &mut l,
         dir.path(),
@@ -241,6 +258,7 @@ fn above_the_cross_vendor_lane_a_same_vendor_provider_is_refused_and_nothing_is_
     let (dir, home, sid) = project("refused", None);
     let policy = Policy::load(dir.path(), Some(home.path())).unwrap();
     let mut l = Ledger::open(dir.path()).unwrap();
+    approve(&mut l, &policy);
     let before = l.count().unwrap();
     let providers = vec![provider("same-vendor", "anthropic", &["--record", "2"])];
     let out = run(
@@ -286,6 +304,7 @@ fn the_global_warn_only_policy_runs_the_desks_and_records_single_vendor() {
     let policy = Policy::load(dir.path(), Some(home.path())).unwrap();
     let mut l = Ledger::open(dir.path()).unwrap();
     let providers = vec![provider("same-vendor", "anthropic", &["--record", "2"])];
+    approve(&mut l, &policy);
     let out = run(
         &mut l,
         dir.path(),
@@ -319,6 +338,7 @@ fn a_project_may_not_set_the_global_single_vendor_downgrade() {
     let policy = Policy::load(dir.path(), Some(home.path())).unwrap();
     let mut l = Ledger::open(dir.path()).unwrap();
     let providers = vec![provider("same-vendor", "anthropic", &["--record", "2"])];
+    approve(&mut l, &policy);
     let out = run(
         &mut l,
         dir.path(),
@@ -340,6 +360,7 @@ fn a_project_may_not_set_the_global_single_vendor_downgrade() {
     )
     .unwrap();
     let policy = Policy::load(dir.path(), Some(home.path())).unwrap();
+    approve(&mut l, &policy);
     let out = run(
         &mut l,
         dir.path(),
@@ -362,6 +383,7 @@ fn a_failing_provider_is_a_failed_receipt_not_a_finding() {
     let policy = Policy::load(dir.path(), Some(home.path())).unwrap();
     let mut l = Ledger::open(dir.path()).unwrap();
     let providers = vec![provider("broken", "openai", &["--fail", "2"])];
+    approve(&mut l, &policy);
     let out = run(
         &mut l,
         dir.path(),
@@ -401,6 +423,7 @@ fn a_citation_that_does_not_resolve_makes_the_answer_a_hypothesis() {
         "openai",
         &["--record", "9999", "--file", "src/missing.ts:1"],
     )];
+    approve(&mut l, &policy);
     let out = run(
         &mut l,
         dir.path(),
@@ -433,6 +456,7 @@ fn the_low_lane_runs_no_desks() {
     let policy = Policy::load(dir.path(), Some(home.path())).unwrap();
     let mut l = Ledger::open(dir.path()).unwrap();
     let providers = vec![provider("fake", "openai", &[])];
+    approve(&mut l, &policy);
     let out = run(
         &mut l,
         dir.path(),
@@ -508,6 +532,7 @@ fn an_early_helper_is_ended_by_the_tree_kill() {
         &pid_path,
     ])];
     let started = std::time::Instant::now();
+    approve(&mut l, &policy);
     let out = run(
         &mut l,
         dir.path(),
@@ -560,6 +585,7 @@ fn a_timed_out_provider_ends_its_whole_process_tree() {
                 "--spawn-early-child",
                 &pid_path,
             ])];
+            approve(&mut l, &policy);
             let out = run(
                 &mut l,
                 &root,
@@ -636,6 +662,7 @@ fn a_critical_desk_finding_is_stored_as_critical_and_blocks_the_release_lane() {
         "openai",
         &["--record", "2", "--severity", "critical"],
     )];
+    approve(&mut l, &policy);
     let out = run(
         &mut l,
         dir.path(),
@@ -694,6 +721,7 @@ fn the_policy_verifier_order_decides_which_provider_serves_the_first_desk() {
         provider("aaa-google", "google", &["--record", "2"]),
         provider("zeta-openai", "openai", &["--record", "2"]),
     ];
+    approve(&mut l, &policy);
     let out = run(
         &mut l,
         dir.path(),
@@ -729,6 +757,7 @@ fn an_unstated_served_vendor_cannot_earn_cross_vendor_verification() {
         args: vec!["--record".into(), "2".into()],
         timeout_secs: Some(20),
     })];
+    approve(&mut ledger, &policy);
     let out = run(
         &mut ledger,
         dir.path(),
@@ -774,6 +803,7 @@ fn blank_or_unknown_served_identity_is_not_independent_evidence() {
             "openai",
             &["--served-vendor", vendor],
         )];
+        approve(&mut ledger, &policy);
         let out = run(
             &mut ledger,
             dir.path(),
@@ -805,6 +835,7 @@ fn a_served_vendor_that_is_the_builder_is_refused_not_counted() {
         "openai",
         &["--record", "2", "--served-vendor", "anthropic"],
     )];
+    approve(&mut l, &policy);
     let out = run(
         &mut l,
         dir.path(),
@@ -846,6 +877,7 @@ fn a_provider_with_a_large_answer_cannot_deadlock_the_parent() {
         &["--record", "2", "--pad", "300000"],
     )];
     let started = std::time::Instant::now();
+    approve(&mut l, &policy);
     let out = run(
         &mut l,
         dir.path(),
@@ -883,6 +915,7 @@ fn served_settings_and_usage_are_kept_in_the_receipt_and_the_check_detail() {
             "served-1",
         ],
     )];
+    approve(&mut l, &policy);
     let out = run(
         &mut l,
         dir.path(),
@@ -940,4 +973,53 @@ fn a_provider_that_never_reads_its_request_stays_bounded() {
         err.contains("did not take its request") || err.contains("did not answer"),
         "{err}"
     );
+}
+
+#[test]
+fn a_desk_provider_program_never_runs_without_the_humans_approval() {
+    // A repo's verdict.json names a provider. Without a human approval of exactly that
+    // configuration, the program must not start, and every desk is recorded as unavailable.
+    let (dir, home, sid) = project("unapproved", None);
+    let marker = dir.path().join("provider-started.txt");
+    let policy = Policy::load(dir.path(), Some(home.path())).unwrap();
+    let mut l = Ledger::open(dir.path()).unwrap();
+    let providers = vec![provider(
+        "repo-named",
+        "openai",
+        &["--record", "2", "--started", marker.to_str().unwrap()],
+    )];
+    let opts = DeskOptions {
+        lane: Lane::Standard,
+        timeout: Duration::from_secs(20),
+    };
+    let before = l.count().unwrap();
+    let out = run(&mut l, dir.path(), &sid, &policy, &opts, &providers).unwrap();
+    let Outcome::Refused { reason, desks } = out else {
+        panic!("an unapproved provider must be refused: {out:?}");
+    };
+    assert!(reason.contains("not approved"), "{reason}");
+    assert!(
+        !marker.exists(),
+        "the provider program must not have started"
+    );
+    let records = l.records().unwrap();
+    assert_eq!(records.len() as u64, before + desks.len() as u64);
+    assert!(records[before as usize..].iter().all(|s| matches!(
+        &s.record,
+        Record::CheckUnavailable { component, .. } if component.starts_with("desk:")
+    )));
+
+    // An approval of a different configuration does not cover this one.
+    let mut other = policy.clone();
+    other.value["exec"]["commands"] = serde_json::json!([{"run":"something else"}]);
+    approve(&mut l, &other);
+    let out = run(&mut l, dir.path(), &sid, &policy, &opts, &providers).unwrap();
+    assert!(matches!(out, Outcome::Refused { .. }), "{out:?}");
+    assert!(!marker.exists());
+
+    // Once the human approves exactly this configuration, the same provider runs.
+    approve(&mut l, &policy);
+    let out = run(&mut l, dir.path(), &sid, &policy, &opts, &providers).unwrap();
+    assert!(matches!(out, Outcome::Ran { .. }), "{out:?}");
+    assert!(marker.exists(), "the approved provider ran");
 }

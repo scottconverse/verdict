@@ -146,7 +146,53 @@ struct Reply {
     body: String,
 }
 
+/// Open the one-time link like the human's browser does, once per page, and keep the cookie.
+fn cookie(page: &Page) -> String {
+    use std::collections::HashMap;
+    use std::sync::{Mutex, OnceLock};
+    static COOKIES: OnceLock<Mutex<HashMap<u16, String>>> = OnceLock::new();
+    let mut map = COOKIES
+        .get_or_init(|| Mutex::new(HashMap::new()))
+        .lock()
+        .unwrap();
+    map.entry(page.addr.port())
+        .or_insert_with(|| {
+            let path = &page.link[page.link.find("/?k=").expect("a one-time link")..];
+            let mut s = TcpStream::connect(page.addr).unwrap();
+            let req = format!(
+                "GET {path} HTTP/1.1\r\nHost: 127.0.0.1:{}\r\nConnection: close\r\n\r\n",
+                page.addr.port()
+            );
+            s.write_all(req.as_bytes()).unwrap();
+            let mut raw = String::new();
+            let _ = s.read_to_string(&mut raw);
+            assert!(
+                raw.starts_with("HTTP/1.1 303"),
+                "the link lets the browser in: {raw}"
+            );
+            raw.lines()
+                .find_map(|l| l.strip_prefix("set-cookie: vdt_page="))
+                .and_then(|v| v.split(';').next())
+                .map(|v| format!("vdt_page={v}"))
+                .expect("the link sets the page cookie")
+        })
+        .clone()
+}
+
 fn http(
+    page: &Page,
+    method: &str,
+    path: &str,
+    headers: &[(&str, &str)],
+    body: Option<&str>,
+) -> Reply {
+    let c = cookie(page);
+    let mut h = vec![("Cookie", c.as_str())];
+    h.extend_from_slice(headers);
+    http_raw(page, method, path, &h, body)
+}
+
+fn http_raw(
     page: &Page,
     method: &str,
     path: &str,

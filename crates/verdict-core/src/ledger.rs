@@ -5,6 +5,9 @@
 //! reject `UPDATE` and `DELETE` and any `INSERT` that does not extend the chain, so even raw SQL
 //! against the file cannot rewrite history without first dropping the triggers; and doing that is
 //! itself caught by [`Ledger::verify`], as is any change to row content, order or length.
+//!
+//! A full rewrite with every hash recomputed would still chain. Each write therefore also stores a
+//! keyed hash of the new head, made with a key outside the project; see [`crate::seal`].
 
 use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params};
 use std::fmt;
@@ -171,6 +174,8 @@ pub struct Ledger {
     conn: Connection,
     path: Option<PathBuf>,
     clock: Box<dyn Fn() -> String + Send>,
+    /// The home folder that holds the seal key. `None` (in-memory ledgers): no seal.
+    seal_home: Option<PathBuf>,
 }
 
 impl fmt::Debug for Ledger {
@@ -263,16 +268,28 @@ impl Ledger {
             tx.execute_batch("PRAGMA user_version = 1")?;
             tx.commit()?;
         }
+        let seal_home = path.as_ref().and_then(|_| crate::policy::home_dir());
         Ok(Ledger {
             conn,
             path,
             clock: Box::new(now_rfc3339),
+            seal_home,
         })
     }
 
     /// Replace the clock (tests and golden files use a fixed one).
     pub fn set_clock(&mut self, clock: impl Fn() -> String + Send + 'static) {
         self.clock = Box::new(clock);
+    }
+
+    /// Use the seal key under `home` instead of the user's home folder (tests). `None` turns
+    /// sealing and the seal check off for this handle.
+    pub fn set_seal_home(&mut self, home: Option<PathBuf>) {
+        self.seal_home = home;
+    }
+
+    pub(crate) fn seal_home(&self) -> Option<&Path> {
+        self.seal_home.as_deref()
     }
 
     /// Path of the database file, if it has one.
@@ -313,6 +330,12 @@ impl Ledger {
             Some(file) => head_file_agrees(&tx, file)?,
             None => false,
         };
+        // Same idea for the seal: it only moves forward from a seal that is still good, or from a
+        // ledger that never had one. A broken seal stays broken, so verify keeps reporting it.
+        let seal_key = match &self.seal_home {
+            Some(home) => seal_key_if_good(&tx, home, self.path.as_deref())?,
+            None => None,
+        };
         let decision = permission(&tx, writer, &record)?;
         let (outcome, head) = match decision {
             Err(reason) => {
@@ -345,7 +368,22 @@ impl Ledger {
                 (Ok(a), head)
             }
         };
+        let sealed_now = seal_key.is_some();
+        if let Some(key) = seal_key {
+            tx.execute(crate::seal::SQL_SEAL_TABLE, [])?;
+            tx.execute(
+                "INSERT OR REPLACE INTO seal (id, seq, hash, mac) VALUES (1, ?1, ?2, ?3)",
+                params![
+                    head.0 as i64,
+                    head.1,
+                    crate::seal::mac(&key, head.0, &head.1)
+                ],
+            )?;
+        }
         tx.commit()?;
+        if sealed_now && let (Some(home), Some(path)) = (&self.seal_home, &self.path) {
+            crate::seal::remember_sealed(home, path);
+        }
         if head_trusted && let Some(file) = head_file {
             // Best effort: a head file that lags is harmless, a missing one is just no extra check.
             write_head_file(&file, head.0, &head.1);
@@ -465,6 +503,50 @@ pub(crate) fn parse_head(text: &str) -> Option<(i64, String)> {
 
 /// True when the head file is absent (nothing to protect yet) or names a record that exists with
 /// the same hash. False when it is unreadable or names a missing or different record.
+/// The seal key, when the seal may move forward: the ledger has no seal yet (the key is made if
+/// needed), or its seal is good for the current last record. `None` when the seal is broken.
+fn seal_key_if_good(
+    tx: &rusqlite::Transaction<'_>,
+    home: &Path,
+    ledger: Option<&Path>,
+) -> Result<Option<[u8; 32]>, LedgerError> {
+    let has_seal: bool = tx.query_row(
+        "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='seal')",
+        [],
+        |r| r.get(0),
+    )?;
+    let sealed: Option<(i64, String, String)> = if has_seal {
+        tx.query_row("SELECT seq, hash, mac FROM seal WHERE id = 1", [], |r| {
+            Ok((r.get(0)?, r.get(1)?, r.get(2)?))
+        })
+        .optional()?
+    } else {
+        None
+    };
+    let Some((seq, hash, mac)) = sealed else {
+        // A seal table with its row removed, or a ledger sealed before whose seal table is gone,
+        // is a broken seal, not a ledger from before sealing.
+        if has_seal || ledger.is_some_and(|l| crate::seal::was_sealed(home, l)) {
+            return Ok(None);
+        }
+        let key = crate::seal::key_or_create(home).map_err(LedgerError::Invalid)?;
+        return Ok(Some(key));
+    };
+    let Ok(Some(key)) = crate::seal::read_key(home) else {
+        return Ok(None);
+    };
+    let last: Option<(i64, String)> = tx
+        .query_row(
+            "SELECT seq, hash FROM records ORDER BY seq DESC LIMIT 1",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .optional()?;
+    let good =
+        seq >= 0 && crate::seal::mac(&key, seq as u64, &hash) == mac && last == Some((seq, hash));
+    Ok(good.then_some(key))
+}
+
 fn head_file_agrees(tx: &rusqlite::Transaction<'_>, file: &Path) -> Result<bool, LedgerError> {
     let text = match std::fs::read_to_string(file) {
         Ok(t) => t,

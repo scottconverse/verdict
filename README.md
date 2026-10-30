@@ -21,7 +21,7 @@ not the builder: deterministic checkers, a model from a different vendor, or the
 
 | Piece | State |
 | --- | --- |
-| Evidence ledger (SQLite, blake3 hash chain, append-only, JSONL export) | built |
+| Evidence ledger (SQLite, blake3 hash chain, keyed seal, append-only, JSONL export) | built |
 | Claude Code and Codex hook adapters (`vdt hook`, `vdt hooks install`) | built; live sessions recorded on this machine |
 | Cursor and Antigravity hook adapters (`vdt hook cursor|antigravity`, `vdt hooks install`) | built; documented file shapes, payload field names not yet verified against a live host ([docs/HOSTS.md](docs/HOSTS.md)) |
 | DeepSeek Harness integration: MCP entry, `vdt hook dsh`, and the native plugin in `integrations/dsh` | built; plugin maps the harness's real events and a live run against `vdt` recorded an intact ledger; not loaded into this workstation's DSH config ([docs/DSH.md](docs/DSH.md)) |
@@ -186,6 +186,11 @@ packaged desk rubrics; their attribution lives in `NOTICE`.
 
 ## Inside an editor
 
-The page is a local web app, so it also runs inside an editor: with `vdt serve` running, open
-`http://127.0.0.1:4717/` in VS Code's or Cursor's built-in Simple Browser panel. No extension is
-required, and the editor and a normal browser show the same ledger and the same buttons.
+The page is a local web app, so it also runs inside an editor: run `vdt serve` and open the
+one-time link it prints (`http://127.0.0.1:4717/?k=...`) in VS Code's or Cursor's built-in Simple
+Browser panel. No extension is required.
+
+The link works one time only. The browser that opens it gets a cookie, and the page answers only
+that browser. A program that loads the page without the cookie is refused, so it cannot read the
+page or press its buttons. To use another browser, stop `vdt serve` and start it again for a new
+link. `vdt serve --open` opens the link in your default browser for you.

@@ -3,7 +3,7 @@
 //! gets a temp HOME so the real `~/.verdict` and `~/.claude` are never read or written.
 
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+use std::process::{Command, Output, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
 use verdict_core::*;
 
@@ -41,6 +41,8 @@ fn run(cmd: &mut Command, home: &Path) -> Output {
     cmd.env("HOME", home)
         .env("USERPROFILE", home)
         .env("GIT_CONFIG_NOSYSTEM", "1")
+        // The person at the terminal types yes (debug builds read this for the test suite).
+        .env("VDT_TEST_TYPED", "yes")
         .output()
         .expect("process runs")
 }
@@ -78,6 +80,8 @@ fn repo() -> Repo {
     let c = git(&dir.0, &home.0, &["commit", "-q", "-m", "first"]);
     assert!(c.status.success(), "{}", out(&c));
     let mut l = Ledger::open(&dir.0).unwrap();
+    // The same home as the vdt runs, so this handle and vdt use one seal key.
+    l.set_seal_home(Some(home.0.clone()));
     let s = start_session(
         &mut l,
         &dir.0,
@@ -98,7 +102,9 @@ fn repo() -> Repo {
 
 impl Repo {
     fn ledger(&self) -> Ledger {
-        Ledger::open(&self.dir.0).unwrap()
+        let mut l = Ledger::open(&self.dir.0).unwrap();
+        l.set_seal_home(Some(self.home.0.clone()));
+        l
     }
     fn vdt(&self, args: &[&str]) -> Output {
         vdt(&self.dir.0, &self.home.0, args)
@@ -240,6 +246,29 @@ fn enforce_mode_holds_a_failed_commit_until_the_human_chooses_commit_anyway_with
             })
             .count()
     };
+    assert_eq!(count(&r), 0);
+    // The flag alone is not a person: with no terminal (an agent's shell) or no "yes", nothing
+    // is recorded.
+    for typed in [None, Some("no")] {
+        let mut c = Command::new(vdt_exe());
+        c.current_dir(&r.dir.0)
+            .args(["commit-anyway", "--reason", "hotfix", "--i-am-the-human"])
+            .env("HOME", &r.home.0)
+            .env("USERPROFILE", &r.home.0)
+            .env_remove("VDT_TEST_TYPED")
+            .stdin(Stdio::null());
+        if let Some(typed) = typed {
+            c.env("VDT_TEST_TYPED", typed);
+        }
+        let o = c.output().unwrap();
+        assert_eq!(o.status.code(), Some(1), "{}", out(&o));
+        let why = if typed.is_none() {
+            "Refused"
+        } else {
+            "did not type yes"
+        };
+        assert!(out(&o).contains(why), "{}", out(&o));
+    }
     assert_eq!(count(&r), 0);
     assert!(!r.git(&["commit", "-q", "-m", "second"]).status.success());
 

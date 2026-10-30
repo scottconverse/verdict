@@ -217,6 +217,9 @@ pub enum DecisionKind {
     TagRelease,
     /// Pause the gate for a stated duration.
     Pause,
+    /// Accept the rules as they are now after they changed during a session. The choice is the
+    /// policy hash the human accepted.
+    AcceptPolicy,
 }
 
 impl DecisionKind {
@@ -236,6 +239,7 @@ impl DecisionKind {
             DecisionKind::RaiseLane => "raise_lane",
             DecisionKind::TagRelease => "tag_release",
             DecisionKind::Pause => "pause",
+            DecisionKind::AcceptPolicy => "accept_policy",
         }
     }
 }

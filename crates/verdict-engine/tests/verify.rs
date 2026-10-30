@@ -336,6 +336,21 @@ fn a_desk_proposal_is_dispatched_to_the_checker_and_creates_a_new_receipt() {
         )
         .unwrap();
 
+    // The desk provider starts a program, so it runs only under the human's approval.
+    let effective = Policy::load(dir.path(), Some(home.path())).unwrap();
+    ledger
+        .append(
+            Writer::Human,
+            None,
+            Record::Decision {
+                decision: DecisionKind::RunProjectCommands,
+                choice: verdict_core::exec_approval::approval_choice(&effective),
+                reason: None,
+                who: Writer::Human,
+            },
+        )
+        .unwrap();
+
     std::fs::write(dir.path().join("src/a.rs"), "fn a() { let _ = 1; }\n").unwrap();
     verify(
         dir.path(),

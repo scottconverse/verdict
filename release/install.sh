@@ -67,8 +67,9 @@ esac
 
 echo "Installed $dir/vdt"
 
-# Register the MCP server with the project the installer was run in. Failures are warnings: the
-# binary is installed and the page still works.
+# Register the MCP server with the project the installer was run in. vdt asks the person at the
+# terminal to type yes for each host. Failures are warnings: the binary is installed and the page
+# still works.
 if [ "${VDT_NO_MCP:-0}" != "1" ]; then
   "$dir/vdt" mcp-install claude --project "$PWD" --i-am-the-human --vdt-path "$dir/vdt" \
     || echo "warning: could not register the MCP server with Claude Code" >&2
@@ -77,9 +78,6 @@ if [ "${VDT_NO_MCP:-0}" != "1" ]; then
 fi
 
 echo "Starting the Verdict page for $PWD..."
-"$dir/vdt" serve --project "$PWD" >"$HOME/.verdict-serve.log" 2>&1 &
-sleep 1
-if command -v xdg-open >/dev/null 2>&1; then xdg-open "http://127.0.0.1:4717/" >/dev/null 2>&1 || true
-elif command -v open >/dev/null 2>&1; then open "http://127.0.0.1:4717/" || true
-fi
-echo "Verdict is running at http://127.0.0.1:4717/ (project: $PWD)"
+# The page opens its own one-time link in the browser (--open). A plain address is refused.
+"$dir/vdt" serve --open --project "$PWD" >"$HOME/.verdict-serve.log" 2>&1 &
+echo "Verdict is running on 127.0.0.1:4717 (project: $PWD). Your browser opens it."

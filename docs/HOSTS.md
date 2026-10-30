@@ -36,3 +36,8 @@ Install button does the same. Uninstalling removes only entries whose command is
 `<program> hook <host> <event>`, and restores a backup otherwise. Cursor's flat file and
 Antigravity's named `verdict` group are handled separately, because writing one shape into the
 other would corrupt the file.
+
+`--i-am-the-human` alone is not enough. Every human command on the command line (hooks, the gate,
+`mcp-install`, `approve-commands`, `accept-policy`, `commit-anyway`) also asks the person at the
+terminal to type `yes`. With no terminal on standard input, as in an agent's shell tool, it refuses
+and changes nothing. This raises the bar; a program that opens a pseudo-terminal can still answer.

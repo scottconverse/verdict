@@ -7,6 +7,8 @@
 //! * It has exactly one write control: "Install hooks in this project", per host. Pressing it
 //!   records a decision with writer `human` and shows the hook block to add. A press must come
 //!   from this page: same `Origin` and a per-run token.
+//! * Every request (except `/readyz`) needs this run's page cookie. Only the one-time link `vdt
+//!   serve` prints sets it, so another program on the computer cannot read the page or its token.
 //!
 //! Text is large and high contrast on purpose (body 20px, black on white).
 
@@ -43,7 +45,23 @@ pub struct Page {
     pub addr: SocketAddr,
     /// The per-run token the install button needs.
     pub token: String,
+    /// The one-time link that lets the first browser in (`http://127.0.0.1:PORT/?k=...`).
+    pub link: String,
 }
+
+/// The one-time code in the link `vdt serve` prints.
+pub(crate) enum Bootstrap {
+    /// Not opened yet.
+    Unused(String),
+    /// Opened once already; a second open is refused.
+    Used(String),
+}
+
+/// The cookie the one-time link sets. Two cookies hold the same per-run key: a strict one every
+/// browser keeps, and a `SameSite=None; Secure` one so the page still works inside an editor
+/// panel (a cross-site frame), where a strict cookie is not sent.
+const COOKIE: &str = "vdt_page";
+const COOKIE_FRAME: &str = "vdt_page_frame";
 
 pub(crate) struct Shared {
     pub(crate) root: PathBuf,
@@ -53,6 +71,9 @@ pub(crate) struct Shared {
     /// The core this page serves: the absolute path written into hook commands, so a no-terminal
     /// install never depends on `vdt` being on PATH.
     pub(crate) core: Option<PathBuf>,
+    /// The per-run key in the page cookie. Never printed and never put in a page.
+    cookie_key: String,
+    bootstrap: std::sync::Mutex<Bootstrap>,
     allowed_hosts: Vec<String>,
     allowed_origins: Vec<String>,
 }
@@ -111,6 +132,8 @@ fn shared_with_core(
         token,
         home,
         core,
+        cookie_key: new_token(),
+        bootstrap: std::sync::Mutex::new(Bootstrap::Unused(new_token())),
         allowed_hosts: vec![format!("127.0.0.1:{port}"), format!("localhost:{port}")],
         allowed_origins: vec![
             format!("http://127.0.0.1:{port}"),
@@ -163,23 +186,38 @@ fn run_blocking(listener: StdListener, state: St) -> std::io::Result<()> {
 
 /// Serve the page for the project at `root` on `127.0.0.1:port` until the process is stopped.
 pub fn serve(root: PathBuf, port: u16) -> std::io::Result<()> {
+    serve_with(root, port, false)
+}
+
+/// Like [`serve`]. With `open`, the page opens its own one-time link in the default browser, so a
+/// shortcut or installer needs no terminal and nothing else ever sees the link.
+pub fn serve_with(root: PathBuf, port: u16, open: bool) -> std::io::Result<()> {
     let listener = bind(port)?;
     let addr = listener.local_addr()?;
     let token = new_token();
+    let state = shared(root.clone(), token, addr.port(), None);
     // A closed stdout (the caller stopped reading) must not stop the page: `println!` would
     // panic on a broken pipe, so write and ignore the error.
     {
         use std::io::Write as _;
         let mut out = std::io::stdout();
-        let _ = writeln!(out, "Verdict page: http://127.0.0.1:{}/", addr.port());
+        let _ = writeln!(out, "Verdict page (open this link once): {}", link(&state));
         let _ = writeln!(out, "Project: {}", root.display());
+        let _ = writeln!(
+            out,
+            "The link works one time only. The browser that opens it is the only one the page answers."
+        );
         let _ = writeln!(
             out,
             "Every button on the page records one of your decisions. Press Ctrl+C to stop."
         );
         let _ = out.flush();
     }
-    run_blocking(listener, shared(root, token, addr.port(), None))
+    if open {
+        // The socket is already listening, so the browser's request waits for the server.
+        setup::open_url(&link(&state));
+    }
+    run_blocking(listener, state)
 }
 
 /// Start the page on a background thread and return where it listens. For tests.
@@ -210,13 +248,95 @@ pub fn start_background_with_core(
     let token = new_token();
     let core = core.or_else(detect_core);
     let state = shared_with_core(root, token.clone(), addr.port(), home, core);
+    let link = link(&state);
     std::thread::spawn(move || {
         let _ = run_blocking(listener, state);
     });
-    Ok(Page { addr, token })
+    Ok(Page { addr, token, link })
+}
+
+/// The one-time link for this run (empty once it was used).
+fn link(st: &St) -> String {
+    let code = match &*st.bootstrap.lock().unwrap_or_else(|e| e.into_inner()) {
+        Bootstrap::Unused(c) => c.clone(),
+        Bootstrap::Used(_) => String::new(),
+    };
+    format!("{}/?k={code}", st.allowed_origins[0])
 }
 
 // ---------------------------------------------------------------- guard
+
+/// Whether the request carries this run's page cookie.
+fn has_cookie(req: &Request, key: &str) -> bool {
+    req.headers()
+        .get_all(header::COOKIE)
+        .iter()
+        .filter_map(|v| v.to_str().ok())
+        .flat_map(|v| v.split(';'))
+        .filter_map(|kv| kv.trim().split_once('='))
+        .any(|(k, v)| (k == COOKIE || k == COOKIE_FRAME) && same(v.as_bytes(), key.as_bytes()))
+}
+
+/// Compare two secrets in time that does not depend on where they differ.
+fn same(a: &[u8], b: &[u8]) -> bool {
+    a.len() == b.len() && a.iter().zip(b).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
+}
+
+/// A request with no page cookie: let it in only with the unused one-time code, then set the
+/// cookie and send the browser on without the code in its address bar.
+fn admit(st: &St, req: &Request) -> Response {
+    let code = req
+        .uri()
+        .query()
+        .unwrap_or("")
+        .split('&')
+        .find_map(|kv| kv.strip_prefix("k="))
+        .unwrap_or("");
+    if req.method() == Method::GET && !code.is_empty() {
+        let mut b = st.bootstrap.lock().unwrap_or_else(|e| e.into_inner());
+        match &*b {
+            Bootstrap::Unused(c) if same(c.as_bytes(), code.as_bytes()) => {
+                let used = c.clone();
+                *b = Bootstrap::Used(used);
+                let key = &st.cookie_key;
+                let mut resp = (
+                    StatusCode::SEE_OTHER,
+                    [(header::LOCATION, req.uri().path().to_string())],
+                )
+                    .into_response();
+                let h = resp.headers_mut();
+                for c in [
+                    format!("{COOKIE}={key}; Path=/; HttpOnly; SameSite=Strict"),
+                    format!("{COOKIE_FRAME}={key}; Path=/; HttpOnly; SameSite=None; Secure"),
+                ] {
+                    if let Ok(v) = HeaderValue::from_str(&c) {
+                        h.append(header::SET_COOKIE, v);
+                    }
+                }
+                h.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
+                h.insert(
+                    header::REFERRER_POLICY,
+                    HeaderValue::from_static("no-referrer"),
+                );
+                return resp;
+            }
+            Bootstrap::Used(c) if same(c.as_bytes(), code.as_bytes()) => {
+                return deny(
+                    StatusCode::FORBIDDEN,
+                    "This link was already used. It works one time only. If you did not open it \
+                     before, something else on this computer did: stop vdt serve and start it \
+                     again to get a new link.",
+                );
+            }
+            _ => {}
+        }
+    }
+    deny(
+        StatusCode::FORBIDDEN,
+        "Refused: open the link that vdt serve printed (it ends in ?k=...). The page answers only \
+         the browser that opened that link.",
+    )
+}
 
 pub(crate) fn deny(status: StatusCode, why: &str) -> Response {
     (
@@ -237,6 +357,11 @@ async fn guard(State(st): State<St>, req: Request, next: Next) -> Response {
             StatusCode::FORBIDDEN,
             "This page only answers requests addressed to its own localhost address.",
         );
+    }
+    // Every request except the health probe needs the page cookie. The token in the forms alone
+    // is not enough: any program on this computer could load the page and read it.
+    if req.uri().path() != "/readyz" && !has_cookie(&req, &st.cookie_key) {
+        return admit(&st, &req);
     }
     if req.method() != Method::GET && req.method() != Method::HEAD {
         let origin = req

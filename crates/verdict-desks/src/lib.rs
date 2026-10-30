@@ -69,6 +69,11 @@ pub trait DeskProvider {
     }
     /// Ask it one question and return its raw answer text.
     fn ask(&self, prompt: &str, timeout: Duration) -> Result<String, String>;
+    /// True when asking starts a program on this machine. Such a provider runs only after the
+    /// human approved the project's commands, the providers included.
+    fn starts_a_program(&self) -> bool {
+        false
+    }
 }
 
 /// A provider configured in the policy: a command that speaks the JSON protocol.
@@ -103,6 +108,9 @@ impl DeskProvider for CommandProvider {
     }
     fn ask(&self, prompt: &str, timeout: Duration) -> Result<String, String> {
         ask_command(self, prompt, timeout)
+    }
+    fn starts_a_program(&self) -> bool {
+        true
     }
 }
 
@@ -950,7 +958,35 @@ pub fn run(
         .and_then(Value::as_str)
         == Some("warn");
 
-    let mut order: Vec<&Box<dyn DeskProvider>> = providers.iter().collect();
+    // A provider that starts a program runs only under the human's approval of exactly this
+    // configuration. A repo's own verdict.json cannot approve the programs it names.
+    let approved = verdict_core::exec_approval::approved_now(ledger, policy)?;
+    type Picked<'a> = Vec<&'a Box<dyn DeskProvider>>;
+    let (allowed, unapproved): (Picked, Picked) = providers
+        .iter()
+        .partition(|p| approved || !p.starts_a_program());
+    if allowed.is_empty() && !unapproved.is_empty() {
+        let names: Vec<&str> = unapproved.iter().map(|p| p.name()).collect();
+        let reason = format!(
+            "the desk provider program(s) {} are not approved; a human must approve the \
+             project's commands (vdt approve-commands, or the page) before a desk provider runs",
+            names.join(", ")
+        );
+        for desk in &desks {
+            ledger
+                .append(
+                    Writer::Desk,
+                    Some(session),
+                    Record::CheckUnavailable {
+                        component: format!("desk:{desk}"),
+                        reason: reason.clone(),
+                    },
+                )
+                .map_err(|e| e.to_string())?;
+        }
+        return Ok(Outcome::Refused { reason, desks });
+    }
+    let mut order: Vec<&Box<dyn DeskProvider>> = allowed;
     // The policy's `vendors.verifier_order` is a preference list of vendors (or provider names);
     // then a different vendor, then the provider name, for determinism.
     let preferred: Vec<String> = policy

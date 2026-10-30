@@ -8,6 +8,7 @@
 //! 2 the ledger failed verification.
 
 mod p2b;
+mod person;
 mod runner;
 
 use clap::{Parser, Subcommand};
@@ -150,6 +151,16 @@ enum Command {
         #[arg(long = "i-am-the-human")]
         i_am_the_human: bool,
     },
+    /// Accept the rules (verdict.json or the global policy) as they are now, after they changed
+    /// during this session (human only).
+    AcceptPolicy {
+        /// Project folder (default: found from the current folder).
+        #[arg(long)]
+        project: Option<std::path::PathBuf>,
+        /// You, the human, are doing this. Without it vdt only prints what it would change.
+        #[arg(long = "i-am-the-human")]
+        i_am_the_human: bool,
+    },
     /// Read the whole project for broken calls, routes nothing calls, controls with no handler,
     /// called stubs, unfinished work and regressions. No session, no claims; writes nothing and
     /// always exits 0.
@@ -216,6 +227,9 @@ enum Command {
         /// Project folder (default: found from the current folder).
         #[arg(long)]
         project: Option<std::path::PathBuf>,
+        /// Open the page's one-time link in the default browser.
+        #[arg(long)]
+        open: bool,
     },
 }
 
@@ -316,6 +330,37 @@ fn setup_from_argv(argv: &[String]) -> ExitCode {
     run_setup_cli(opts)
 }
 
+/// The human commands that change setup files: with `--i-am-the-human` they need a person at a
+/// terminal before anything runs. (Approve, accept and commit anyway ask after they show what
+/// they would record.)
+fn needs_a_person(command: &Command) -> Option<String> {
+    match command {
+        Command::Hooks { action } => {
+            let (verb, a) = match action {
+                HooksAction::Install(a) => ("Install", a),
+                HooksAction::Uninstall(a) => ("Remove", a),
+            };
+            a.i_am_the_human
+                .then(|| format!("{verb} the Verdict hooks for {}", a.host))
+        }
+        Command::McpInstall {
+            host,
+            i_am_the_human,
+            ..
+        } => i_am_the_human.then(|| format!("Register the Verdict MCP server for {host}")),
+        Command::Gate { action } => match action {
+            p2b::GateAction::Install(a) if a.i_am_the_human => {
+                Some("Install the Verdict pre-commit gate".into())
+            }
+            p2b::GateAction::Uninstall(a) if a.i_am_the_human => {
+                Some("Remove the Verdict pre-commit gate".into())
+            }
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
 fn main() -> ExitCode {
     // A hook must never fail the agent, so it is handled before argument parsing can reject
     // anything: `vdt hook ...` always exits 0.
@@ -345,6 +390,11 @@ fn main() -> ExitCode {
             return ExitCode::from(1);
         }
     };
+    if let Some(what) = needs_a_person(&cli.command)
+        && !person::confirm(&what)
+    {
+        return ExitCode::from(1);
+    }
     match &cli.command {
         Command::Mcp { project } => {
             let root = find_project_root(project.as_deref().unwrap_or(&cwd));
@@ -549,9 +599,13 @@ fn main() -> ExitCode {
                     .collect(),
             });
         }
-        Command::Serve { port, project } => {
+        Command::Serve {
+            port,
+            project,
+            open,
+        } => {
             let root = find_project_root(project.as_deref().unwrap_or(&cwd));
-            return match verdict_gui::serve(root, *port) {
+            return match verdict_gui::serve_with(root, *port, *open) {
                 Ok(()) => ExitCode::SUCCESS,
                 Err(e) => {
                     eprintln!("vdt: cannot serve the page on 127.0.0.1:{port}: {e}");
@@ -572,6 +626,64 @@ fn main() -> ExitCode {
                 project.as_deref(),
                 &cwd,
             );
+        }
+        Command::AcceptPolicy {
+            project,
+            i_am_the_human,
+        } => {
+            let root = find_project_root(project.as_deref().unwrap_or(&cwd));
+            let c = |e: String| {
+                eprintln!("vdt: {e}");
+                ExitCode::from(1)
+            };
+            let mut ledger = match Ledger::open(&root) {
+                Ok(l) => l,
+                Err(e) => return c(e.to_string()),
+            };
+            let session = match verdict_core::part1c::resolve_session(&ledger, None) {
+                Ok(Some(s)) => s,
+                Ok(None) => return c("there is no open session; there is nothing to accept".into()),
+                Err(e) => return c(e.to_string()),
+            };
+            let policy = match verdict_core::policy::Policy::load(&root, None) {
+                Ok(p) => p,
+                Err(e) => return c(format!("the policy could not be read: {e}")),
+            };
+            let change = match verdict_core::verdict::policy_change(&ledger, &session, &policy) {
+                Ok(c) => c,
+                Err(e) => return c(e.to_string()),
+            };
+            let Some(change) = change else {
+                println!("The rules have not changed during this session. Nothing was recorded.");
+                return ExitCode::SUCCESS;
+            };
+            if !i_am_the_human {
+                println!("{change}");
+                println!(
+                    "Nothing was recorded. Re-run with --i-am-the-human to accept the rules as they are now."
+                );
+                return ExitCode::SUCCESS;
+            }
+            println!("{change}");
+            if !person::confirm("Accept the rules as they are now") {
+                return ExitCode::from(1);
+            }
+            match verdict_core::human::apply(
+                &root,
+                &mut ledger,
+                &session,
+                &verdict_core::human::Action::AcceptPolicy,
+                None,
+            ) {
+                Ok(seq) => {
+                    println!(
+                        "Recorded your acceptance of the current rules (policy {}) as decision record {seq}.",
+                        &policy.hash[..policy.hash.len().min(12)]
+                    );
+                    return ExitCode::SUCCESS;
+                }
+                Err(e) => return c(format!("nothing was recorded: {e}")),
+            }
         }
         Command::Gate { action } => return p2b::gate(action, &cwd),
         Command::CommitAnyway(args) => return p2b::commit_anyway(args, &cwd),
@@ -623,6 +735,13 @@ fn main() -> ExitCode {
                     "Nothing was recorded. Re-run with --i-am-the-human to record the decision."
                 );
                 return ExitCode::SUCCESS;
+            }
+            println!("This approves exactly these commands for this project:");
+            for l in &listed {
+                println!("  {l}");
+            }
+            if !person::confirm("Approve these commands") {
+                return ExitCode::from(1);
             }
             match verdict_core::human::apply(
                 &root,
@@ -751,7 +870,8 @@ fn run(cli: Cli, cwd: &Path, out: &mut dyn Write) -> Result<u8, LedgerError> {
             | Command::Verdict { .. }
             | Command::Gate { .. }
             | Command::CommitAnyway(_)
-            | Command::ApproveCommands { .. } => {} // handled in main
+            | Command::ApproveCommands { .. }
+            | Command::AcceptPolicy { .. } => {} // handled in main
         }
         return Ok(0);
     };
@@ -810,6 +930,7 @@ fn run(cli: Cli, cwd: &Path, out: &mut dyn Write) -> Result<u8, LedgerError> {
         | Command::Verdict { .. }
         | Command::Gate { .. }
         | Command::CommitAnyway(_)
-        | Command::ApproveCommands { .. } => Ok(0), // handled in main
+        | Command::ApproveCommands { .. }
+        | Command::AcceptPolicy { .. } => Ok(0), // handled in main
     }
 }

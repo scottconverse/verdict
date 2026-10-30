@@ -36,7 +36,9 @@ fn command(dir: &Path, home: &Path, args: &[&str]) -> Command {
         .current_dir(dir)
         .env("USERPROFILE", home)
         .env("HOME", home)
-        .env("CODEX_HOME", home.join(".codex"));
+        .env("CODEX_HOME", home.join(".codex"))
+        // The person at the terminal types yes (debug builds read this for the test suite).
+        .env("VDT_TEST_TYPED", "yes");
     c
 }
 
@@ -226,6 +228,30 @@ fn hooks_install_prints_without_the_flag_and_installs_with_it() {
         "{text}"
     );
     assert!(!t.0.join(".claude").exists());
+
+    // The flag alone is not a person: with no terminal (an agent's shell) or no "yes", nothing
+    // is written.
+    for typed in [None, Some("no")] {
+        let mut c = command(
+            &t.0,
+            &h.0,
+            &["hooks", "install", "claude", "--i-am-the-human"],
+        );
+        c.stdin(Stdio::null()).env_remove("VDT_TEST_TYPED");
+        if let Some(typed) = typed {
+            c.env("VDT_TEST_TYPED", typed);
+        }
+        let o = c.output().unwrap();
+        let text = String::from_utf8_lossy(&o.stderr);
+        assert_eq!(o.status.code(), Some(1), "{text}");
+        let why = if typed.is_none() {
+            "Refused"
+        } else {
+            "did not type yes"
+        };
+        assert!(text.contains(why), "{text}");
+        assert!(!t.0.join(".claude").exists(), "{text}");
+    }
 
     let (code, text) = vdt_text(
         &t.0,

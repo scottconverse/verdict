@@ -94,8 +94,8 @@ configured a cross-vendor provider. That is the honest pre-tag state, not a clea
    for a Mac certificate or substitute an unsigned workflow rebuild for Windows.
 6. Publish the draft. Download one archive, check its `.sha256`, and run the installer. The
    installer places `vdt`, makes a desktop shortcut on that project on Windows, and opens the local
-   page. After that the workflow is no-terminal: every decision is a button on
-   `http://127.0.0.1:4717/`.
+   page. After that the workflow is no-terminal: every decision is a button on the page at
+   `http://127.0.0.1:4717/`, which the installer opens with its one-time link.
 
 ## Install, upgrade and rollback
 
