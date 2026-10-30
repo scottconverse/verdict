@@ -283,3 +283,169 @@ fn raw_sql_agent_verdicts_decisions_and_uncited_findings_fail_verify() {
         assert_eq!(r.first_broken_seq(), Some(6), "{}", r.summary());
     }
 }
+
+/// Rewrite the whole chain with raw SQL: record 2 edited, every hash recomputed, the head file
+/// moved to match. Without a seal this ledger reads OK.
+fn rewrite_whole_chain(t: &TempDir) {
+    let c = raw(t);
+    // Keep the trigger text, so the rewrite can put the same triggers back afterwards.
+    let triggers: Vec<String> = {
+        let mut st = c
+            .prepare("SELECT sql FROM sqlite_master WHERE type='trigger' ORDER BY name")
+            .unwrap();
+        st.query_map([], |r| r.get(0))
+            .unwrap()
+            .map(Result::unwrap)
+            .collect()
+    };
+    drop_triggers(&c);
+    let rows: Vec<(i64, String, String, Option<String>, String, String)> = {
+        let mut st = c
+            .prepare("SELECT seq, ts, writer, session_id, kind, body FROM records ORDER BY seq")
+            .unwrap();
+        st.query_map([], |r| {
+            Ok((
+                r.get(0)?,
+                r.get(1)?,
+                r.get(2)?,
+                r.get(3)?,
+                r.get(4)?,
+                r.get(5)?,
+            ))
+        })
+        .unwrap()
+        .map(Result::unwrap)
+        .collect()
+    };
+    c.execute("DELETE FROM records", []).unwrap();
+    let mut prev = verdict_core::ledger::GENESIS_HASH.to_string();
+    for (seq, ts, writer, sid, kind, body) in rows {
+        let body = body.replace("add a login page", "add nothing");
+        let hash = verdict_core::ledger::record_hash(
+            seq as u64,
+            &ts,
+            &writer,
+            sid.as_deref(),
+            &kind,
+            &prev,
+            &body,
+        );
+        c.execute(
+            "INSERT INTO records (seq, ts, writer, session_id, kind, body, prev_hash, hash)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            rusqlite::params![seq, ts, writer, sid, kind, body, prev, hash],
+        )
+        .unwrap();
+        prev = hash;
+    }
+    let last: i64 = c
+        .query_row("SELECT MAX(seq) FROM records", [], |r| r.get(0))
+        .unwrap();
+    for sql in &triggers {
+        c.execute(sql, []).unwrap();
+    }
+    drop(c);
+    std::fs::write(
+        t.path().join(".verdict").join("ledger.head"),
+        format!("{last} {prev}\n"),
+    )
+    .unwrap();
+}
+
+#[test]
+fn a_full_rewrite_with_every_hash_recomputed_is_caught_by_the_seal() {
+    let t = TempDir::new("rewrite");
+    drop(seeded(t.path()));
+    rewrite_whole_chain(&t);
+    // Without the seal check, the rewrite reads OK: this is the hole the seal closes.
+    let mut unsealed = Ledger::open(t.path()).unwrap();
+    unsealed.set_seal_home(None);
+    assert!(unsealed.verify().unwrap().is_ok());
+    drop(unsealed);
+    let r = verify(&t);
+    assert!(!r.is_ok(), "a full rewrite passed verify");
+    assert!(
+        r.summary().contains("sealed record changed"),
+        "{}",
+        r.summary()
+    );
+
+    // Moving the seal to the new hash without the key does not help: the keyed hash differs.
+    let c = raw(&t);
+    let head: String = c
+        .query_row(
+            "SELECT hash FROM records ORDER BY seq DESC LIMIT 1",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    c.execute("UPDATE seal SET hash = ?1", [head]).unwrap();
+    drop(c);
+    let r = verify(&t);
+    assert!(
+        r.summary().contains("seal does not match"),
+        "{}",
+        r.summary()
+    );
+
+    // A normal write after the rewrite does not bless it.
+    let mut l = Ledger::open(t.path()).unwrap();
+    l.append(Writer::Agent, None, claim("after the rewrite"))
+        .unwrap();
+    assert!(!l.verify().unwrap().is_ok());
+}
+
+#[test]
+fn dropping_the_seal_table_does_not_make_a_rewrite_pass() {
+    let t = TempDir::new("noseal");
+    drop(seeded(t.path()));
+    rewrite_whole_chain(&t);
+    raw(&t).execute("DROP TABLE seal", []).unwrap();
+    let r = verify(&t);
+    assert!(r.summary().contains("seal was removed"), "{}", r.summary());
+    let mut l = Ledger::open(t.path()).unwrap();
+    l.append(Writer::Agent, None, claim("after the drop"))
+        .unwrap();
+    assert!(!l.verify().unwrap().is_ok(), "the next write blessed it");
+}
+
+#[test]
+fn a_rule_abiding_row_added_with_raw_sql_is_caught_by_the_seal() {
+    let t = TempDir::new("forge-claim");
+    drop(seeded(t.path()));
+    forge(&t, "agent", &claim("forged but allowed"));
+    let r = verify(&t);
+    assert_eq!(r.first_broken_seq(), Some(6), "{}", r.summary());
+    assert!(
+        r.summary().contains("not written through vdt"),
+        "{}",
+        r.summary()
+    );
+}
+
+#[test]
+fn a_ledger_from_before_sealing_reads_ok_and_its_next_write_seals_it() {
+    let t = TempDir::new("preseal");
+    let home = TempDir::new("preseal-home");
+    let mut l = Ledger::open(t.path()).unwrap();
+    l.set_seal_home(None);
+    l.append(Writer::Agent, None, claim("old record 1"))
+        .unwrap();
+    l.set_seal_home(Some(home.path().to_path_buf()));
+    let r = l.verify().unwrap();
+    assert!(r.is_ok() && r.not_sealed_yet, "{}", r.summary());
+    assert!(r.summary().contains("not sealed yet"));
+
+    l.append(Writer::Agent, None, claim("new record 2"))
+        .unwrap();
+    let r = l.verify().unwrap();
+    assert!(r.is_ok() && !r.not_sealed_yet, "{}", r.summary());
+    assert!(home.path().join(".verdict").join("seal.key").is_file());
+
+    // Another user's key (another home folder) does not match this seal.
+    let other = TempDir::new("preseal-other");
+    l.set_seal_home(Some(other.path().to_path_buf()));
+    let r = l.verify().unwrap();
+    assert!(r.summary().contains("no seal key"), "{}", r.summary());
+    assert!(!other.path().join(".verdict").exists(), "verify made a key");
+}

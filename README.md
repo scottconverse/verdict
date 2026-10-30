@@ -21,7 +21,7 @@ not the builder: deterministic checkers, a model from a different vendor, or the
 
 | Piece | State |
 | --- | --- |
-| Evidence ledger (SQLite, blake3 hash chain, append-only, JSONL export) | built |
+| Evidence ledger (SQLite, blake3 hash chain, keyed seal, append-only, JSONL export) | built |
 | Claude Code and Codex hook adapters (`vdt hook`, `vdt hooks install`) | built; live sessions recorded on this machine |
 | Cursor and Antigravity hook adapters (`vdt hook cursor|antigravity`, `vdt hooks install`) | built; documented file shapes, payload field names not yet verified against a live host ([docs/HOSTS.md](docs/HOSTS.md)) |
 | DeepSeek Harness integration: MCP entry, `vdt hook dsh`, and the native plugin in `integrations/dsh` | built; plugin maps the harness's real events and a live run against `vdt` recorded an intact ledger; not loaded into this workstation's DSH config ([docs/DSH.md](docs/DSH.md)) |

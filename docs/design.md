@@ -73,7 +73,7 @@ Adapters are the only vendor-specific code in the tool, and each one does exactl
 
 The ledger is the core: an append-only, per-project record that every other layer reads and only the core may write. It is what turns "worker is not the judge" from a request into a property.
 
-**Storage.** SQLite file at `.verdict/ledger.db` in the project (ignored by git), with a JSONL export for diffing and for prover-style packets. Each record carries a monotonic sequence number and a hash chain over the previous record, so a tampered or truncated ledger is detectable (the TamperCheck idea, built in). The baseline snapshot is a git tree hash plus a content hash of uncommitted files, never a copy of the code.
+**Storage.** SQLite file at `.verdict/ledger.db` in the project (ignored by git), with a JSONL export for diffing and for prover-style packets. Each record carries a monotonic sequence number and a hash chain over the previous record, so a tampered or truncated ledger is detectable (the TamperCheck idea, built in). A chain alone does not catch a full rewrite with every hash recomputed, so each write also stores a keyed hash (the seal) of the newest record, made with a key at `~/.verdict/seal.key`, outside the project. A rewritten ledger, or a row added around vdt, then fails `vdt ledger verify`. A program running as the same user can still read that key; the seal raises the bar, it is not proof. A ledger made before sealing reads OK with a "not sealed yet" note, and its next write seals it. The baseline snapshot is a git tree hash plus a content hash of uncommitted files, never a copy of the code.
 
 **Record types**
 

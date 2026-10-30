@@ -80,6 +80,8 @@ fn repo() -> Repo {
     let c = git(&dir.0, &home.0, &["commit", "-q", "-m", "first"]);
     assert!(c.status.success(), "{}", out(&c));
     let mut l = Ledger::open(&dir.0).unwrap();
+    // The same home as the vdt runs, so this handle and vdt use one seal key.
+    l.set_seal_home(Some(home.0.clone()));
     let s = start_session(
         &mut l,
         &dir.0,
@@ -100,7 +102,9 @@ fn repo() -> Repo {
 
 impl Repo {
     fn ledger(&self) -> Ledger {
-        Ledger::open(&self.dir.0).unwrap()
+        let mut l = Ledger::open(&self.dir.0).unwrap();
+        l.set_seal_home(Some(self.home.0.clone()));
+        l
     }
     fn vdt(&self, args: &[&str]) -> Output {
         vdt(&self.dir.0, &self.home.0, args)
