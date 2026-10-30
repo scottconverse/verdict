@@ -137,7 +137,7 @@ jobs:
           if-no-files-found: error
   macos-package:
     name: macOS package and setup entry (headless)
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
