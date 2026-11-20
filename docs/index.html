@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Verdict: verification for AI-written code</title>
+<meta name="description" content="Verdict is an open-source tool that verifies work done by AI coding agents. The agent writes claims, never verdicts: verdicts are computed from an append-only evidence ledger.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" type="image/png" href="assets/verdict-icon.png">
+<link rel="stylesheet" href="site.css">
+<meta property="og:title" content="Verdict: verification for AI-written code">
+<meta property="og:description" content="The agent writes claims, never verdicts. An open-source verifier for AI coding agents, written in Rust.">
+<meta property="og:type" content="website">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="nav">
+  <div class="wrap">
+    <a class="brand" href="#top"><img src="assets/verdict-icon.png" alt="" width="28" height="28">Verdict</a>
+    <nav aria-label="Primary">
+      <ul>
+        <li><a href="#how">How it works</a></li>
+        <li><a href="#checks">Checks</a></li>
+        <li><a href="#human">Human gate</a></li>
+        <li><a href="#hosts">Hosts</a></li>
+        <li><a href="#install">Install</a></li>
+        <li><a href="#status">Status</a></li>
+      </ul>
+    </nav>
+    <a class="btn secondary small" href="https://github.com/scottconverse/verdict">GitHub</a>
+  </div>
+</header>
+
+<main id="main">
+<div id="top"></div>
+
+<section class="hero">
+  <div class="wrap">
+    <div>
+      <p class="eyebrow">Verification for AI-driven development</p>
+      <h1>The agent writes claims. Verdicts come from somewhere else.</h1>
+      <p class="lede">Verdict verifies work done by AI coding agents. Claims go into an append-only evidence ledger. Verdicts are computed from that ledger by things that are not the builder: deterministic checkers, a model from a different vendor, or you.</p>
+      <div class="cta">
+        <a class="btn primary" href="https://github.com/scottconverse/verdict/releases/latest">Download 1.1.0</a>
+        <a class="btn secondary" href="#how">How it works</a>
+      </div>
+      <ul class="facts" aria-label="Project facts">
+        <li>Rust</li>
+        <li>Apache-2.0</li>
+        <li>Windows, macOS, Linux</li>
+        <li>CLI: vdt</li>
+      </ul>
+    </div>
+
+    <div class="verdicts">
+      <h2>One word, computed from the ledger</h2>
+      <dl>
+        <div class="row"><dt class="tag-failed">FAILED</dt><dd>A blocking finding exists: a broken wiring path, a regression, a contradicted claim, a failed command.</dd></div>
+        <div class="row"><dt class="tag-needs">NEEDS YOU</dt><dd>Nothing proven wrong, but something is yours to settle: unplanned work, weakened tests, a check that could not run.</dd></div>
+        <div class="row"><dt class="tag-ok">VERIFIED (tier)</dt><dd>Always suffixed with the highest proof tier reached, so a static-only pass never reads as a tested one.</dd></div>
+        <div class="row"><dt class="tag-ship">CLEAR TO SHIP</dt><dd>Release lane only, with the strictest bar.</dd></div>
+        <div class="row"><dt>PARTIAL</dt><dd>A required checker or desk did not run. Never read as clean.</dd></div>
+      </dl>
+    </div>
+  </div>
+</section>
+
+<section id="problem">
+  <div class="wrap">
+    <h2 class="title">An agent that grades its own work will pass itself.</h2>
+    <p class="sub">Verdict turns "the worker is not the judge" from a request in a prompt into a property of the system.</p>
+    <div class="grid g3">
+      <div class="card">
+        <span class="num">01 / CAPTURE</span>
+        <h3>Thin adapters watch the session</h3>
+        <p>Each host adapter does three things: records the prompt, records tool calls, and holds the "done" moment. Hooks for Claude Code, Codex, Cursor and Antigravity, plus an MCP server any agent can call.</p>
+      </div>
+      <div class="card">
+        <span class="num">02 / RECORD</span>
+        <h3>Claims land in a ledger the agent cannot edit</h3>
+        <p>An agent may write claims and tool calls, nothing else. An attempt to write a finding, decision or verdict is refused and recorded as a refused write.</p>
+      </div>
+      <div class="card">
+        <span class="num">03 / JUDGE</span>
+        <h3>Verdicts come from outside the builder</h3>
+        <p>Ten deterministic checkers with no model in them, seven model-backed desks routed to a different vendor than the builder, and a human who owns the decisions that matter.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="how" class="alt">
+  <div class="wrap">
+    <h2 class="title">Five layers, one hub.</h2>
+    <p class="sub">The ledger sits in the middle. Adapters feed it. Checkers and desks read it and append findings. The policy engine computes the verdict from it.</p>
+    <div class="layers">
+      <figure>
+        <img src="architecture.png" alt="Diagram of five layers: agent adapters, evidence ledger, deterministic checkers and LLM desks, policy engine and verdict, and the human surface" width="576" height="411">
+        <figcaption>The architecture diagram from the repository's design document.</figcaption>
+      </figure>
+      <div>
+        <h3>The evidence ledger</h3>
+        <ul>
+          <li>SQLite, with a blake3 hash chain over every record.</li>
+          <li>Append only. A correction is a new record that references the old one.</li>
+          <li>Since 1.1.0 each write is also sealed with a keyed hash, using a key stored outside the project, so a rewritten ledger reads <code>BROKEN</code> under <code>vdt ledger verify</code>.</li>
+          <li>JSONL export for diffing, plus SARIF and an acceptance packet.</li>
+          <li>A finding with no evidence pointer is stored as a hypothesis and never moves the verdict.</li>
+        </ul>
+        <p>The seal raises the bar; it is not proof. A program running as the same user can still read the key.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="checks">
+  <div class="wrap">
+    <h2 class="title">Ten checkers with no model in them.</h2>
+    <p class="sub">Same inputs, same findings, every run, at no token cost. Each ships with a red fixture where it must fail and a green one where it must stay quiet.</p>
+    <div class="checkers">
+      <div><b>wiring</b><span>Follows each claim naming a URL, file or symbol through page, call, route and data change: CONNECTED, BROKEN, NOT BUILT, HALF BUILT or SKIPPED.</span></div>
+      <div><b>baseline_diff</b><span>Finds new routes, pages, tables, packages and data-changing buttons that nothing you wrote asked for.</span></div>
+      <div><b>regressions</b><span>Calls that reached a route at baseline and reach nothing now, plus a catalog of bug patterns added this session.</span></div>
+      <div><b>tests_weakened</b><span>Test files deleted or commented out, assertions removed, assertions on constants.</span></div>
+      <div><b>claims_vs_code</b><span>Checks what the agent's final message or commit message says against the tree. A contradiction blocks.</span></div>
+      <div><b>unfinished</b><span>TODO and FIXME, not-implemented bodies, sample data, skipped tests in lines added this session.</span></div>
+      <div><b>exec</b><span>Runs only the build, lint and test commands your project defines and you approved, and records the output hash.</span></div>
+      <div><b>mutation</b><span>Runs a configured mutation runner on changed logic, only where policy requires it.</span></div>
+      <div><b>firstrun</b><span>Runs your configured first-run workflow and records its artifacts.</span></div>
+      <div><b>release</b><span>Release-truth checks: tag, assets, hashes, version and manifest coherence, in-tree Markdown links.</span></div>
+    </div>
+    <p class="note">Wiring is read with tree-sitter extractors for FastAPI, SQLAlchemy and asyncpg, Alembic, Typer, Python and TypeScript MCP tools, TypeScript fetch, openapi-ts, TanStack and Kysely, Tauri, and React. A stack it cannot read is reported as unverified, never clean. The repository's CI also stubs every checker out and requires its red fixture to fail, so a fixture that proves nothing is caught.</p>
+  </div>
+</section>
+
+<section id="desks" class="alt">
+  <div class="wrap">
+    <div class="split">
+      <div class="stack">
+        <h2 class="title">Seven desks, from a different vendor.</h2>
+        <p>Where judgment is needed, Verdict dispatches rubric-driven desks: engineer, docs, qa, ux, security, legal and refuter. The rubrics ship inside the binary.</p>
+        <p>A desk runs only through a provider you name in policy. Any model, gateway or routing tool can be a provider: it reads one JSON request on stdin and writes one JSON answer on stdout. Above the cross-vendor lane, a desk is dispatched only to a provider whose vendor differs from the builder's. With none available, the run is refused and recorded.</p>
+        <p>Every finding must cite a ledger record or a current <code>file:line</code>. A citation that does not resolve makes the answer a hypothesis. A desk cannot close a finding, answer a human decision or change the policy, and each desk is capped at five findings in the report body.</p>
+      </div>
+      <div>
+        <span class="label">verdict.json (excerpt from the README)</span>
+<pre><code>"vendors": {
+  "cross_vendor_required_from_lane": "standard",
+  "single_vendor": "refuse",
+  "providers": [
+    { "name": "verifier", "vendor": "openai",
+      "command": "my-verifier", "args": [],
+      "model": "gpt-6.1-sol",
+      "timeout_secs": 300 }
+  ]
+}</code></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="human">
+  <div class="wrap">
+    <h2 class="title">The decisions that matter stay with a person.</h2>
+    <p class="sub">Verdict starts in shadow mode: it records what it would have held and holds nothing until you turn enforce on.</p>
+    <div class="grid g3">
+      <div class="card">
+        <h3>A local page, no terminal needed</h3>
+        <p><code>vdt serve</code> runs a page on localhost, port 4717 by default: sessions, reports, claims and evidence, unplanned work, the decisions queue, mode and pause, per-host install, packet and SARIF download. It works in a VS Code or Cursor panel too.</p>
+      </div>
+      <div class="card">
+        <h3>Agents cannot press the buttons</h3>
+        <p>The page answers only the browser that opened its one-time link. On the command line, human-only commands need <code>--i-am-the-human</code> and a person who types <code>yes</code>; with no terminal on standard input they refuse and change nothing.</p>
+      </div>
+      <div class="card">
+        <h3>Every way past a stop is logged</h3>
+        <p>Commit anyway needs a reason you type, is recorded, and leaves the verdict at FAILED. In enforce mode a red result sends the agent back at most twice, then releases and tells you.</p>
+      </div>
+    </div>
+    <p class="note">Verdict fails open: if an adapter crashes or cannot find the core, the agent continues, the ledger records <code>check_unavailable</code>, and that session reads unverified, never clean.</p>
+  </div>
+</section>
+
+<section id="hosts" class="alt">
+  <div class="wrap">
+    <h2 class="title">Which hosts are proven, and which are not.</h2>
+    <p class="sub">The adapters are optional and share one contract. This is the status from the repository's HOSTS document, not a compatibility promise.</p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Host</th><th>Real session recorded</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td><b>Claude Code</b></td><td><span class="pill yes">YES</span></td><td>Payload fields verified. Enforce-mode output shapes are the documented ones and are covered by tests.</td></tr>
+          <tr><td><b>Codex</b></td><td><span class="pill yes">YES</span></td><td>Recording verified for the fields used. Hooks must be trusted in Codex. Enforce output unverified against a live host.</td></tr>
+          <tr><td><b>Cursor</b></td><td><span class="pill no">NO</span></td><td>File schema from Cursor's documented hooks; payload field names not checked against a live session.</td></tr>
+          <tr><td><b>Antigravity</b></td><td><span class="pill no">NO</span></td><td>File schema from its documented hooks; payload field names unverified.</td></tr>
+          <tr><td><b>DeepSeek Harness</b></td><td><span class="pill no">NO</span></td><td>MCP server and native plugin shipped. The plugin is recording-only: no pre-edit hold and no Stop send-back.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">The MCP server (<code>vdt mcp</code>) exposes <code>verdict_check</code>, <code>verdict_scan</code>, <code>verdict_claim</code>, <code>verdict_done_when</code> and <code>verdict_decisions</code>. <code>vdt mcp-install</code> registers it for Claude Code, Cursor, Codex, DSH and Antigravity; Claude, Cursor and Codex have been exercised.</p>
+  </div>
+</section>
+
+<section id="install">
+  <div class="wrap">
+    <h2 class="title">Install it, or build it.</h2>
+    <p class="sub">Version 1.1.0 is the published release. Each download has a <code>.sha256</code> file, and the installer refuses a core whose checksum is missing or different.</p>
+    <div class="split">
+      <div class="stack">
+        <h3>From a release archive</h3>
+        <p>Windows: double-click <code>Verdict-Setup.exe</code>. macOS: double-click <code>Verdict.app</code> (unsigned, so right-click and Open the first time). Linux: double-click the AppImage.</p>
+        <p>Each opens an install wizard in your browser: choose the project and the hosts, press Install. It registers only the hosts you tick and opens the page for that project.</p>
+        <p>Windows <code>vdt.exe</code> and <code>Verdict-Setup.exe</code> are Authenticode-signed. macOS and Linux are not signed.</p>
+        <p><a class="btn primary" href="https://github.com/scottconverse/verdict/releases/latest">Go to the latest release</a></p>
+      </div>
+      <div class="stack">
+        <h3>From source</h3>
+        <p>Rust 1.97 or newer, edition 2024.</p>
+<pre><code>cargo build --workspace
+cargo test --workspace
+target/debug/vdt scan --project .</code></pre>
+        <p><code>vdt scan</code> (here <code>target/debug/vdt</code>) runs the wiring, regressions and unfinished checks over a whole tree with no plan, writes nothing, and is the first thing to run on a repo nobody has set up. Other commands include <code>vdt report</code>, <code>vdt verdict</code>, <code>vdt generate</code> and <code>vdt export --sarif</code>.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="status" class="alt">
+  <div class="wrap">
+    <h2 class="title">Status, stated plainly.</h2>
+    <p class="sub">Verdict 1.1.0 is published. These are the limits of the evidence, taken from the README.</p>
+    <ul class="status">
+      <li><b>Two hosts have live recordings.</b> Cursor, Antigravity and the DeepSeek Harness plugin are built and tested, but were not recorded against a live host.</li>
+      <li><b>Enforcement is verified on Claude Code only.</b> Other hosts' enforce-mode output shapes are unverified, though recording is not affected.</li>
+      <li><b>macOS and Linux builds are unsigned.</b> The macOS artifacts are built by CI; no local macOS build is claimed.</li>
+      <li><b>No release claims a CLEAR TO SHIP packet.</b> That needs a human command approval and a configured cross-vendor desk provider, and CI has neither. 1.0.0 shipped with a disclosed historical verification record.</li>
+      <li><b>The security policy still reads pre-alpha.</b> The repository's SECURITY.md says no version is supported yet. Report vulnerabilities through GitHub's private report on the Security tab.</li>
+    </ul>
+  </div>
+</section>
+
+<section class="finalcta">
+  <div class="wrap">
+    <h2 class="title">Run it on a repo and read the report.</h2>
+    <p class="sub">Open source under Apache-2.0. Source, issues and releases are on GitHub.</p>
+    <div class="cta">
+      <a class="btn primary" href="https://github.com/scottconverse/verdict/releases/latest">Download 1.1.0</a>
+      <a class="btn secondary" href="https://github.com/scottconverse/verdict">View the source</a>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div>Verdict is Apache-2.0. See <a href="https://github.com/scottconverse/verdict/blob/main/LICENSE">LICENSE</a> and <a href="https://github.com/scottconverse/verdict/blob/main/NOTICE">NOTICE</a>.</div>
+    <nav aria-label="Footer">
+      <ul>
+        <li><a href="https://github.com/scottconverse/verdict">Repository</a></li>
+        <li><a href="https://github.com/scottconverse/verdict/releases">Releases</a></li>
+        <li><a href="https://github.com/scottconverse/verdict/blob/main/CHANGELOG.md">Changelog</a></li>
+        <li><a href="https://github.com/scottconverse/verdict/blob/main/docs/design.md">Design</a></li>
+        <li><a href="https://github.com/scottconverse/verdict/blob/main/docs/HOSTS.md">Hosts</a></li>
+        <li><a href="https://github.com/scottconverse/verdict/blob/main/docs/RELEASE.md">Release procedure</a></li>
+        <li><a href="https://github.com/scottconverse/verdict/blob/main/SECURITY.md">Security</a></li>
+        <li><a href="https://github.com/scottconverse/verdict/issues">Issues</a></li>
+      </ul>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>
